@@ -1,51 +1,62 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
-
+﻿# ShinyMobile-skal for GroceryApp
 library(shiny)
+library(shinyMobile)
 
-# Define UI for application that draws a histogram
-ui <- fluidPage(
-
-    # Application title
-    titlePanel("Old Faithful Geyser Data"),
-
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-           plotOutput("distPlot")
+ui <- f7Page(
+  title = "GroceryApp",
+  options = list(theme = "auto"),
+  f7TabLayout(
+    navbar = f7Navbar(title = "GroceryApp"),
+    f7Tabs(
+      animated = FALSE,
+      swipeable = TRUE,
+      f7Tab(
+        tabName = "Indkøbsseddel",
+        icon = f7Icon("cart"),
+        active = TRUE,
+        f7BlockTitle(title = "Indhold kommer snart"),
+        f7Block(
+          inset = TRUE,
+          strong = TRUE,
+          "Her kan du senere bygge funktionaliteten til indkøbssedlen."
         )
+      ),
+      f7Tab(
+        tabName = "Varer",
+        icon = f7Icon("cube"),
+        f7BlockTitle(title = "Indhold kommer snart"),
+        f7Block(
+          inset = TRUE,
+          strong = TRUE,
+          "Her kan du senere arbejde med dine varer."
+        )
+      ),
+      f7Tab(
+        tabName = "Opskrifter",
+        icon = f7Icon("book"),
+        f7BlockTitle(title = "Indhold kommer snart"),
+        f7Block(
+          inset = TRUE,
+          strong = TRUE,
+          "Her kan du senere tilføje og se opskrifter."
+        )
+      ),
+      f7Tab(
+        tabName = "Inspiration",
+        icon = f7Icon("sparkles"),
+        f7BlockTitle(title = "Indhold kommer snart"),
+        f7Block(
+          inset = TRUE,
+          strong = TRUE,
+          "Her kan du senere samle idéer og inspiration."
+        )
+      )
     )
+  )
 )
 
-# Define server logic required to draw a histogram
-server <- function(input, output) {
-
-    output$distPlot <- renderPlot({
-        # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
-
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white',
-             xlab = 'Waiting time to next eruption (in mins)',
-             main = 'Histogram of waiting times')
-    })
+server <- function(input, output, session) {
+  # Logik tilføjes senere
 }
 
-# Run the application 
 shinyApp(ui = ui, server = server)
