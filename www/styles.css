@@ -1,0 +1,69 @@
+/* Label til selectInput */
+.control-label {
+  color: #b0b0b0;          /* lys grå labeltekst */
+  font-weight: normal;
+}
+
+/* Selve boksen */
+select.form-control {
+  background-color: #3d4047;  /* mørkegrå baggrund */
+  color: #ffffff;             /* hvid tekst */
+  border: none;
+  border-bottom: 1px solid #777; /* kun bundkant */
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: none;
+}
+
+/* Når dropdown er fokuseret */
+select.form-control:focus {
+  border-bottom: 1px solid #aaa;
+  background-color: #45484f;
+  outline: none;
+}
+
+
+/* Label til numericInput */
+label.control-label {
+  color: #b0b0b0;          /* lys grå labeltekst */
+  font-weight: normal;
+}
+
+/* Selve numericInput-boksen */
+input[type=number].form-control {
+  background-color: #3d4047;  /* mørkegrå baggrund */
+  color: #ffffff;             /* hvid tekst */
+  border: none;
+  border-bottom: 1px solid #777; /* kun bundkant */
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: none;
+  width: 100%;                /* fyld hele containeren */
+}
+
+/* Når feltet er i fokus */
+input[type=number].form-control:focus {
+  border-bottom: 1px solid #aaa;
+  background-color: #45484f;
+  outline: none;
+}
+
+
+/* ---- DT styling ---- */
+table.dataTable {
+  background-color: #3d4047;
+  color: #ffffff;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table.dataTable tbody td {
+  border-top: 1px solid #555;
+  color: #ffffff;
+}
+
+table.dataTable tbody tr:hover {
+  background-color: #50535a;
+}
+
+
