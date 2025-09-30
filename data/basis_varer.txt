@@ -1,4 +1,4 @@
-﻿"Indkobsliste","maengde","enhed","kat_1","kat_2"
+"Indkobsliste","maengde","enhed","kat_1","kat_2"
 "skummetmælk",1,"liter","mejeri","mælk"
 "sødmælk",1,"liter","mejeri","mælk"
 "letmælk",1,"liter","mejeri","mælk"
