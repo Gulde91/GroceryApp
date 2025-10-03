@@ -11,13 +11,15 @@ source("./funktioner.R")
 
 ui <- f7Page(
   
-  # bruges til styling af input-knapper
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
+    shiny::includeCSS("www/styles.css")
   ),
-  
+
   title = "IndkøbsApp",
-  options = list(theme = "auto"),
+  options = list(
+    theme = "auto",
+    dark = TRUE
+    ),
   f7TabLayout(
     navbar = f7Navbar(title = "IndkøbsApp"),
     f7Tabs(
@@ -31,10 +33,10 @@ ui <- f7Page(
         icon = f7Icon("cart"),
         active = FALSE,
         f7BlockTitle(title = "Din indkøbsseddel"),
-        DT::DTOutput("indkøbsseddel"),
-        f7Block(inset = TRUE, strong = TRUE,
-          f7Button("clear_list", "Ryd indkøbssedlen", color = "red", fill = TRUE)
-        )
+        DT::DTOutput("indkobsseddel"),
+        # f7Block(inset = TRUE, strong = TRUE,
+        #   f7Button("clear_list", "Ryd indkøbssedlen", color = "red", fill = TRUE)
+        # )
       ),
 
       # tilføj varer fra liste
@@ -206,16 +208,6 @@ server <- function(input, output, session) {
       
       rv_indkobsseddel_samlet$df <- indkob
 
-      # output$indkøbsseddel <- DT::renderDT({
-      #   themed_dt(
-      #     indkob,
-      #     options = list(
-      #       dom = "t",
-      #       ordering = FALSE,
-      #       pageLength = nrow(indkob)
-      #       )
-      #   )
-      # })
     }
   })
   
@@ -234,7 +226,7 @@ server <- function(input, output, session) {
   
   
   # udstiller indk
-  output$indkøbsseddel <- DT::renderDT(server = FALSE, {
+  output$indkobsseddel <- DT::renderDT(server = FALSE, {
     
     page_len <- ifelse(is.null(rv_indkobsseddel_samlet$df), 1,
                 ifelse(any(rv_indkobsseddel_samlet$df[["Indk\u00F8bsliste"]] == ""),
@@ -248,12 +240,22 @@ server <- function(input, output, session) {
               options = list(
                 dom = "B", ordering = FALSE, pageLength = page_len,
                 buttons = list(
-                  list(extend = "copy",
-                       title = NULL,
-                       exportOptions = list(columns = 0)
+                  list(
+                    extend = "copy",
+                    text   = "Kopiér",
+                    title  = NULL,
+                    attr = list( # styler knap
+                      style = paste(
+                        "background:#22c55e;"
+                        ,"color:#fff;"
+                        ,"border:1px solid #16a34a;"
+                        ,"border-radius:100px;"
+                        ,"font-weight:500;"
+                      )
+                    )
+                    
                   )
-                ),
-                # Disable sorting for the delete column
+                ), # Disable sorting for the delete column
                 columnDefs = list(
                   list(targets = 1, sortable = FALSE)
                 )

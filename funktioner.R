@@ -93,11 +93,21 @@ parse_delete_event <- function(idstr) {
 add_slet_knap <- function(i) {
   as.character(
     actionButton(
-      # The id prefix with index
       paste("delete_button", i, sep = "_"),
       label = "Slet",
-      icon = icon("calendar"),
-      onclick = 'Shiny.setInputValue(\"deletePressed\", this.id, {priority: "event"})'
+      icon = icon("trash"), # viser ikke noget ikon
+      onclick = 'Shiny.setInputValue(\"deletePressed\", this.id, {priority: "event"})',
+      style = paste(
+        "background:#ef4444;",
+        "color:#fff;", # skriftfarve
+        "border:1px solid #dc2626;",
+        "border-radius:100px;", # afrundede hjørner
+        "font-weight:600;",
+        "padding:6px 6px;", # styrer højde og bredde på knappen
+        "line-height:1;",
+        "box-shadow:none;",
+        "background-image:none;"
+      )
     )
   )
 }
@@ -290,17 +300,6 @@ themed_dt <- function(data, ...) {
     data, 
     rownames = NULL,
     ...)
-  
-  htmltools::attachDependencies(
-    w,
-    htmltools::htmlDependency(
-      name = "groceryapp-theme",
-      version = "0.0.1",
-      src = c(file = "www"),
-      stylesheet = "styles.css"
-    ),
-    append = TRUE
-  )
   
 }
 
