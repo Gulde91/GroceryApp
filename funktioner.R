@@ -294,6 +294,28 @@ nInput <- function(inputId, label, value, ...) {
   )
 }
 
+nInput <- function(inputId, label, value, ...) {
+  numericInput(
+    inputId,
+    label,
+    value,
+    width = "100%",
+    ...
+  )
+}
+
+tInput <- function(inputId, label, ...) {
+  
+  textInput(
+    inputId = "basis_varer_manuel", 
+    label = "Tilf\u00F8j varer manuelt",
+    width = "100%",
+    ...
+    )
+
+}
+
+
 themed_dt <- function(data, ...) {
   
   w <- DT::datatable(

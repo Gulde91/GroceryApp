@@ -36,15 +36,17 @@ ui <- f7Page(
       f7Tab(
         tabName = "Indkøbsseddel",
         icon = f7Icon("cart"),
-        active = FALSE,
+        active = TRUE,
         f7BlockTitle(title = "Din indkøbsseddel"),
         DT::DTOutput("indkobsseddel"),
+        br(),
+        f7Button("gem", "Gem indkøbssedlen", fill = TRUE, color = "blue")
       ),
 
       # tilføj varer fra liste
       f7Tab(
         tabName = "Varer",
-        icon = f7Icon("cube"),
+        icon = f7Icon("square_list"),
         f7BlockTitle(title = "Vælg vare, mængde og enhed"),
         f7Block(inset = TRUE, strong = TRUE,
           sInput("basis_varer", "Tilf\u00F8j varer fra liste", sort(varer$Indkobsliste)),
@@ -57,11 +59,32 @@ ui <- f7Page(
         )
       ),
 
+      # tilføjer varer manuelt
+      f7Tab(
+        tabName = "Varer_manuel",
+        icon = f7Icon("cube"),
+        f7BlockTitle(title = "Tilføj vare, mængde, enhed og kategori"),
+        f7Block(inset = TRUE, strong = TRUE,
+                tInput("basis_varer_manuel", label = "Tilf\u00F8j varer manuelt"),
+                br(),
+                nInput("antal_basis_varer_manuel", "M\u00E6ngde", value = 1),
+                br(),
+                sInput("enhed_alle_varer_manuel", "Enhed", "", "stk"),
+                br(),
+                sInput("add_kat_1", "Kategori 1", kategori_1, "konserves"),
+                br(),
+                sInput("add_kat_2", "Kategori 2", kategori_2, "konserves"),
+                br(),
+                f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill = TRUE, color = "green"),
+                br(),
+                f7Button("gem_vare", "Gem", fill = TRUE, color = "blue")
+        )
+      ),
       # tilføj varer fra opskrift
       f7Tab(
         tabName = "Opskrifter",
         icon = f7Icon("book"),
-        active = TRUE,
+        active = FALSE,
         f7BlockTitle(title = "Vælg opskrift"),
         f7Block(
           inset = TRUE, strong = TRUE,
@@ -198,6 +221,20 @@ server <- function(input, output, session) {
     }
     
   })
+  
+  # tilføj varer manuel ----
+  observe({ 
+    
+    updateSelectInput(
+      session = session,
+      inputId = "enhed_alle_varer_manuel",
+      choices = sort(setdiff(unique(varer$enhed), "")),
+      selected = varer[varer$Indkobsliste == input$basis_varer, ]$enhed
+    )
+  })
+  
+  
+  
   
   # binder hele indkøbslisten ----
   observe({

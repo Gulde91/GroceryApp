@@ -48,6 +48,30 @@ input[type=number].form-control:focus {
   outline: none;
 }
 
+/* Label til textInput */
+label.control-label {
+  color: #b0b0b0;
+  font-weight: normal;
+}
+
+/* Selve textInput-boksen */
+input[type=text].form-control {
+  background-color: #3d4047;   /* mørkegrå baggrund */
+  color: #ffffff;               /* hvid tekst */
+  border: none;
+  border-bottom: 1px solid #777;/* kun bundkant */
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: none;
+  width: 100%;                  /* fyld containeren ligesom numeric */
+}
+
+/* Fokus-tilstand (samme som numeric/select) */
+input[type=text].form-control:focus {
+  border-bottom: 1px solid #aaa;
+  background-color: #45484f;
+  outline: none;
+}
 
 /* ---- DT styling ---- */
 table.dataTable {

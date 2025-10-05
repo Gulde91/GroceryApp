@@ -624,8 +624,6 @@ links <- tibble::tribble(
 )
 
 
-
 # kategorier ----
 kategori_1 <- map_df(opskrifter, ~select(.x, kat_1))$kat_1 |> unique() |> sort()
-kategori_2 <- map_df(opskrifter, ~select(.x, kat_2))$kat_2 |> append(" ") |> unique() |> sort()
-
+kategori_2 <- map_df(opskrifter, ~select(.x, kat_2))$kat_2 |> unique() |> sort()
