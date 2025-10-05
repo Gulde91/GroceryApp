@@ -94,7 +94,7 @@ add_slet_knap <- function(i) {
   as.character(
     actionButton(
       paste("delete_button", i, sep = "_"),
-      label = "Slet",
+      label = NULL,
       icon = icon("trash"), # viser ikke noget ikon
       onclick = 'Shiny.setInputValue(\"deletePressed\", this.id, {priority: "event"})',
       style = paste(
@@ -103,7 +103,7 @@ add_slet_knap <- function(i) {
         "border:1px solid #dc2626;",
         "border-radius:100px;", # afrundede hjørner
         "font-weight:600;",
-        "padding:6px 6px;", # styrer højde og bredde på knappen
+        "padding:6px 1px;", # styrer højde og bredde på knappen
         "line-height:1;",
         "box-shadow:none;",
         "background-image:none;"
@@ -303,4 +303,40 @@ themed_dt <- function(data, ...) {
   
 }
 
-
+# Helper: lav en "Redigér"-knap pr. række til DT
+ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
+  if (is.na(n) || n <= 0) return(character())
+  vapply(
+    seq_len(n),
+    function(i) {
+      as.character(
+        actionButton(
+          inputId = paste0("edit_button_", i),
+          label   = NULL,
+          icon    = icon("pen"),
+          class   = "edit-btn btn btn-sm",
+          # send rækkenummeret direkte til Shiny (undgår data-attributter)
+          onclick = sprintf(
+            'Shiny.setInputValue("%s_editPressed", %d, {priority:"event"}); return false;',
+            table_id, i
+          ),
+          type  = "button",
+          # lille, robust inline-styling så temaer ikke overstyrer
+          style = paste(
+            "background:#0ea5e9;",
+            "color:#fff;",
+            "border:1px solid #0284c7;",
+            "border-radius:8px;",
+            "padding:6px 1px;",
+            "line-height:1;",
+            "font-weight:600;",
+            "box-shadow:none;",
+            "background-image:none;"
+          )
+        )
+      )
+    },
+    FUN.VALUE = "",
+    USE.NAMES = FALSE
+  )
+}

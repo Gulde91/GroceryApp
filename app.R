@@ -4,6 +4,8 @@ library(shinyMobile)
 library(readr)
 library(dplyr)
 library(purrr)
+library(fontawesome)
+library(shinyjs)
 
 source("./data.R")
 source("./funktioner.R")
@@ -12,7 +14,9 @@ source("./funktioner.R")
 ui <- f7Page(
   
   tags$head(
-    shiny::includeCSS("www/styles.css")
+    includeCSS("www/styles.css"),
+    fa_html_dependency(),
+    useShinyjs(),
   ),
 
   title = "IndkøbsApp",
@@ -20,6 +24,7 @@ ui <- f7Page(
     theme = "auto",
     dark = TRUE
     ),
+  
   f7TabLayout(
     navbar = f7Navbar(title = "IndkøbsApp"),
     f7Tabs(
@@ -34,9 +39,6 @@ ui <- f7Page(
         active = FALSE,
         f7BlockTitle(title = "Din indkøbsseddel"),
         DT::DTOutput("indkobsseddel"),
-        # f7Block(inset = TRUE, strong = TRUE,
-        #   f7Button("clear_list", "Ryd indkøbssedlen", color = "red", fill = TRUE)
-        # )
       ),
 
       # tilføj varer fra liste
@@ -89,8 +91,23 @@ ui <- f7Page(
           "Her kan du senere samle idéer og inspiration."
         )
       )
+    ),
+    # Custom "modal" (overlay) – skjult til at starte med
+    tags$div(
+      id = "edit-overlay",
+      tags$div(
+        id = "edit-dialog",
+        tags$h3("Redigér tekst (kolonne 1)"),
+        textInput("indkobsseddel_edit_value", label = NULL, value = "", width = "100%"),
+        tags$div(
+          id = "edit-actions",
+          actionButton("cancel_edit", "Annullér", class = "btn-flat"),
+          actionButton("confirm_edit", "Gem",      class = "btn-flat btn-save")
+        )
+      )
     )
-  )
+  ),
+  uiOutput("edit_popup_ui")
 )
 
 server <- function(input, output, session) {
@@ -211,7 +228,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # konstruerer "slet-knap" kolonne
+  # konstruerer "slet-knap" kolonne ----
   deleteCol <- reactive({
     if (!is.null(rv_indkobsseddel_samlet$df)) {
       unlist(lapply(seq_len(nrow(rv_indkobsseddel_samlet$df)), add_slet_knap))
@@ -224,8 +241,53 @@ server <- function(input, output, session) {
     rv_indkobsseddel_samlet$df <- rv_indkobsseddel_samlet$df[-rowNum,]
   })
   
+  # konstruerer "rediger-knap" ----
+  editCol <- reactive({
+    df <- rv_indkobsseddel_samlet$df
+    if (is.null(df) || nrow(df) == 0) return(character())
+    ga_make_edit_buttons(n = nrow(df), table_id = "indkobsseddel")
+  })
   
-  # udstiller indk
+  # Gemmer aktuel rækkenummer der redigeres
+  editRow <- reactiveVal(NULL)
+  
+  # Åbn overlay når der klikkes på Redigér-knap i tabellen
+  observeEvent(input$indkobsseddel_editPressed, ignoreInit = TRUE, {
+    r <- suppressWarnings(as.integer(input$indkobsseddel_editPressed))
+    req(!is.na(r))
+    
+    df <- rv_indkobsseddel_samlet$df
+    req(!is.null(df), nrow(df) >= r)
+    
+    editRow(r)
+    updateTextInput(session, "indkobsseddel_edit_value",
+                    value = df[r, 1, drop = TRUE])  # kolonne 1 = tekstkolonnen
+    
+    show(id = "edit-overlay", anim = TRUE, animType = "fade")
+  })
+  
+  # Gem ændringen og luk overlay
+  observeEvent(input$confirm_edit, {
+    r <- editRow(); req(r)
+    val <- input$indkobsseddel_edit_value
+    
+    df <- rv_indkobsseddel_samlet$df
+    req(!is.null(df), nrow(df) >= r)
+    
+    df[r, 1] <- val
+    rv_indkobsseddel_samlet$df <- df
+    
+    hide(id = "edit-overlay", anim = TRUE, animType = "fade")
+  })
+  
+  # Luk uden at gemme
+  observeEvent(input$cancel_edit, {
+    hide(id = "edit-overlay", anim = TRUE, animType = "fade")
+  })
+  
+
+
+  # udstiller indkøbsseddel ----
   output$indkobsseddel <- DT::renderDT(server = FALSE, {
     
     page_len <- ifelse(is.null(rv_indkobsseddel_samlet$df), 1,
@@ -233,10 +295,15 @@ server <- function(input, output, session) {
                        which(rv_indkobsseddel_samlet$df[["Indk\u00F8bsliste"]] == "")[1] - 1,
                        nrow(rv_indkobsseddel_samlet$df)))
     
-    themed_dt(cbind(rv_indkobsseddel_samlet$df, delete = deleteCol()),
-              colnames = NULL, extensions = "Buttons",
+    themed_dt(cbind(
+                rv_indkobsseddel_samlet$df, 
+                edit   = editCol(),
+                delete = deleteCol()
+              ),
+              colnames = NULL, 
               escape = FALSE,
               editable = TRUE,
+              extensions = "Buttons",
               options = list(
                 dom = "B", ordering = FALSE, pageLength = page_len,
                 buttons = list(
@@ -244,6 +311,7 @@ server <- function(input, output, session) {
                     extend = "copy",
                     text   = "Kopiér",
                     title  = NULL,
+                    exportOptions = list(columns = 0), # kopierer kun den 1. kolonne
                     attr = list( # styler knap
                       style = paste(
                         "background:#22c55e;"
