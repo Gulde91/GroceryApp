@@ -40,7 +40,7 @@ ui <- f7Page(
         f7BlockTitle(title = "Din indkøbsseddel"),
         DT::DTOutput("indkobsseddel"),
         br(),
-        f7Button("gem", "Gem indkøbssedlen", fill = TRUE, color = "blue")
+        f7Button("gem_indkobsseddel", "Gem indkøbssedlen", fill = TRUE, color = "blue")
       ),
 
       # tilføj varer fra liste
@@ -64,22 +64,24 @@ ui <- f7Page(
         tabName = "Varer_manuel",
         icon = f7Icon("cube"),
         f7BlockTitle(title = "Tilføj vare, mængde, enhed og kategori"),
-        f7Block(inset = TRUE, strong = TRUE,
-                tInput("basis_varer_manuel", label = "Tilf\u00F8j varer manuelt"),
-                br(),
-                nInput("antal_basis_varer_manuel", "M\u00E6ngde", value = 1),
-                br(),
-                sInput("enhed_alle_varer_manuel", "Enhed", "", "stk"),
-                br(),
-                sInput("add_kat_1", "Kategori 1", kategori_1, "konserves"),
-                br(),
-                sInput("add_kat_2", "Kategori 2", kategori_2, "konserves"),
-                br(),
-                f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill = TRUE, color = "green"),
-                br(),
-                f7Button("gem_vare", "Gem", fill = TRUE, color = "blue")
+        f7Block(
+          inset = TRUE, strong = TRUE,
+          tInput("basis_varer_manuel", label = "Tilf\u00F8j varer manuelt"),
+          br(),
+          nInput("antal_basis_varer_manuel", "M\u00E6ngde", value = 1),
+          br(),
+          sInput("enhed_basis_varer_manuel", "Enhed", "", "stk"),
+          br(),
+          sInput("add_kat_1", "Kategori 1", kategori_1, "konserves"),
+          br(),
+          sInput("add_kat_2", "Kategori 2", kategori_2, "konserves"),
+          br(),
+          f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill = TRUE, color = "green"),
+          br(),
+          f7Button("gem_vare", "Gem", fill = TRUE, color = "blue")
         )
       ),
+      
       # tilføj varer fra opskrift
       f7Tab(
         tabName = "Opskrifter",
@@ -92,7 +94,7 @@ ui <- f7Page(
           br(),
           nInput("pers", "Vælg antal personer", value = 2),
           br(),
-          sInput("salat", "Vælg salat", c("", salater$retter)),
+          sInput("salat", "Vælg salat", salater$retter),
           br(),
           # TODO virker ikke med multiple = TRUE
           sInput("tilbehor", "Vælg tilbehør", c("", tilbehor$Indkobsliste)),
@@ -115,6 +117,7 @@ ui <- f7Page(
         )
       )
     ),
+    
     # Custom "modal" (overlay) – skjult til at starte med
     tags$div(
       id = "edit-overlay",
@@ -137,11 +140,10 @@ server <- function(input, output, session) {
 
   # sætter reaktive værdier
   rv_indk_liste <- reactiveValues(df = NULL)
-  
   rv_opskrift_tmp <- reactiveValues(df = NULL)
   rv_opskrift_all <- reactiveValues(df = NULL)
-
   rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
+  rv_manuel_tilfoj <- reactiveValues(df = NULL)
   
   # Tilføj opskrift ----
   observe({
@@ -222,18 +224,53 @@ server <- function(input, output, session) {
     
   })
   
-  # tilføj varer manuel ----
+  # Tilføj varer manuel ----
   observe({ 
     
     updateSelectInput(
       session = session,
-      inputId = "enhed_alle_varer_manuel",
+      inputId = "enhed_basis_varer_manuel",
       choices = sort(setdiff(unique(varer$enhed), "")),
       selected = varer[varer$Indkobsliste == input$basis_varer, ]$enhed
     )
   })
   
+  observeEvent(input$add_varer_manuel, {
+    
+    varer_manuel_tmp <- data.frame(
+      Indkobsliste = input$basis_varer_manuel,
+      maengde = input$antal_basis_varer_manuel,
+      enhed = input$enhed_basis_varer_manuel,
+      kat_1 =  input$add_kat_1,
+      kat_2 = input$add_kat_2
+    )
+    
+    rv_indk_liste$df <- bind_rows(rv_indk_liste$df, varer_manuel_tmp)
+  })
   
+  observeEvent(input$gem_vare, {
+    
+    varer_manuel_tmp <- data.frame(
+      Indkobsliste = input$basis_varer_manuel,
+      maengde = input$antal_basis_varer_manuel,
+      enhed = input$enhed_basis_varer_manuel,
+      kat_1 =  input$add_kat_1,
+      kat_2 = input$add_kat_2
+    )
+    
+    rv_manuel_tilfoj$df <- bind_rows(rv_manuel_tilfoj$df, varer_manuel_tmp)
+    varer_custom_new <- bind_rows(varer_custom, rv_manuel_tilfoj$df)
+    
+    write.csv(
+      varer_custom_new, 
+      file = "./data/basis_varer.txt", 
+      row.names = FALSE,
+      fileEncoding = "UTF-8"
+      )
+    
+    message(input$basis_varer_manuel, " er nu gemt i basis_varer.txt")
+    
+  })
   
   
   # binder hele indkøbslisten ----
@@ -368,6 +405,16 @@ server <- function(input, output, session) {
     )
   })
   
+  
+  
+  # gemmer indkøbsseddel ----
+  observeEvent(input$gem_indkobsseddel, {
+    
+    df <- rv_indkobsseddel_samlet$df
+    path <- paste0("./data/indkobssedler/indkobsseddel_", gsub("-", "", Sys.Date()), ".rda")
+    save(df, file = path)
+    
+  })
   
 }
 
