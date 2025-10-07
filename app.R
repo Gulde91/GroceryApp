@@ -40,7 +40,9 @@ ui <- f7Page(
         f7BlockTitle(title = "Din indkøbsseddel"),
         DT::DTOutput("indkobsseddel"),
         br(),
-        f7Button("gem_indkobsseddel", "Gem indkøbssedlen", fill = TRUE, color = "blue")
+        f7Button("gem_indkobsseddel", "Gem indkøbssedlen", fill = TRUE, color = "blue"),
+        h5(strong("Forslag til manglende varer:")),
+        tableOutput("tidl_kob")
       ),
 
       # tilføj varer fra liste
@@ -413,6 +415,29 @@ server <- function(input, output, session) {
     df <- rv_indkobsseddel_samlet$df
     path <- paste0("./data/indkobssedler/indkobsseddel_", gsub("-", "", Sys.Date()), ".rda")
     save(df, file = path)
+    
+  })
+  
+  # mest populære varer ----
+  # loader tidligere indkøbssedler
+  tidl_kob <- mest_brugte_varer(c(varer$enhed, varer_custom$enhed))
+  
+  observe({
+    
+    if (!is.null(rv_indkobsseddel_samlet$df)) {
+      paa_listen <- medtag_kun_varer(rv_indkobsseddel_samlet$df)
+      paa_listen <- rens_varer(
+        paa_listen$Indkøbsliste,
+        c(varer$enhed, varer_custom$enhed)
+      )
+      
+      tidl_kob_out <- tidl_kob[!tidl_kob$Indkøbsliste %in% paa_listen, ] |> slice(1:10)
+      
+      output$tidl_kob <- renderTable(
+        tidl_kob_out,
+        colnames = FALSE
+      )
+    }
     
   })
   
