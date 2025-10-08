@@ -273,13 +273,16 @@ create_reactive_recipe <- function(day_prefix, input) {
 
 
 sInput <- function(inputId, label, choices, selected = NULL, ...) {
+  
+  use_selectize <- length(choices) > 30
+  
   selectInput(
     inputId = inputId,
     label = label,
     choices = choices,
     selected = selected,
     width = "100%",     # default bredde
-    selectize = FALSE,  # default ingen selectize
+    selectize = use_selectize,  # default ingen selectize
     ...
   )
 }
