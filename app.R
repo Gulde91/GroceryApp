@@ -16,7 +16,7 @@ ui <- f7Page(
   tags$head(
     includeCSS("www/styles.css"),
     fa_html_dependency(),
-    useShinyjs(),
+    htmltools::singleton(tags$script(src = "selectize-mobile-fix.js"))
   ),
 
   title = "IndkøbsApp",

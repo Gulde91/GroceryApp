@@ -22,6 +22,19 @@ select.form-control:focus {
   outline: none;
 }
 
+/* ------------------------------------- */
+/* Sørg for at dropdown ikke klippes og kan modtage touch/click */
+/* www/styles.css (funktionel fix – ikke kosmetik) */
+.selectize-dropdown {
+  z-index: 20000 !important;   /* over f7 overlays/toolbars */
+  pointer-events: auto;
+}
+.selectize-control {
+  pointer-events: auto;
+}
+/* ------------------------------------- */
+
+
 
 /* Label til numericInput */
 label.control-label {

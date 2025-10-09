@@ -272,17 +272,35 @@ create_reactive_recipe <- function(day_prefix, input) {
 }
 
 
-sInput <- function(inputId, label, choices, selected = NULL, ...) {
+sInput <- function(inputId, label, choices, selected = NULL,
+                   placeholder = "Vælg...", ...) {
   
-  use_selectize <- length(choices) > 30
+  if (length(choices) < 30) {
+    return(selectInput(
+      inputId  = inputId,
+      label    = label,
+      choices  = choices,
+      selected = selected,
+      width    = "100%",
+      selectize = FALSE,
+      ...
+    ))
+  }
   
-  selectInput(
-    inputId = inputId,
-    label = label,
-    choices = choices,
+  selectizeInput(
+    inputId  = inputId,
+    label    = label,
+    choices  = choices,
     selected = selected,
-    width = "100%",     # default bredde
-    selectize = use_selectize,  # default ingen selectize
+    width    = "100%",
+    options  = list(
+      openOnFocus      = TRUE,   # dropdown åbner ved fokus/tryk
+      closeAfterSelect = TRUE,   # luk efter valg (mobilvenligt)
+      highlight        = TRUE,
+      diacritics       = TRUE,
+      create           = FALSE,
+      dropdownParent   = "body"  # UNDGÅ at touch/click bliver “slugt” i f7
+    ),
     ...
   )
 }
