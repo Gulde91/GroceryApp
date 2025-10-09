@@ -22,19 +22,6 @@ select.form-control:focus {
   outline: none;
 }
 
-/* ------------------------------------- */
-/* Sørg for at dropdown ikke klippes og kan modtage touch/click */
-/* www/styles.css (funktionel fix – ikke kosmetik) */
-.selectize-dropdown {
-  z-index: 20000 !important;   /* over f7 overlays/toolbars */
-  pointer-events: auto;
-}
-.selectize-control {
-  pointer-events: auto;
-}
-/* ------------------------------------- */
-
-
 
 /* Label til numericInput */
 label.control-label {
@@ -166,3 +153,64 @@ table.dataTable tbody tr:hover {
   outline: none;
   border-color: #60a5fa;
 }
+
+
+
+/* --- Selectize dropdown: mørkt tema + sikre overrides --- */
+
+/* Sørg for at dropdown ikke klippes og kan modtage touch/click */
+/* www/styles.css (funktionel fix – ikke kosmetik) */
+.selectize-dropdown {
+  z-index: 20000 !important;   /* over f7 overlays/toolbars */
+  pointer-events: auto;
+}
+.selectize-control {
+  pointer-events: auto;
+}
+
+/* Selve dropdown-panelet */
+.selectize-dropdown,
+.selectize-dropdown .selectize-dropdown-content {
+  background-color: #3d4047 !important;  /* tving mørk baggrund */
+  border: 1px solid #777 !important;
+  border-radius: 6px !important;
+  color: #ffffff !important;             /* default tekstfarve */
+}
+
+/* Alle valgmuligheder (inkl. 'create') */
+.selectize-dropdown .option,
+.selectize-dropdown .create {
+  background: transparent !important;
+  color: #ffffff !important;             /* tving hvid tekst */
+  padding: 8px 10px;
+}
+
+/* Hover/aktiv/valgt tilstand */
+.selectize-dropdown .option.active,
+.selectize-dropdown .option.selected,
+.selectize-dropdown .option:hover {
+  background-color: #45484f !important;  /* mørk hover */
+  color: #ffffff !important;              /* hvid tekst på hover */
+}
+
+/* Feltet (øverst) for consistency */
+.selectize-control .selectize-input,
+.selectize-control .selectize-input.input-active,
+.selectize-control.single .selectize-input.dropdown-active {
+  background-color: #3d4047 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-bottom: 1px solid #777 !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+
+/* Placeholder i input inde i selectize-feltet */
+.selectize-control .selectize-input input::placeholder {
+  color: #b0b0b0 !important;
+}
+
+/* Sørg for at dropdown ikke klippes og kan modtage tap/click */
+.selectize-dropdown { z-index: 20000 !important; pointer-events: auto; }
+.selectize-control  { pointer-events: auto; }
+
