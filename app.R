@@ -16,7 +16,8 @@ ui <- f7Page(
   tags$head(
     includeCSS("www/styles.css"),
     fa_html_dependency(),
-    htmltools::singleton(tags$script(src = "selectize-mobile-fix.js"))
+    htmltools::singleton(tags$script(src = "selectize-mobile.js")),
+    htmltools::singleton(tags$script(src = "button-press.js"))
   ),
 
   title = "IndkøbsApp",

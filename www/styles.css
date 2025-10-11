@@ -214,3 +214,57 @@ table.dataTable tbody tr:hover {
 .selectize-dropdown { z-index: 20000 !important; pointer-events: auto; }
 .selectize-control  { pointer-events: auto; }
 
+
+
+/* --- Knap-feedback: tryk + ripple --- */
+.button {
+  position: relative;
+  overflow: hidden; /* så ripple klippes inde i knappen */
+  transition: transform 80ms ease, box-shadow 120ms ease, filter 120ms ease;
+  will-change: transform;
+}
+
+/* Tryk-feedback (tilføjet via :active og JS-klassen .is-pressed) */
+.button:active,
+.button.is-pressed {
+  transform: scale(0.985);
+  filter: brightness(1.07);
+  box-shadow: 0 0 0 0 rgba(0,0,0,0), 0 4px 18px rgba(0,0,0,0.35);
+}
+
+/* Ripple-elementet */
+.button .ga-ripple {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  background: rgba(255,255,255,0.35); /* lys på mørk knap */
+  width: 10px; height: 10px;
+  opacity: 0;
+  animation: ga-ripple-anim 420ms ease-out forwards;
+}
+
+/* Hvis knappen er lys (fx .color-white), brug mørkere ripple */
+.button.color-white .ga-ripple,
+.button.button-outline .ga-ripple {
+  background: rgba(0,0,0,0.25);
+}
+
+@keyframes ga-ripple-anim {
+  0%   { opacity: 0.45; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0;    transform: translate(-50%, -50%) scale(24); }
+}
+
+/* Tilgængelighed: mindre bevægelse */
+@media (prefers-reduced-motion: reduce) {
+  .button { transition: none; }
+  .button .ga-ripple { animation: none; opacity: 0.2; }
+}
+
+/* Deaktiverede knapper skal ikke animere */
+.button.disabled, .button[disabled] {
+  pointer-events: none;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
