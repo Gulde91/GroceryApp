@@ -19,6 +19,8 @@ ui <- f7Page(
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
     htmltools::singleton(tags$script(src = "button-press.js"))
   ),
+  
+  useShinyjs(),
 
   title = "IndkøbsApp",
   options = list(
