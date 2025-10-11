@@ -315,16 +315,6 @@ nInput <- function(inputId, label, value, ...) {
   )
 }
 
-nInput <- function(inputId, label, value, ...) {
-  numericInput(
-    inputId,
-    label,
-    value,
-    width = "100%",
-    ...
-  )
-}
-
 tInput <- function(inputId, label, ...) {
   
   textInput(
