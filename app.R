@@ -128,7 +128,7 @@ ui <- f7Page(
       id = "edit-overlay",
       tags$div(
         id = "edit-dialog",
-        tags$h3("Redigér tekst (kolonne 1)"),
+        tags$h3("Redigér tekst"),
         textInput("indkobsseddel_edit_value", label = NULL, value = "", width = "100%"),
         tags$div(
           id = "edit-actions",
