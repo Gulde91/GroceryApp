@@ -43,73 +43,20 @@ ui <- f7Page(
         f7BlockTitle(title = "Din indkøbsseddel"),
         DT::DTOutput("indkobsseddel"),
         br(),
+        f7Block(
+          inset = TRUE, strong = TRUE,
+          f7Button("open_opskrift", "Tilføj fra opskrift", fill = TRUE, color = "green", icon = f7Icon("book")),
+          br(),
+          f7Button("open_varer", "Tilføj fra liste", fill = TRUE, color = "green", icon = f7Icon("square_list")),
+          br(),
+          f7Button("open_manuel", "Tilføj manuelt", fill = TRUE, color = "green", icon = f7Icon("cube"))
+        ),
+        br(),
         f7Button("gem_indkobsseddel", "Gem indkøbssedlen", fill = TRUE, color = "blue"),
         h5(strong("Forslag til manglende varer:")),
-        tableOutput("tidl_kob")
+        tableOutput("tidl_kob"),
       ),
 
-      # tilføj varer fra liste
-      f7Tab(
-        tabName = "Varer",
-        icon = f7Icon("square_list"),
-        f7BlockTitle(title = "Vælg vare, mængde og enhed"),
-        f7Block(inset = TRUE, strong = TRUE,
-          sInput("basis_varer", "Tilf\u00F8j varer fra liste", sort(varer$Indkobsliste)),
-          br(),
-          nInput("antal_basis_varer", "M\u00E6ngde", value = 1),
-          br(),
-          sInput("enhed_alle_varer", "Enhed", "", "stk"),
-          br(),
-          f7Button("add_varer", "Tilføj til indkøbssedlen", fill = TRUE, color = "green")
-        )
-      ),
-
-      # tilføjer varer manuelt
-      f7Tab(
-        tabName = "Varer_manuel",
-        icon = f7Icon("cube"),
-        f7BlockTitle(title = "Tilføj vare, mængde, enhed og kategori"),
-        f7Block(
-          inset = TRUE, strong = TRUE,
-          tInput("basis_varer_manuel", label = "Tilf\u00F8j varer manuelt"),
-          br(),
-          nInput("antal_basis_varer_manuel", "M\u00E6ngde", value = 1),
-          br(),
-          sInput("enhed_basis_varer_manuel", "Enhed", "", "stk"),
-          br(),
-          sInput("add_kat_1", "Kategori 1", kategori_1, "konserves"),
-          br(),
-          sInput("add_kat_2", "Kategori 2", kategori_2, "konserves"),
-          br(),
-          f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill = TRUE, color = "green"),
-          br(),
-          f7Button("gem_vare", "Gem", fill = TRUE, color = "blue")
-        )
-      ),
-      
-      # tilføj varer fra opskrift
-      f7Tab(
-        tabName = "Opskrifter",
-        icon = f7Icon("book"),
-        active = FALSE,
-        f7BlockTitle(title = "Vælg opskrift"),
-        f7Block(
-          inset = TRUE, strong = TRUE,
-          sInput("ret", "Vælg ret", c("", retter$retter)),
-          br(),
-          nInput("pers", "Vælg antal personer", value = 2),
-          br(),
-          sInput("salat", "Vælg salat", salater$retter),
-          br(),
-          # TODO virker ikke med multiple = TRUE
-          sInput("tilbehor", "Vælg tilbehør", c("", tilbehor$Indkobsliste)),
-          br(),
-          f7Button("add_opskrift", "Tilføj til indkøbssedlen", fill = TRUE, color = "green"),
-          br()
-        ),
-        DT::DTOutput("opskrift")
-      ),
-      
       # Inspiration
       f7Tab(
         tabName = "Inspiration",
@@ -135,6 +82,63 @@ ui <- f7Page(
           actionButton("cancel_edit", "Annullér", class = "btn-flat"),
           actionButton("confirm_edit", "Gem",      class = "btn-flat btn-save")
         )
+      )
+    ),
+    
+    # POPUP: fra liste
+    tags$div(
+      id="popup_varer", class="ga-modal",
+      tags$div(class="ga-dialog",
+               tags$h3("Tilføj varer fra liste"),
+               f7Block(inset=TRUE, strong=TRUE,
+                       sInput("basis_varer", "Tilf\u00F8j varer fra liste", sort(varer$Indkobsliste)),
+                       br(), nInput("antal_basis_varer", "M\u00E6ngde", value=1),
+                       br(), sInput("enhed_alle_varer", "Enhed", "", "stk"),
+                       br(),
+                       f7Button("add_varer", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
+                       br(),
+                       f7Button("close_varer", "Luk", fill=TRUE, color="gray")
+               )
+      )
+    ),
+    
+    # POPUP: manuelt
+    tags$div(
+      id="popup_manuel", class="ga-modal",
+      tags$div(class="ga-dialog",
+               tags$h3("Tilføj vare manuelt"),
+               f7Block(inset=TRUE, strong=TRUE,
+                       tInput("basis_varer_manuel", label="Tilf\u00F8j varer manuelt"),
+                       br(), nInput("antal_basis_varer_manuel", "M\u00E6ngde", value=1),
+                       br(), sInput("enhed_basis_varer_manuel", "Enhed", "", "stk"),
+                       br(), sInput("add_kat_1", "Kategori 1", kategori_1, "konserves"),
+                       br(), sInput("add_kat_2", "Kategori 2", kategori_2, "konserves"),
+                       br(),
+                       f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
+                       br(),
+                       f7Button("gem_vare", "Gem som basisvare", fill=TRUE, color="blue"),
+                       br(),
+                       f7Button("close_manuel", "Luk", fill=TRUE, color="gray")
+               )
+      )
+    ),
+    
+    # POPUP: opskrifter
+    tags$div(
+      id="popup_opskrift", class="ga-modal",
+      tags$div(class="ga-dialog",
+               tags$h3("Tilføj fra opskrift"),
+               f7Block(inset=TRUE, strong=TRUE,
+                       sInput("ret", "Vælg ret", c("", retter$retter)),
+                       br(), nInput("pers", "Vælg antal personer", value=2),
+                       br(), sInput("salat", "Vælg salat", salater$retter),
+                       br(), sInput("tilbehor", "Vælg tilbehør", c("", tilbehor$Indkobsliste)),
+                       br(),
+                       f7Button("add_opskrift", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
+                       br(),
+                       f7Button("close_opskrift", "Luk", fill=TRUE, color="gray")
+               ),
+               DT::DTOutput("opskrift")
       )
     )
   ),
@@ -200,8 +204,13 @@ server <- function(input, output, session) {
       choices = c("", tilbehor$Indkobsliste)
     )
     
+    hide(id = "popup_opskrift", anim = TRUE, animType = "fade")
+    
   })
 
+  observeEvent(input$open_opskrift, {show(id = "popup_opskrift", anim = TRUE, animType = "fade")})
+  observeEvent(input$close_opskrift, {hide(id = "popup_opskrift", anim = TRUE, animType = "fade")})
+  
   # Tilføj varer fra liste ----
   
   # viser enhed på valgt vare
@@ -227,7 +236,12 @@ server <- function(input, output, session) {
       rv_indk_liste$df <- bind_rows(rv_indk_liste$df, varer_tmp)
     }
     
+    hide(id = "popup_varer", anim = TRUE, animType = "fade")
+    
   })
+  
+  observeEvent(input$open_varer, {show(id = "popup_varer", anim = TRUE, animType = "fade")})
+  observeEvent(input$close_varer, {hide(id = "popup_varer", anim = TRUE, animType = "fade")})
   
   # Tilføj varer manuel ----
   observe({ 
@@ -251,6 +265,8 @@ server <- function(input, output, session) {
     )
     
     rv_indk_liste$df <- bind_rows(rv_indk_liste$df, varer_manuel_tmp)
+    
+    hide(id = "popup_manuel", anim = TRUE, animType = "fade")
   })
   
   observeEvent(input$gem_vare, {
@@ -276,6 +292,9 @@ server <- function(input, output, session) {
     message(input$basis_varer_manuel, " er nu gemt i basis_varer.txt")
     
   })
+  
+  observeEvent(input$open_manuel, {show(id = "popup_manuel",   anim = TRUE, animType = "fade")})
+  observeEvent(input$close_manuel, {hide(id = "popup_manuel",   anim = TRUE, animType = "fade")})
   
   
   # binder hele indkøbslisten ----

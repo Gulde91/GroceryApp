@@ -154,6 +154,35 @@ table.dataTable tbody tr:hover {
   border-color: #60a5fa;
 }
 
+/* --- Genbrugelige modaler --- */
+.ga-modal { 
+  position: fixed; 
+  inset: 0; 
+  display: none; 
+  background: rgba(0,0,0,.5); 
+  z-index: 50000; 
+}
+.ga-dialog{
+  position: fixed; 
+  top: 50%; 
+  left: 50%; 
+  transform: translate(-50%,-50%);
+  width: min(560px, 92vw); 
+  max-height: 80vh; 
+  overflow: auto; 
+  background: #1f2937; 
+  color: #fff;
+  border-radius: 12px; 
+  padding: 16px; 
+  box-shadow: 0 10px 30px rgba(0,0,0,.4); 
+}
+.ga-actions{ 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 8px; 
+  margin-top: 12px; 
+}
+
 
 
 /* --- Selectize dropdown: mørkt tema + sikre overrides --- */
