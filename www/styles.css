@@ -1,4 +1,4 @@
-/* Label til selectInput */
+/* ---------- Label til selectInput ---------- */
 .control-label {
   color: #b0b0b0;          /* lys grå labeltekst */
   font-weight: normal;
@@ -23,13 +23,13 @@ select.form-control:focus {
 }
 
 
-/* Label til numericInput */
+/* ---------- Label til numericInput ---------- */
 label.control-label {
   color: #b0b0b0;          /* lys grå labeltekst */
   font-weight: normal;
 }
 
-/* Selve numericInput-boksen */
+/* ---------- Selve numericInput-boksen ---------- */
 input[type=number].form-control {
   background-color: #3d4047;  /* mørkegrå baggrund */
   color: #ffffff;             /* hvid tekst */
@@ -48,7 +48,7 @@ input[type=number].form-control:focus {
   outline: none;
 }
 
-/* Label til textInput */
+/* ---------- Label til textInput ---------- */
 label.control-label {
   color: #b0b0b0;
   font-weight: normal;
@@ -72,6 +72,22 @@ input[type=text].form-control:focus {
   background-color: #45484f;
   outline: none;
 }
+
+/* ------------- vandret knaprække ------------- */
+.block .ga-actions-grid{
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* overstyr 100%-bredden */
+.block .ga-actions-grid .button{
+  width: 100% !important;       /* fyld kun grid-cellen, ikke hele blokken */
+  display: inline-flex !important;
+  justify-content: center;
+  min-height: 40px;
+}
+
 
 /* ---- DT styling ---- */
 table.dataTable {
