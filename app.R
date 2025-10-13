@@ -41,18 +41,24 @@ ui <- f7Page(
         icon = f7Icon("cart"),
         active = TRUE,
         f7BlockTitle(title = "Din indkøbsseddel"),
+        f7Block(
+          inset = TRUE, strong = TRUE,
+          f7Button("open_opskrift", "Tilføj varer fra opskrift", 
+                   fill = TRUE, color = "green", icon = f7Icon("book")),
+          br(),
+          f7Button("open_varer", "Tilføj vare fra liste", 
+                   fill = TRUE, color = "green", icon = f7Icon("square_list")),
+          br(),
+          f7Button("open_manuel", "Tilføj vare manuelt", 
+                   fill = TRUE, color = "green", icon = f7Icon("hand_draw"))
+        ),
+        br(),
         DT::DTOutput("indkobsseddel"),
         br(),
         f7Block(
-          inset = TRUE, strong = TRUE,
-          f7Button("open_opskrift", "Tilføj fra opskrift", fill = TRUE, color = "green", icon = f7Icon("book")),
-          br(),
-          f7Button("open_varer", "Tilføj fra liste", fill = TRUE, color = "green", icon = f7Icon("square_list")),
-          br(),
-          f7Button("open_manuel", "Tilføj manuelt", fill = TRUE, color = "green", icon = f7Icon("cube"))
+          f7Button("gem_indkobsseddel", "Gem indkøbssedlen til database", 
+                   fill = TRUE, color = "blue"),
         ),
-        br(),
-        f7Button("gem_indkobsseddel", "Gem indkøbssedlen", fill = TRUE, color = "blue"),
         h5(strong("Forslag til manglende varer:")),
         tableOutput("tidl_kob"),
       ),
@@ -424,6 +430,9 @@ server <- function(input, output, session) {
                 ), # Disable sorting for the delete column
                 columnDefs = list(
                   list(targets = 1, sortable = FALSE)
+                ),
+                language = list(
+                  emptyTable  = "Ingen varer på indkøbslisten!"
                 )
               )
     )
