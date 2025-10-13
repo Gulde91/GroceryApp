@@ -62,7 +62,7 @@ ui <- f7Page(
         ),
         br(),
         DT::DTOutput("indkobsseddel"),
-        br(),
+        #br(),
         f7Block(
           f7Button("gem_indkobsseddel", "Gem indkøbssedlen til database", 
                    fill = TRUE, color = "blue"),
