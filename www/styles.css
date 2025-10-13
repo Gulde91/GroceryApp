@@ -85,8 +85,45 @@ input[type=text].form-control:focus {
   width: 100% !important;       /* fyld kun grid-cellen, ikke hele blokken */
   display: inline-flex !important;
   justify-content: center;
-  min-height: 40px;
+  min-height: 100px;
 }
+
+/* Stack ikon over tekst i knapperne */
+.block .ga-actions-grid .button{
+  display: inline-flex !important;     /* sikrer flex på selve knappen */
+  flex-direction: column;              /* ikon over tekst */
+  align-items: center;
+  justify-content: center;
+  gap: 6px;                            /* afstand mellem ikon og tekst */
+  min-height: 58px;                    /* ens højde ser pænt ud */
+  padding: 8px 10px;
+  text-align: center;                  /* centrer label */
+}
+
+/* F7 kan have .icon eller <i class="f7-icons"> – dæk begge */
+.block .ga-actions-grid .button .icon,
+.block .ga-actions-grid .button i.f7-icons{
+  margin: 0;                           /* fjern side-margener */
+  line-height: 1;                      /* tættere */
+  display: block;
+  font-size: 22px;                     /* justér ikonstørrelsen efter smag */
+}
+
+/* Gør label'en lidt kompakt */
+.block .ga-actions-grid .button span{
+  white-space: normal;                 /* tillad evt. linjeskift i korte ord */
+  line-height: 1.1;
+  font-size: 13px;
+}
+
+/* Hvis din F7-version bruger .button-content wrapper, så sikr column dér også */
+.block .ga-actions-grid .button .button-content{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 
 
 /* ---- DT styling ---- */
