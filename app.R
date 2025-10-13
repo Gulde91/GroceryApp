@@ -40,29 +40,20 @@ ui <- f7Page(
         tabName = "Indkøbsseddel",
         icon = f7Icon("cart"),
         active = TRUE,
-        f7BlockTitle(title = "Din indkøbsseddel"),
-        # f7Block(
-        #   inset = TRUE, strong = TRUE,
-        #   f7Button("open_opskrift", "Tilføj varer fra opskrift", 
-        #            fill = TRUE, color = "green", icon = f7Icon("book")),
-        #   br(),
-        #   f7Button("open_varer", "Tilføj vare fra liste", 
-        #            fill = TRUE, color = "green", icon = f7Icon("square_list")),
-        #   br(),
-        #   f7Button("open_manuel", "Tilføj vare manuelt", 
-        #            fill = TRUE, color = "green", icon = f7Icon("hand_draw"))
-        # ),
+        f7BlockTitle(title = "Vælg varer"),
         f7Block(
           inset = TRUE, strong = TRUE,
           tags$div(class = "ga-actions-grid",
-              f7Button("open_opskrift", "Opskrift", icon = f7Icon("book"), fill = FALSE, color = "green"),
-              f7Button("open_varer", "Liste", icon = f7Icon("square_list"), fill = FALSE, color = "green"),
-              f7Button("open_manuel", "Manuel", icon = f7Icon("hand_draw"), fill = FALSE, color = "green")
+              f7Button("open_opskrift", "Opskrift", icon = f7Icon("book"), 
+                       fill = FALSE, color = "green"),
+              f7Button("open_varer", "Liste", icon = f7Icon("square_list"), 
+                       fill = FALSE, color = "green"),
+              f7Button("open_manuel", "Manuel", icon = f7Icon("hand_draw"), 
+                       fill = FALSE, color = "green")
           )
         ),
         br(),
         DT::DTOutput("indkobsseddel"),
-        #br(),
         f7Block(
           f7Button("gem_indkobsseddel", "Gem indkøbssedlen til database", 
                    fill = TRUE, color = "blue"),
