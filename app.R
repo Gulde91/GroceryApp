@@ -55,9 +55,9 @@ ui <- f7Page(
         f7Block(
           inset = TRUE, strong = TRUE,
           tags$div(class = "ga-actions-grid",
-              f7Button("open_opskrift", icon = f7Icon("book"), fill = FALSE, color = "green"),
-              f7Button("open_varer", icon = f7Icon("square_list"), fill = FALSE, color = "green"),
-              f7Button("open_manuel", icon = f7Icon("hand_draw"), fill = FALSE, color = "green")
+              f7Button("open_opskrift", "Opskrift", icon = f7Icon("book"), fill = FALSE, color = "green"),
+              f7Button("open_varer", "Liste", icon = f7Icon("square_list"), fill = FALSE, color = "green"),
+              f7Button("open_manuel", "Manuel", icon = f7Icon("hand_draw"), fill = FALSE, color = "green")
           )
         ),
         br(),
