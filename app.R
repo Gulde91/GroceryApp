@@ -412,7 +412,7 @@ server <- function(input, output, session) {
                 buttons = list(
                   list(
                     extend = "copy",
-                    text   = "Kopiér",
+                    text   = "Kopiér indkøbslisten",
                     title  = NULL,
                     exportOptions = list(columns = 0), # kopierer kun den 1. kolonne
                     attr = list( # styler knap
