@@ -34,12 +34,11 @@ ui <- f7Page(
       id = "main_tabs",
       animated = FALSE,
       swipeable = TRUE,
-      
       # indkøbsliste
       f7Tab(
         tabName = "Indkøbsseddel",
         icon = f7Icon("cart"),
-        active = TRUE,
+        active = FALSE,
         f7BlockTitle(title = "Vælg varer"),
         f7Block(
           inset = TRUE, strong = TRUE,
@@ -61,7 +60,19 @@ ui <- f7Page(
         h5(strong("Forslag til manglende varer:")),
         tableOutput("tidl_kob"),
       ),
-
+      # Varer (bruttoliste)
+      f7Tab(
+        tabName = "Varer",
+        icon = f7Icon("square_list"),
+        active = TRUE,
+        f7BlockTitle(title = "Bruttoliste over varer"),
+        f7Block(
+          inset = TRUE,
+          strong = TRUE,
+          p("Her kan du se alle varer, der kan vælges fra. (Søg i feltet nedenfor)")
+        ),
+        DT::DTOutput("varer_tbl")
+      ),
       # Inspiration
       f7Tab(
         tabName = "Inspiration",
@@ -152,7 +163,26 @@ ui <- f7Page(
 
 server <- function(input, output, session) {
 
-  # sætter reaktive værdier
+  # Bruttoliste: vis alle varer ----
+  output$varer_tbl <- DT::renderDT({
+    
+    varer_udst <- varer_custom
+    names(varer_udst) <- c("Vare", "Mængde", "Enhed", "Kategori 1", "Kategori 2")
+    
+    DT::datatable(
+      varer_udst,
+      rownames  = FALSE,
+      escape    = TRUE,
+      options   = list(
+        dom        = "ft",     # f = filter/søg, t = tabel
+        pageLength = nrow(varer_udst),
+        ordering   = TRUE
+      )
+    )
+  })
+  
+  
+  # Sætter reaktive værdier ----
   rv_indk_liste <- reactiveValues(df = NULL)
   rv_opskrift_tmp <- reactiveValues(df = NULL)
   rv_opskrift_all <- reactiveValues(df = NULL)
