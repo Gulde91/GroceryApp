@@ -166,7 +166,7 @@ server <- function(input, output, session) {
   # Bruttoliste: vis alle varer ----
   output$varer_tbl <- DT::renderDT({
     
-    varer_udst <- varer_custom[c("vare", "Enhed")]
+    varer_udst <- varer_custom[c("Indkobsliste", "enhed")]
 
     DT::datatable(
       varer_udst,
