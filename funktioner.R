@@ -227,50 +227,6 @@ rens_varer <- function(varer, enheder) {
   varer
 }
 
-#' Create Day Inputs
-#'
-#' Opretter inputfelter for en given dag.
-#'
-#' @param day_prefix Prefix for inputfelter.
-#' @param day_name Navn på dagen.
-#' @return HTML-kode for inputfelterne.
-create_day_inputs <- function(day_prefix, day_name) {
-  tagList(
-    h4(strong(day_name)),
-    div(style = "display: inline-block;vertical-align:top; width: 200px;",
-        selectInput(paste0(day_prefix, "_ret"), "Ret",
-                    choices = c("V\u00E6lg ret", retter$retter))),
-    div(style = "display: inline-block;vertical-align:top; width: 70px;",
-        numericInput(paste0(day_prefix, "_pers"), "Pers.", value = 2)),
-    div(style = "display: inline-block;vertical-align:top; width: 135px;",
-        selectInput(paste0(day_prefix, "_salat"), "Salat",
-                    choices = c("", salater$retter))),
-    div(style = "display: inline-block;vertical-align:top; width: 135px;",
-        selectInput(paste0(day_prefix, "_tilbehor"), "Tilbeh\u00F8r",
-                    choices = tilbehor$Indkobsliste,
-                    multiple = TRUE)),
-    hr()
-  )
-}
-
-#' Create Reactive Recipe
-#'
-#' Opretter en reaktiv opskrift baseret på en dags præfiks.
-#'
-#' @param day_prefix Præfiks for dagen (f.eks. "man" for mandag).
-#' @param input Shiny input objekt.
-#' @return En reaktiv funktion, der returnerer opskriften for den valgte dag.
-create_reactive_recipe <- function(day_prefix, input) {
-  reactive(
-    opskrift(opskrifter, retter, salater, salater_opskrifter, tilbehor,
-      input[[paste0(day_prefix, "_ret")]],
-      input[[paste0(day_prefix, "_salat")]],
-      input[[paste0(day_prefix, "_pers")]],
-      input[[paste0(day_prefix, "_tilbehor")]]
-    )
-  )
-}
-
 
 sInput <- function(inputId, label, choices, selected = NULL,
                    placeholder = "Vælg...", ...) {
