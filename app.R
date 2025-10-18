@@ -163,19 +163,19 @@ ui <- f7Page(
 
 server <- function(input, output, session) {
 
-  # Bruttoliste: vis alle varer ----
+  # Bruttoliste: vis og rediger alle varer ----
   output$varer_tbl <- DT::renderDT({
     
     varer_udst <- varer_custom[c("Indkobsliste", "enhed")]
 
     DT::datatable(
       varer_udst,
-      rownames  = FALSE,
-      escape    = TRUE,
-      options   = list(
-        dom        = "ft",     # f = filter/søg, t = tabel
+      rownames = FALSE,
+      escape = TRUE,
+      options = list(
+        dom = "ft",     # f = filter/søg, t = tabel
         pageLength = nrow(varer_udst),
-        ordering   = TRUE
+        ordering = TRUE
       )
     )
   })
