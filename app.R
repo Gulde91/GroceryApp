@@ -86,13 +86,13 @@ ui <- f7Page(
       )
     ),
     
-    # Custom "modal" (overlay) – skjult til at starte med
+    # Custom "modal" (overlay) – skjult til at starte med. går igen flere steder
     tags$div(
       id = "edit-overlay",
       tags$div(
         id = "edit-dialog",
         tags$h3("Redigér tekst"),
-        textInput("indkobsseddel_edit_value", label = NULL, value = "", width = "100%"),
+        textInput("table_edit_value", label = NULL, value = "", width = "100%"),
         tags$div(
           id = "edit-actions",
           actionButton("cancel_edit", "Annullér", class = "btn-flat"),
@@ -163,23 +163,71 @@ ui <- f7Page(
 
 server <- function(input, output, session) {
 
-  # Bruttoliste: vis og rediger alle varer ----
-  output$varer_tbl <- DT::renderDT({
+  # Bruttoliste: vis, rediger og slet alle varer ----
+  
+  # Slet: træk rækkenummer ud af knap-ID når det skal slettes
+  observeEvent(input$varer_deletePressed, {
     
-    varer_udst <- varer_custom[c("Indkobsliste", "enhed")]
-
+    res <- safe_delete_by_click(
+      click_id  = input$varer_deletePressed,
+      df = rv_varer_custom(),
+      label_col = "Indkobsliste"
+    )
+    
+    # opdater reaktiv tilstand
+    rv_varer_custom(res$df)
+    
+    # persistér til fil (det er forskellen til indkøbssedlen)
+    write.csv(res$df, file = "./data/basis_varer.txt", row.names = FALSE, fileEncoding = "UTF-8")
+    
+    # valgfri notifikation
+    if (!is.null(res$label)) {
+      showNotification(sprintf('"%s" er slettet fra bruttolisten.', res$label), type = "message")
+    }
+  })
+  
+  # rediger række i bruttoliste
+  observeEvent(input$varer_editPressed, ignoreInit = TRUE, {
+    r <- suppressWarnings(as.integer(input$varer_editPressed))
+    req(!is.na(r))
+    
+    df <- rv_varer_custom()
+    req(!is.null(df), nrow(df) >= r)
+    
+    # --- WHY: Fortæl fælles "Gem", at det er VARER tabel + hvilken række ---
+    rv_editState$table <- "varer"
+    rv_editState$row <- r
+    
+    updateTextInput(session, "table_edit_value", value = df$Indkobsliste[r])
+    show(id = "edit-overlay", anim = TRUE, animType = "fade")
+  })
+  
+  # Vis bruttoliste
+  output$varer_tbl <- DT::renderDT({
+    df <- rv_varer_custom()[c("Indkobsliste", "enhed")]
+    
+    # redigér- og slet-knapper (genbruger dine helpers)
+    edit_btns <- ga_make_edit_buttons(n = nrow(df), table_id = "varer")
+    
+    delete_btns <- vapply(
+      seq_len(nrow(df)),
+      function(i) add_slet_knap(i, id_prefix = "varer_delete_button", event_name = "varer_deletePressed"),
+      FUN.VALUE = ""
+    )
+    
     DT::datatable(
-      varer_udst,
-      rownames = FALSE,
-      escape = TRUE,
+      cbind(df, rediger = edit_btns, slet = delete_btns),
+      rownames = FALSE, escape = FALSE,
       options = list(
-        dom = "ft",     # f = filter/søg, t = tabel
-        pageLength = nrow(varer_udst),
-        ordering = TRUE
+        dom = "ft", pageLength = nrow(df), ordering = TRUE,
+        columnDefs = list(
+          list(targets = ncol(df),   orderable = FALSE, searchable = FALSE), # rediger
+          list(targets = ncol(df)+1, orderable = FALSE, searchable = FALSE)  # slet
+        ),
+        language = list(search = "Søg:", zeroRecords = "Ingen match", info = "", infoEmpty = "", infoFiltered = "")
       )
     )
   })
-  
   
   # Sætter reaktive værdier ----
   rv_indk_liste <- reactiveValues(df = NULL)
@@ -187,6 +235,11 @@ server <- function(input, output, session) {
   rv_opskrift_all <- reactiveValues(df = NULL)
   rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
+  rv_varer_custom <- reactiveVal(varer_custom)
+  
+  # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
+  rv_editState <- reactiveValues(table = NULL, row = NULL)
+  
   
   # Tilføj opskrift ----
   observe({
@@ -360,7 +413,7 @@ server <- function(input, output, session) {
     }
   })
   
-  # konstruerer "slet-knap" kolonne ----
+  # konstruerer "slet-knap" kolonne til indkøbsseddel ----
   deleteCol <- reactive({
     if (!is.null(rv_indkobsseddel_samlet$df)) {
       unlist(lapply(seq_len(nrow(rv_indkobsseddel_samlet$df)), add_slet_knap))
@@ -369,11 +422,11 @@ server <- function(input, output, session) {
   
   # mulighed for at slette række
   observeEvent(input$deletePressed, {
-    rowNum <- parse_delete_event(input$deletePressed)
-    rv_indkobsseddel_samlet$df <- rv_indkobsseddel_samlet$df[-rowNum,]
+    res <- safe_delete_by_click(input$deletePressed, rv_indkobsseddel_samlet$df, label_col = 1)
+    rv_indkobsseddel_samlet$df <- res$df
   })
   
-  # konstruerer "rediger-knap" ----
+  # konstruerer "rediger-knap" til indkøbsseddel ----
   editCol <- reactive({
     df <- rv_indkobsseddel_samlet$df
     if (is.null(df) || nrow(df) == 0) return(character())
@@ -381,7 +434,7 @@ server <- function(input, output, session) {
   })
   
   # Gemmer aktuel rækkenummer der redigeres
-  editRow <- reactiveVal(NULL)
+  #editRow <- reactiveVal(NULL) # TODO ser ud til at kunne slettes
   
   # Åbn overlay når der klikkes på Redigér-knap i tabellen
   observeEvent(input$indkobsseddel_editPressed, ignoreInit = TRUE, {
@@ -391,24 +444,42 @@ server <- function(input, output, session) {
     df <- rv_indkobsseddel_samlet$df
     req(!is.null(df), nrow(df) >= r)
     
-    editRow(r)
-    updateTextInput(session, "indkobsseddel_edit_value",
-                    value = df[r, 1, drop = TRUE])  # kolonne 1 = tekstkolonnen
+    # --- WHY: Fortæl fælles "Gem", at det er INDKØBSSEDDEL + hvilken række ---
+    rv_editState$table <- "indkobsseddel"
+    rv_editState$row <- r
     
+    updateTextInput(session, "table_edit_value", value = df[r, 1, drop = TRUE])
     show(id = "edit-overlay", anim = TRUE, animType = "fade")
   })
   
   # Gem ændringen og luk overlay
   observeEvent(input$confirm_edit, {
-    r <- editRow(); req(r)
-    val <- input$indkobsseddel_edit_value
+    r   <- rv_editState$row
+    tbl <- rv_editState$table
+    req(!is.null(r), !is.null(tbl))
     
-    df <- rv_indkobsseddel_samlet$df
-    req(!is.null(df), nrow(df) >= r)
+    val <- input$table_edit_value
     
-    df[r, 1] <- val
-    rv_indkobsseddel_samlet$df <- df
+    if (tbl == "indkobsseddel") {
+      df <- rv_indkobsseddel_samlet$df
+      req(nrow(df) >= r)
+      df[r, 1] <- val
+      rv_indkobsseddel_samlet$df <- df
+      
+    } else if (tbl == "varer") {
+      df <- rv_varer_custom()
+      req(nrow(df) >= r)
+      df$Indkobsliste[r] <- val
+      rv_varer_custom(df)
+      
+      # --- WHY: Varer er vedvarende (basisliste) → skriv til fil ---
+      write.csv(df, "./data/basis_varer.txt", row.names = FALSE, fileEncoding = "UTF-8")
+      showNotification(sprintf('Varen er omdøbt til "%s".', val), type = "message")
+    }
     
+    # Ryd state og luk overlay (så næste redigering starter rent)
+    rv_editState$table <- NULL
+    rv_editState$row <- NULL
     hide(id = "edit-overlay", anim = TRUE, animType = "fade")
   })
   
@@ -416,7 +487,6 @@ server <- function(input, output, session) {
   observeEvent(input$cancel_edit, {
     hide(id = "edit-overlay", anim = TRUE, animType = "fade")
   })
-  
 
 
   # udstiller indkøbsseddel ----

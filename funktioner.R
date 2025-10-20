@@ -51,28 +51,6 @@ opskrift <- function(opskrifter, retter, salater, salater_opskrifter, tilbehor,
 
 }
 
-#' Display Opskrift
-#'
-#' Viser opskriften i en datatabel.
-#'
-#' @param ret_opskr Data frame med opskriften.
-#' @return En datatabel med opskriften.
-display_opskrift <- function(ret_opskr) {
-
-  if (!is.null(ret_opskr)) {
-    ret_opskr[[1]] <- paste(ret_opskr$maengde, ret_opskr$enhed, ret_opskr[[1]])
-    ret_opskr[[1]] <- gsub("NA", "", ret_opskr[[1]]) %>% trimws()
-    ret_opskr <- ret_opskr[, 1]
-  } else {
-    ret_opskr <- NULL
-  }
-
-  DT::datatable(ret_opskr, rownames = NULL,
-                options = list(dom = "t",
-                               ordering = FALSE,
-                               pageLength = nrow(ret_opskr)))
-}
-
 #' Parse Delete Event
 #'
 #' Ekstraherer ID fra en slet-knap event.
@@ -84,26 +62,28 @@ parse_delete_event <- function(idstr) {
   if (!is.na(res)) res
 }
 
-#' Add Slet Knap
+#' Add Slet Knap (generaliseret)
 #'
-#' Tilføjer en slet-knap til UI.
-#'
-#' @param i Indeks for knappen.
-#' @return HTML-kode for slet-knappen.
-add_slet_knap <- function(i) {
+#' @param i Rækkeindeks.
+#' @param id_prefix Prefix for inputId (default: "delete_button").
+#' @param event_name Navn på Shiny input-event (default: "deletePressed").
+#' 
+#' @return HTML for slette-knappen.
+#' 
+add_slet_knap <- function(i, id_prefix = "delete_button", event_name = "deletePressed") {
   as.character(
     actionButton(
-      paste("delete_button", i, sep = "_"),
+      paste(id_prefix, i, sep = "_"),
       label = NULL,
-      icon = icon("trash"), # viser ikke noget ikon
-      onclick = 'Shiny.setInputValue(\"deletePressed\", this.id, {priority: "event"})',
+      icon  = icon("trash"),
+      onclick = sprintf('Shiny.setInputValue("%s", this.id, {priority: "event"})', event_name),
       style = paste(
         "background:#ef4444;",
-        "color:#fff;", # skriftfarve
+        "color:#fff;",
         "border:1px solid #dc2626;",
-        "border-radius:100px;", # afrundede hjørner
+        "border-radius:100px;",
         "font-weight:600;",
-        "padding:6px 1px;", # styrer højde og bredde på knappen
+        "padding:6px 1px;",
         "line-height:1;",
         "box-shadow:none;",
         "background-image:none;"
@@ -111,6 +91,59 @@ add_slet_knap <- function(i) {
     )
   )
 }
+
+#' Slet én række fra en DT-bundet data.frame baseret på klik-id
+#'
+#' Hjælperfunktion til slette-knapper i \pkg{shiny} + \pkg{DT}.
+#' Givet et `click_id` (fra en slette-knap oprettet med fx `add_slet_knap()`),
+#' finder funktionen rækkenummeret via `parse_delete_event()`, foretager
+#' bounds-tjek og returnerer en *ny* data.frame uden den pågældende række.
+#' Den returnerer også en label fra en ønsket kolonne (fx varenavn), som kan
+#' bruges til notifikationer. Funktionens input ændres ikke in-place.
+#'
+#' @param click_id `character(1)`. ID fra den klikkede slette-knap
+#'   (typisk noget i stil med `"varer_delete_button_12"`).
+#' @param df `data.frame` eller \code{tibble}. Den aktuelle tabel, der vises i DT.
+#' @param label_col Kolonnen som returneret label skal tages fra.
+#'   Kan være kolonneindeks (heltal, default `1`) **eller**
+#'   kolonnenavn (`character`). Hvis navnet ikke findes, eller indekset
+#'   er ugyldigt, returneres `label = NULL`.
+#'
+#' @return `list` med to elementer:
+#' \itemize{
+#'   \item \code{df}: den opdaterede data.frame (samme struktur som input, men
+#'         med den slettede række fjernet; hvis sletningen ikke kunne udføres,
+#'         returneres originalen uændret).
+#'   \item \code{label}: værdi fra \code{label_col} på den slettede række
+#'         (typisk et varenavn). \code{NULL} hvis ikke tilgængelig.
+#' }
+#'
+#' @details
+#' Funktionen er “fail-safe”: Hvis \code{click_id} ikke kan parses,
+#' \code{df} er tom, eller indekset er udenfor rækkevidde, returneres
+#' den originale \code{df} uændret, og \code{label = NULL}. Det gør den
+#' robust over for hurtige dobbeltklik, race conditions og events der
+#' fyrer før tabellen er klar.
+#'
+safe_delete_by_click <- function(click_id, df, label_col = 1) {
+  idx <- parse_delete_event(click_id)
+  
+  # blød beskyttelse mod NA, out-of-bounds og tomme tabeller
+  if (is.na(idx) || is.null(df) || nrow(df) < 1 || idx < 1 || idx > nrow(df)) {
+    return(list(df = df, label = NULL))
+  }
+  
+  label <- tryCatch(
+    df[[label_col]][idx],
+    error = function(e) NULL
+  )
+  
+  df <- df[-idx, , drop = FALSE]
+  
+  list(df = df, label = label)
+}
+
+
 
 #' Add Links
 #'
@@ -294,7 +327,9 @@ themed_dt <- function(data, ...) {
 
 # Helper: lav en "Redigér"-knap pr. række til DT
 ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
+  
   if (is.na(n) || n <= 0) return(character())
+  
   vapply(
     seq_len(n),
     function(i) {
