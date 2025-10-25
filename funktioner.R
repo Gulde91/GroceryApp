@@ -307,8 +307,8 @@ nInput <- function(inputId, label, value, ...) {
 tInput <- function(inputId, label, ...) {
   
   textInput(
-    inputId = "basis_varer_manuel", 
-    label = "Tilf\u00F8j varer manuelt",
+    inputId = inputId, 
+    label = label,
     width = "100%",
     ...
     )

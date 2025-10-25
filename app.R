@@ -66,10 +66,11 @@ ui <- f7Page(
         icon = f7Icon("square_list"),
         active = TRUE,
         f7BlockTitle(title = "Bruttoliste over varer"),
+        #p("Her kan du se alle varer, der kan vælges fra. (Søg i feltet nedenfor)"),
         f7Block(
           inset = TRUE,
           strong = TRUE,
-          p("Her kan du se alle varer, der kan vælges fra. (Søg i feltet nedenfor)")
+          f7Button("open_ny_vare", "Tilføj ny vare", fill = TRUE, color = "green")
         ),
         DT::DTOutput("varer_tbl")
       ),
@@ -96,7 +97,7 @@ ui <- f7Page(
         tags$div(
           id = "edit-actions",
           actionButton("cancel_edit", "Annullér", class = "btn-flat"),
-          actionButton("confirm_edit", "Gem",      class = "btn-flat btn-save")
+          actionButton("confirm_edit", "Gem", class = "btn-flat btn-save")
         )
       )
     ),
@@ -156,6 +157,25 @@ ui <- f7Page(
                ),
                DT::DTOutput("opskrift")
       )
+    ),
+    # POPUP: ny vare til bruttoliste
+    tags$div(
+      id = "popup_ny_vare", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Tilføj ny basisvare"),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 # Brug almindelige inputs (din tInput hardcoder inputId)
+                 tInput("ny_vare_navn", "Varenavn"),
+                 sInput("ny_vare_enhed", "Enhed", sort(setdiff(unique(varer$enhed), ""))),
+                 sInput("ny_vare_kat1", "Kategori 1", sort(unique(c(kategori_1, varer$kat_1)))),
+                 sInput("ny_vare_kat2", "Kategori 2", sort(unique(c(kategori_2, varer$kat_2)))),
+                 br(),
+                 f7Button("save_ny_vare",  "Gem vare", fill = TRUE, color = "blue"),
+                 br(),
+                 f7Button("close_ny_vare", "Luk",      fill = TRUE, color = "gray")
+               )
+      )
     )
   ),
   uiOutput("edit_popup_ui")
@@ -202,9 +222,62 @@ server <- function(input, output, session) {
     show(id = "edit-overlay", anim = TRUE, animType = "fade")
   })
   
-  # Vis bruttoliste
+  ## Tilføj varer til bruttoliste
+  # Åbn/Luk popup
+  observeEvent(input$open_ny_vare,  { show(id = "popup_ny_vare",  anim = TRUE, animType = "fade") })
+  observeEvent(input$close_ny_vare, { hide(id = "popup_ny_vare",  anim = TRUE, animType = "fade") })
+  
+  # Sync enheds/kategori-valg ved åbning (trækker aktuelle værdier)
+  observeEvent(input$open_ny_vare, {
+    df_all <- rv_varer_custom()
+    enheder <- sort(unique(c(df_all$enhed, varer$enhed)))
+    updateSelectInput(session, "ny_vare_enhed", choices = enheder, selected = "stk")
+    
+    kat1 <- sort(unique(c(kategori_1, df_all$kat_1, varer$kat_1)))
+    kat2 <- sort(unique(c(kategori_2, df_all$kat_2, varer$kat_2)))
+    updateSelectInput(session, "ny_vare_kat1", choices = kat1, selected = if (length(kat1)) kat1[1] else "")
+    updateSelectInput(session, "ny_vare_kat2", choices = kat2, selected = "")
+  })
+  
+  # Gem ny vare i bruttolisten
+  observeEvent(input$save_ny_vare, {
+    navn <- trimws(input$ny_vare_navn %||% "")
+    validate(need(navn != "", "Skriv et varenavn"))
+    
+    df <- rv_varer_custom()
+    
+    # Undgå dubletter (case-insensitive trim)
+    if (tolower(navn) %in% tolower(trimws(df$Indkobsliste))) {
+      showNotification(sprintf('"%s" findes allerede på bruttolisten.', navn), type = "warning")
+      return(invisible(NULL))
+    }
+    
+    ny <- data.frame(
+      Indkobsliste = navn,
+      maengde = 1,
+      enhed = input$ny_vare_enhed %||% "",
+      kat_1 = input$ny_vare_kat1   %||% "",
+      kat_2 = input$ny_vare_kat2   %||% "",
+      stringsAsFactors = FALSE
+    )
+    
+    df_new <- dplyr::bind_rows(df, ny) |> dplyr::arrange(Indkobsliste)
+    
+    # Opdater reaktiv + gem til fil
+    rv_varer_custom(df_new)
+    write.csv(df_new, "./data/basis_varer.txt", row.names = FALSE, fileEncoding = "UTF-8")
+    
+    showNotification(sprintf('"%s" er tilføjet til bruttolisten.', navn), type = "message")
+    
+    # Ryd felter og luk
+    updateTextInput(session, "ny_vare_navn",  value = "")
+    hide(id = "popup_ny_vare", anim = TRUE, animType = "fade")
+  })
+  
+  
+  ## Vis bruttoliste
   output$varer_tbl <- DT::renderDT({
-    df <- rv_varer_custom()[c("Indkobsliste", "enhed")]
+    df <- rv_varer_custom()[c("Indkobsliste", "enhed")] |> arrange(Indkobsliste)
     
     # redigér- og slet-knapper (genbruger dine helpers)
     edit_btns <- ga_make_edit_buttons(n = nrow(df), table_id = "varer")
