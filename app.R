@@ -305,9 +305,11 @@ server <- function(input, output, session) {
           list(targets = ncol(df)+1, orderable = FALSE, searchable = FALSE)  # slet
         ),
         language = list(
-          search = "Søg:", 
+          search = "",
+          searchPlaceholder = "Søg…",
           zeroRecords = "Ingen match", 
-          info = "", infoEmpty = "", 
+          info = "", 
+          infoEmpty = "", 
           infoFiltered = ""
           )
       )
