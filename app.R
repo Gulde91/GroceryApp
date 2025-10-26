@@ -158,7 +158,7 @@ ui <- f7Page(
                DT::DTOutput("opskrift")
       )
     ),
-    # POPUP: ny vare til bruttoliste
+    # POPUP: tilføj ny vare til bruttoliste
     tags$div(
       id = "popup_ny_vare", class = "ga-modal",
       tags$div(class = "ga-dialog",
@@ -197,7 +197,7 @@ server <- function(input, output, session) {
     # opdater reaktiv tilstand
     rv_varer_custom(res$df)
     
-    # persistér til fil (det er forskellen til indkøbssedlen)
+    # gemmer
     write.csv(res$df, file = "./data/basis_varer.txt", row.names = FALSE, fileEncoding = "UTF-8")
     
     # valgfri notifikation
@@ -224,8 +224,13 @@ server <- function(input, output, session) {
   
   ## Tilføj varer til bruttoliste
   # Åbn/Luk popup
-  observeEvent(input$open_ny_vare,  { show(id = "popup_ny_vare",  anim = TRUE, animType = "fade") })
-  observeEvent(input$close_ny_vare, { hide(id = "popup_ny_vare",  anim = TRUE, animType = "fade") })
+  observeEvent(input$open_ny_vare, {
+    show(id = "popup_ny_vare",  anim = TRUE, animType = "fade")
+    })
+  
+  observeEvent(input$close_ny_vare, {
+    hide(id = "popup_ny_vare",  anim = TRUE, animType = "fade")
+    })
   
   # Sync enheds/kategori-valg ved åbning (trækker aktuelle værdier)
   observeEvent(input$open_ny_vare, {
@@ -256,12 +261,12 @@ server <- function(input, output, session) {
       Indkobsliste = navn,
       maengde = 1,
       enhed = input$ny_vare_enhed %||% "",
-      kat_1 = input$ny_vare_kat1   %||% "",
-      kat_2 = input$ny_vare_kat2   %||% "",
+      kat_1 = input$ny_vare_kat1 %||% "",
+      kat_2 = input$ny_vare_kat2 %||% "",
       stringsAsFactors = FALSE
     )
     
-    df_new <- dplyr::bind_rows(df, ny) |> dplyr::arrange(Indkobsliste)
+    df_new <- bind_rows(df, ny) |> arrange(Indkobsliste)
     
     # Opdater reaktiv + gem til fil
     rv_varer_custom(df_new)
@@ -277,8 +282,10 @@ server <- function(input, output, session) {
   
   ## Vis bruttoliste
   output$varer_tbl <- DT::renderDT({
-    df <- rv_varer_custom()[c("Indkobsliste", "enhed")] |> arrange(Indkobsliste)
     
+    df <- rv_varer_custom()[c("Indkobsliste", "enhed")] |> 
+      rename(Vare = Indkobsliste, Enhed = enhed)
+
     # redigér- og slet-knapper (genbruger dine helpers)
     edit_btns <- ga_make_edit_buttons(n = nrow(df), table_id = "varer")
     
@@ -289,7 +296,7 @@ server <- function(input, output, session) {
     )
     
     DT::datatable(
-      cbind(df, rediger = edit_btns, slet = delete_btns),
+      cbind(df, Rediger = edit_btns, Slet = delete_btns),
       rownames = FALSE, escape = FALSE,
       options = list(
         dom = "ft", pageLength = nrow(df), ordering = TRUE,
@@ -297,7 +304,12 @@ server <- function(input, output, session) {
           list(targets = ncol(df),   orderable = FALSE, searchable = FALSE), # rediger
           list(targets = ncol(df)+1, orderable = FALSE, searchable = FALSE)  # slet
         ),
-        language = list(search = "Søg:", zeroRecords = "Ingen match", info = "", infoEmpty = "", infoFiltered = "")
+        language = list(
+          search = "Søg:", 
+          zeroRecords = "Ingen match", 
+          info = "", infoEmpty = "", 
+          infoFiltered = ""
+          )
       )
     )
   })
@@ -308,7 +320,7 @@ server <- function(input, output, session) {
   rv_opskrift_all <- reactiveValues(df = NULL)
   rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
-  rv_varer_custom <- reactiveVal(varer_custom)
+  rv_varer_custom <- reactiveVal(varer_custom |> arrange(Indkobsliste)) 
   
   # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
   rv_editState <- reactiveValues(table = NULL, row = NULL)
@@ -506,9 +518,6 @@ server <- function(input, output, session) {
     ga_make_edit_buttons(n = nrow(df), table_id = "indkobsseddel")
   })
   
-  # Gemmer aktuel rækkenummer der redigeres
-  #editRow <- reactiveVal(NULL) # TODO ser ud til at kunne slettes
-  
   # Åbn overlay når der klikkes på Redigér-knap i tabellen
   observeEvent(input$indkobsseddel_editPressed, ignoreInit = TRUE, {
     r <- suppressWarnings(as.integer(input$indkobsseddel_editPressed))
@@ -543,6 +552,8 @@ server <- function(input, output, session) {
       df <- rv_varer_custom()
       req(nrow(df) >= r)
       df$Indkobsliste[r] <- val
+      
+      df <- df |> arrange(df, Indkobsliste)
       rv_varer_custom(df)
       
       # --- WHY: Varer er vedvarende (basisliste) → skriv til fil ---
