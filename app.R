@@ -38,7 +38,7 @@ ui <- f7Page(
       f7Tab(
         tabName = "Indkøbsseddel",
         icon = f7Icon("cart"),
-        active = FALSE,
+        active = TRUE,
         f7BlockTitle(title = "Vælg varer"),
         f7Block(
           inset = TRUE, strong = TRUE,
@@ -64,7 +64,7 @@ ui <- f7Page(
       f7Tab(
         tabName = "Varer",
         icon = f7Icon("square_list"),
-        active = TRUE,
+        active = FALSE,
         f7BlockTitle(title = "Bruttoliste over varer"),
         #p("Her kan du se alle varer, der kan vælges fra. (Søg i feltet nedenfor)"),
         f7Block(
