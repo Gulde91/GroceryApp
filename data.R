@@ -1,4 +1,10 @@
 
+
+message("----- GroceryApp boot -----")
+message("getwd(): ", getwd())
+message("basis_varer abs: ", normalizePath("./data/basis_varer.txt", mustWork = FALSE))
+message("basis_varer md5: ", tryCatch(tools::md5sum("./data/basis_varer.txt"), error=function(e) NA))
+
 # RETTER ----
 retter <- tibble::tribble(
   ~retter, ~key, ~type,
