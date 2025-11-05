@@ -1,10 +1,5 @@
 
 
-message("----- GroceryApp boot -----")
-message("getwd(): ", getwd())
-message("basis_varer abs: ", normalizePath("./data/basis_varer.txt", mustWork = FALSE))
-message("basis_varer md5: ", tryCatch(tools::md5sum("./data/basis_varer.txt"), error=function(e) NA))
-
 # RETTER ----
 retter <- tibble::tribble(
   ~retter, ~key, ~type,
@@ -600,13 +595,13 @@ salater_opskrifter <- list(
 )
 
 # basis varer ----
-varer_custom <- read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
-  dplyr::arrange(Indkobsliste)
+# varer_custom <- read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
+#   dplyr::arrange(Indkobsliste)
 
-varer <- c(opskrifter, salater_opskrifter) |> 
+opskrift_df <- c(opskrifter, salater_opskrifter) |> 
   lapply(function(x) {names(x)[1] <- "Indkobsliste"; return(x)}) |> 
   dplyr::bind_rows() |> 
-  dplyr::bind_rows(varer_custom) |> 
+  # dplyr::bind_rows(varer_custom) |> 
   dplyr::arrange(Indkobsliste) |> 
   dplyr::mutate(maengde = 1) |> 
   dplyr::distinct()

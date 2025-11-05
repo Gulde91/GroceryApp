@@ -108,7 +108,7 @@ ui <- f7Page(
       tags$div(class="ga-dialog",
                tags$h3("Tilføj varer fra liste"),
                f7Block(inset=TRUE, strong=TRUE,
-                       sInput("basis_varer", "Tilf\u00F8j varer fra liste", sort(varer$Indkobsliste)),
+                       selectizeInput("basis_varer", "Tilf\u00F8j varer fra liste", NULL),
                        br(), nInput("antal_basis_varer", "M\u00E6ngde", value=1),
                        br(), sInput("enhed_alle_varer", "Enhed", "", "stk"),
                        br(),
@@ -165,15 +165,14 @@ ui <- f7Page(
                tags$h3("Tilføj ny basisvare"),
                f7Block(
                  inset = TRUE, strong = TRUE,
-                 # Brug almindelige inputs (din tInput hardcoder inputId)
                  tInput("ny_vare_navn", "Varenavn"),
-                 sInput("ny_vare_enhed", "Enhed", sort(setdiff(unique(varer$enhed), ""))),
-                 sInput("ny_vare_kat1", "Kategori 1", sort(unique(c(kategori_1, varer$kat_1)))),
-                 sInput("ny_vare_kat2", "Kategori 2", sort(unique(c(kategori_2, varer$kat_2)))),
+                 sInput("ny_vare_enhed", "Enhed", choices = NULL, ""),
+                 sInput("ny_vare_kat1", "Kategori 1", choices = NULL),
+                 sInput("ny_vare_kat2", "Kategori 2", choices = NULL),
                  br(),
                  f7Button("save_ny_vare",  "Gem vare", fill = TRUE, color = "blue"),
                  br(),
-                 f7Button("close_ny_vare", "Luk",      fill = TRUE, color = "gray")
+                 f7Button("close_ny_vare", "Luk", fill = TRUE, color = "gray")
                )
       )
     )
@@ -183,6 +182,69 @@ ui <- f7Page(
 
 server <- function(input, output, session) {
 
+  # Sætter reaktive værdier ----
+  rv_indk_liste <- reactiveValues(df = NULL)
+  rv_opskrift_tmp <- reactiveValues(df = NULL)
+  rv_opskrift_all <- reactiveValues(df = NULL)
+  rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
+  rv_manuel_tilfoj <- reactiveValues(df = NULL)
+  
+  rv_varer_custom <- reactiveVal(
+    read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
+      arrange(Indkobsliste)
+    ) 
+  
+  session$onFlushed(function() {
+    rv_varer_custom(read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8"))
+  }, once = TRUE)
+  
+  
+  # laves som reactive (og ikke reactiveVal) fordi der ikke kan indgå
+  # reactive ellementer i en reactiveVal
+  rv_varer <- reactive({
+    bind_rows(opskrift_df, rv_varer_custom()) |>
+      arrange(Indkobsliste) |>
+      mutate(maengde = 1) |>
+      distinct()
+  }) 
+  
+  # Reaktive inputs ----
+  observe(
+    updateSelectizeInput(
+      session, 
+      inputId = "basis_varer", 
+      choices = sort(rv_varer()$Indkobsliste)
+      )
+  )
+  
+  observe(
+    updateSelectInput(
+      session,
+      inputId = "ny_vare_enhed",
+      choices = sort(rv_varer()$Indkobsliste)
+    )
+  )
+  
+  observe(
+    updateSelectInput(
+      session,
+      inputId = "ny_vare_kat1",
+      choices = sort(rv_varer()$Indkobsliste)
+    )
+  )
+  
+  observe(
+    updateSelectInput(
+      session,
+      inputId = "ny_vare_kat2",
+      choices = sort(rv_varer()$Indkobsliste)
+    )
+  )
+  
+  # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
+  rv_editState <- reactiveValues(table = NULL, row = NULL)
+  
+  
   # Bruttoliste: vis, rediger og slet alle varer ----
   
   # Slet: træk rækkenummer ud af knap-ID når det skal slettes
@@ -235,11 +297,11 @@ server <- function(input, output, session) {
   # Sync enheds/kategori-valg ved åbning (trækker aktuelle værdier)
   observeEvent(input$open_ny_vare, {
     df_all <- rv_varer_custom()
-    enheder <- sort(unique(c(df_all$enhed, varer$enhed)))
+    enheder <- sort(unique(c(df_all$enhed, rv_varer()$enhed)))
     updateSelectInput(session, "ny_vare_enhed", choices = enheder, selected = "stk")
     
-    kat1 <- sort(unique(c(kategori_1, df_all$kat_1, varer$kat_1)))
-    kat2 <- sort(unique(c(kategori_2, df_all$kat_2, varer$kat_2)))
+    kat1 <- sort(unique(c(kategori_1, df_all$kat_1, rv_varer()$kat_1)))
+    kat2 <- sort(unique(c(kategori_2, df_all$kat_2, rv_varer()$kat_2)))
     updateSelectInput(session, "ny_vare_kat1", choices = kat1, selected = if (length(kat1)) kat1[1] else "")
     updateSelectInput(session, "ny_vare_kat2", choices = kat2, selected = "")
   })
@@ -288,7 +350,7 @@ server <- function(input, output, session) {
 
     # redigér- og slet-knapper (genbruger dine helpers)
     edit_btns <- ga_make_edit_buttons(n = nrow(df), table_id = "varer")
-    
+     
     delete_btns <- vapply(
       seq_len(nrow(df)),
       function(i) add_slet_knap(i, id_prefix = "varer_delete_button", event_name = "varer_deletePressed"),
@@ -315,18 +377,7 @@ server <- function(input, output, session) {
       )
     )
   })
-  
-  # Sætter reaktive værdier ----
-  rv_indk_liste <- reactiveValues(df = NULL)
-  rv_opskrift_tmp <- reactiveValues(df = NULL)
-  rv_opskrift_all <- reactiveValues(df = NULL)
-  rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
-  rv_manuel_tilfoj <- reactiveValues(df = NULL)
-  rv_varer_custom <- reactiveVal(varer_custom |> arrange(Indkobsliste)) 
-  
-  # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
-  rv_editState <- reactiveValues(table = NULL, row = NULL)
-  
+
   
   # Tilføj opskrift ----
   observe({
@@ -393,8 +444,8 @@ server <- function(input, output, session) {
     updateSelectInput(
       session = session,
       inputId = "enhed_alle_varer",
-      choices = sort(setdiff(unique(varer$enhed), "")),
-      selected = varer[varer$Indkobsliste == input$basis_varer, ]$enhed
+      choices = sort(setdiff(unique(rv_varer()$enhed), "")),
+      selected = rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed
     )
   })
   
@@ -402,7 +453,7 @@ server <- function(input, output, session) {
   observeEvent(input$add_varer, {
     
     if (input$basis_varer != "V\u00E6lg vare") {
-      varer_tmp <- varer[varer$Indkobsliste == input$basis_varer, ]
+      varer_tmp <- rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]
       varer_tmp$maengde <- varer_tmp$maengde * input$antal_basis_varer
       varer_tmp$enhed <- input$enhed_alle_varer
       
@@ -423,8 +474,8 @@ server <- function(input, output, session) {
     updateSelectInput(
       session = session,
       inputId = "enhed_basis_varer_manuel",
-      choices = sort(setdiff(unique(varer$enhed), "")),
-      selected = varer[varer$Indkobsliste == input$basis_varer, ]$enhed
+      choices = sort(setdiff(unique(rv_varer()$enhed), "")),
+      selected = rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed
     )
   })
   
@@ -555,7 +606,7 @@ server <- function(input, output, session) {
       req(nrow(df) >= r)
       df$Indkobsliste[r] <- val
       
-      df <- df |> arrange(df, Indkobsliste)
+      df <- df |> arrange(Indkobsliste)
       rv_varer_custom(df)
       
       # --- WHY: Varer er vedvarende (basisliste) → skriv til fil ---
@@ -635,7 +686,10 @@ server <- function(input, output, session) {
   
   # mest populære varer ----
   # loader tidligere indkøbssedler
-  tidl_kob <- mest_brugte_varer(c(varer$enhed, varer_custom$enhed))
+  tidl_kob <- reactive({
+    mest_brugte_varer(c(rv_varer()$enhed, varer_custom$enhed))
+  })
+  
   
   observe({
     
@@ -643,10 +697,10 @@ server <- function(input, output, session) {
       paa_listen <- medtag_kun_varer(rv_indkobsseddel_samlet$df)
       paa_listen <- rens_varer(
         paa_listen$Indkøbsliste,
-        c(varer$enhed, varer_custom$enhed)
+        c(rv_varer()$enhed, varer_custom$enhed)
       )
       
-      tidl_kob_out <- tidl_kob[!tidl_kob$Indkøbsliste %in% paa_listen, ] |> slice(1:10)
+      tidl_kob_out <- tidl_kob()[!tidl_kob()$Indkøbsliste %in% paa_listen, ] |> slice(1:10)
       
       output$tidl_kob <- renderTable(
         tidl_kob_out,
