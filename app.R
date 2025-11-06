@@ -133,8 +133,8 @@ ui <- f7Page(
                        br(),
                        f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
                        br(),
-                       f7Button("gem_vare", "Gem som basisvare", fill=TRUE, color="blue"),
-                       br(),
+                       #f7Button("gem_vare", "Gem som basisvare", fill=TRUE, color="blue"),
+                       #br(),
                        f7Button("close_manuel", "Luk", fill=TRUE, color="gray")
                )
       )
@@ -194,6 +194,7 @@ server <- function(input, output, session) {
       arrange(Indkobsliste)
     ) 
   
+  # indlæser basis varer ved genload af appen
   session$onFlushed(function() {
     rv_varer_custom(read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8"))
   }, once = TRUE)
