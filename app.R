@@ -222,7 +222,7 @@ server <- function(input, output, session) {
     updateSelectInput(
       session,
       inputId = "ny_vare_enhed",
-      choices = sort(rv_varer()$Indkobsliste)
+      choices = sort(setdiff(unique(rv_varer()$enhed), ""))
     )
   )
   
@@ -230,7 +230,7 @@ server <- function(input, output, session) {
     updateSelectInput(
       session,
       inputId = "ny_vare_kat1",
-      choices = sort(rv_varer()$Indkobsliste)
+      choices = sort(setdiff(unique(rv_varer()$kat_1), ""))
     )
   )
   
@@ -238,7 +238,7 @@ server <- function(input, output, session) {
     updateSelectInput(
       session,
       inputId = "ny_vare_kat2",
-      choices = sort(rv_varer()$Indkobsliste)
+      choices = sort(setdiff(unique(rv_varer()$kat_2), ""))
     )
   )
   
@@ -506,7 +506,7 @@ server <- function(input, output, session) {
     )
     
     rv_manuel_tilfoj$df <- bind_rows(rv_manuel_tilfoj$df, varer_manuel_tmp)
-    varer_custom_new <- bind_rows(varer_custom, rv_manuel_tilfoj$df)
+    varer_custom_new <- bind_rows(rv_varer_custom(), rv_manuel_tilfoj$df)
     
     write.csv(
       varer_custom_new, 
@@ -688,7 +688,7 @@ server <- function(input, output, session) {
   # mest populære varer ----
   # loader tidligere indkøbssedler
   tidl_kob <- reactive({
-    mest_brugte_varer(c(rv_varer()$enhed, varer_custom$enhed))
+    mest_brugte_varer(c(rv_varer()$enhed, rv_varer_custom()$enhed))
   })
   
   
@@ -698,7 +698,7 @@ server <- function(input, output, session) {
       paa_listen <- medtag_kun_varer(rv_indkobsseddel_samlet$df)
       paa_listen <- rens_varer(
         paa_listen$Indkøbsliste,
-        c(rv_varer()$enhed, varer_custom$enhed)
+        c(rv_varer()$enhed, rv_varer_custom()$enhed)
       )
       
       tidl_kob_out <- tidl_kob()[!tidl_kob()$Indkøbsliste %in% paa_listen, ] |> slice(1:10)

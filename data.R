@@ -594,14 +594,10 @@ salater_opskrifter <- list(
   boenne_salat_opskr = boenne_salat_opskr
 )
 
-# basis varer ----
-# varer_custom <- read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
-#   dplyr::arrange(Indkobsliste)
-
+# opskrifter ----
 opskrift_df <- c(opskrifter, salater_opskrifter) |> 
   lapply(function(x) {names(x)[1] <- "Indkobsliste"; return(x)}) |> 
   dplyr::bind_rows() |> 
-  # dplyr::bind_rows(varer_custom) |> 
   dplyr::arrange(Indkobsliste) |> 
   dplyr::mutate(maengde = 1) |> 
   dplyr::distinct()
