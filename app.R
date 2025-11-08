@@ -192,7 +192,7 @@ server <- function(input, output, session) {
   rv_varer_custom <- reactiveVal(
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
       arrange(Indkobsliste)
-    ) 
+    )
   
   # indlæser basis varer ved genload af appen
   session$onFlushed(function() {
