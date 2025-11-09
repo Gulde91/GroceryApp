@@ -17,7 +17,8 @@ ui <- f7Page(
     includeCSS("www/styles.css"),
     fa_html_dependency(),
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
-    htmltools::singleton(tags$script(src = "button-press.js"))
+    htmltools::singleton(tags$script(src = "button-press.js")),
+    htmltools::singleton(tags$script(src = "copy-helper.js"))
   ),
   
   useShinyjs(),
@@ -52,6 +53,10 @@ ui <- f7Page(
           )
         ),
         br(),
+        f7Block(
+          inset = TRUE, strong = TRUE,
+          f7Button("copy_full", "Kopiér indkøbsliste", fill = TRUE, color = "green")
+        ),
         DT::DTOutput("indkobsseddel"),
         f7Block(
           f7Button("gem_indkobsseddel", "Gem indkøbssedlen til database", 
@@ -188,6 +193,8 @@ server <- function(input, output, session) {
   rv_opskrift_all <- reactiveValues(df = NULL)
   rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
+  rv_valgte_opskrifter <- reactiveValues(items = list())
+  
   
   rv_varer_custom <- reactiveVal(
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
@@ -410,6 +417,65 @@ server <- function(input, output, session) {
     
     rv_opskrift_all$df <- bind_rows(rv_opskrift_all$df, rv_opskrift_tmp$df)
     rv_opskrift_tmp$df <- NULL
+    
+    # tilføjer til rv_valgte_opskrifter
+    har_ret   <- !is.null(input$ret) && nzchar(input$ret)
+    har_salat <- !is.null(input$salat) && nzchar(input$salat)
+    har_tilh  <- !is.null(input$tilbehor) && nzchar(input$tilbehor)
+    
+    if (har_ret) {
+      # 1) Start med retten
+      df_ret <- get_df(ret = input$ret, pers = input$pers)
+      
+      # 2) Merge salat hvis valgt (tilbehør ignoreres når der er ret)
+      if (har_salat) {
+        df_sal <- get_df(salat = input$salat, pers = input$pers)
+        df_merged <- dplyr::bind_rows(df_ret, df_sal)
+        title <- paste0(input$ret, " m. ", input$salat)
+        link  <- get_link(input$ret) %||% get_link(input$salat)
+      } else {
+        df_merged <- df_ret
+        title <- input$ret
+        link  <- get_link(input$ret)
+      }
+      
+      rv_valgte_opskrifter$items <- c(
+        rv_valgte_opskrifter$items,
+        list(list(
+          title = title,
+          pers  = input$pers,
+          df    = df_merged,
+          link  = link
+        ))
+      )
+      
+    } else {
+      # Ingen ret valgt → vi kan stadig gemme salat/tilbehør separat (som før)
+      if (har_salat) {
+        df_sal <- get_df(salat = input$salat, pers = input$pers)
+        rv_valgte_opskrifter$items <- c(
+          rv_valgte_opskrifter$items,
+          list(list(
+            title = paste0("Salat: ", input$salat),
+            pers  = input$pers,
+            df    = df_sal,
+            link  = get_link(input$salat)
+          ))
+        )
+      }
+      if (har_tilh) {
+        df_til <- get_df(tilbeh = input$tilbehor, pers = input$pers)
+        rv_valgte_opskrifter$items <- c(
+          rv_valgte_opskrifter$items,
+          list(list(
+            title = paste0("Tilbehør: ", input$tilbehor),
+            pers  = input$pers,
+            df    = df_til,
+            link  = NA_character_
+          ))
+        )
+      }
+    }
     
     # nulstiller inputfelter
     updateSelectInput(
@@ -643,27 +709,8 @@ server <- function(input, output, session) {
               colnames = NULL, 
               escape = FALSE,
               editable = TRUE,
-              extensions = "Buttons",
               options = list(
                 dom = "B", ordering = FALSE, pageLength = page_len,
-                buttons = list(
-                  list(
-                    extend = "copy",
-                    text   = "Kopiér indkøbslisten",
-                    title  = NULL,
-                    exportOptions = list(columns = 0), # kopierer kun den 1. kolonne
-                    attr = list( # styler knap
-                      style = paste(
-                        "background:#22c55e;"
-                        ,"color:#fff;"
-                        ,"border:1px solid #16a34a;"
-                        ,"border-radius:100px;"
-                        ,"font-weight:500;"
-                      )
-                    )
-                    
-                  )
-                ), # Disable sorting for the delete column
                 columnDefs = list(
                   list(targets = 1, sortable = FALSE)
                 ),
@@ -676,6 +723,47 @@ server <- function(input, output, session) {
   
   
   
+  
+  # konstruerer kopier-knap ----
+  observeEvent(input$copy_full, {
+    txt <- build_copy_text()
+    session$sendCustomMessage("copy_text", txt)
+  })
+  
+  build_copy_text <- reactive({
+    # 1) Samlet indkøbsliste (som i dag)
+    samlet <- rv_indkobsseddel_samlet$df
+
+    samlet_linjer <- character()
+    if (!is.null(samlet) && nrow(samlet) > 0) {
+      v <- samlet[[1]]
+      samlet_linjer <- v[nzchar(v)]
+    }
+    
+    # 2) Udrulning pr. (ret [+ salat]) / (salat alene) / (tilbehør alene)
+    sections <- character()
+    if (length(rv_valgte_opskrifter$items) > 0) {
+      sections <- c(sections, "────────────────────────────────", "", "Opskrifter")
+      for (it in rv_valgte_opskrifter$items) {
+        sections <- c(sections, "", sprintf("%s (til %s pers.)", it$title, it$pers))
+        if (!is.null(it$df) && nrow(it$df) > 0) {
+          lines <- apply(it$df, 1, function(r) {
+            m <- r[["maengde"]]; e <- r[["enhed"]]; n <- r[["Indkobsliste"]]
+            if (!is.na(m) && nzchar(as.character(m))) {
+              paste0(m, if (nzchar(e)) paste0(" ", e) else "", " ", n)
+            } else paste0(n)
+          })
+          sections <- c(sections, lines)
+        }
+        if (!is.null(it$link) && nzchar(it$link)) {
+          sections <- c(sections, paste0("Link: ", it$link))
+        }
+      }
+    }
+    
+    paste(c("Indkøbsliste", samlet_linjer, "", sections), collapse = "\n")
+  })
+
   # gemmer indkøbsseddel ----
   observeEvent(input$gem_indkobsseddel, {
     
