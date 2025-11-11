@@ -366,13 +366,12 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
 }
 
 
-# --- helpers ---
 get_link <- function(navn) {
   L <- links$link[links$ret == navn]
   if (length(L) == 1) return(L)
   NULL
 }
-# genbrug din eksisterende opskrift()-funktion til at hente df for ret/salat
+
 get_df <- function(ret = "", salat = "", pers = 2, tilbeh = "") {
   out <- opskrift(
     opskrifter, retter, salater, salater_opskrifter, tilbehor,
