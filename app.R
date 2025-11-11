@@ -467,65 +467,6 @@ server <- function(input, output, session) {
       }
     }
     
-    # tilføjer til rv_valgte_opskrifter
-    har_ret   <- !is.null(input$ret) && nzchar(input$ret)
-    har_salat <- !is.null(input$salat) && nzchar(input$salat)
-    har_tilh  <- !is.null(input$tilbehor) && nzchar(input$tilbehor)
-    
-    if (har_ret) {
-      # 1) Start med retten
-      df_ret <- get_df(ret = input$ret, pers = input$pers)
-      
-      # 2) Merge salat hvis valgt (tilbehør ignoreres når der er ret)
-      if (har_salat) {
-        df_sal <- get_df(salat = input$salat, pers = input$pers)
-        df_merged <- dplyr::bind_rows(df_ret, df_sal)
-        title <- paste0(input$ret, " m. ", input$salat)
-        link  <- get_link(input$ret) %||% get_link(input$salat)
-      } else {
-        df_merged <- df_ret
-        title <- input$ret
-        link  <- get_link(input$ret)
-      }
-      
-      rv_valgte_opskrifter$items <- c(
-        rv_valgte_opskrifter$items,
-        list(list(
-          title = title,
-          pers  = input$pers,
-          df    = df_merged,
-          link  = link
-        ))
-      )
-      
-    } else {
-      # Ingen ret valgt → vi kan stadig gemme salat/tilbehør separat (som før)
-      if (har_salat) {
-        df_sal <- get_df(salat = input$salat, pers = input$pers)
-        rv_valgte_opskrifter$items <- c(
-          rv_valgte_opskrifter$items,
-          list(list(
-            title = paste0("Salat: ", input$salat),
-            pers  = input$pers,
-            df    = df_sal,
-            link  = get_link(input$salat)
-          ))
-        )
-      }
-      if (har_tilh) {
-        df_til <- get_df(tilbeh = input$tilbehor, pers = input$pers)
-        rv_valgte_opskrifter$items <- c(
-          rv_valgte_opskrifter$items,
-          list(list(
-            title = paste0("Tilbehør: ", input$tilbehor),
-            pers  = input$pers,
-            df    = df_til,
-            link  = NA_character_
-          ))
-        )
-      }
-    }
-    
     # nulstiller inputfelter
     updateSelectInput(
       session = session,
@@ -684,7 +625,7 @@ server <- function(input, output, session) {
     
     secs <- character()
     if (!is.null(rv_valgte_opskrifter) && length(rv_valgte_opskrifter$items) > 0) {
-      secs <- c(secs, "────────────────────────────────")
+      secs <- c(secs, "─────────────")
       for (it in rv_valgte_opskrifter$items) {
         secs <- c(secs, "", sprintf("%s (til %s pers.)", it$title, it$pers))
         if (!is.null(it$df) && nrow(it$df) > 0) {
