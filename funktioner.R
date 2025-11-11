@@ -364,3 +364,22 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
     USE.NAMES = FALSE
   )
 }
+
+
+# --- helpers ---
+get_link <- function(navn) {
+  L <- links$link[links$ret == navn]
+  if (length(L) == 1) return(L)
+  NULL
+}
+# genbrug din eksisterende opskrift()-funktion til at hente df for ret/salat
+get_df <- function(ret = "", salat = "", pers = 2, tilbeh = "") {
+  out <- opskrift(
+    opskrifter, retter, salater, salater_opskrifter, tilbehor,
+    dag_ret = ret, dag_salat = salat, antal = pers, dag_tilbehor = tilbeh
+  )
+  if (!is.null(out)) {
+    colnames(out) <- c("Indkobsliste","maengde","enhed","kat_1","kat_2")
+  }
+  out
+}

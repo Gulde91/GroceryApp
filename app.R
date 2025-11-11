@@ -188,6 +188,7 @@ server <- function(input, output, session) {
   rv_opskrift_all <- reactiveValues(df = NULL)
   rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
+  rv_valgte_opskrifter <- reactiveValues(items = list())
   
   rv_varer_custom <- reactiveVal(
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
@@ -410,6 +411,60 @@ server <- function(input, output, session) {
     
     rv_opskrift_all$df <- bind_rows(rv_opskrift_all$df, rv_opskrift_tmp$df)
     rv_opskrift_tmp$df <- NULL
+
+    # byg rv_valgte_opskrifter (ret + evt. salat; ignorér tilbehør hvis der er ret)
+    har_ret <- !is.null(input$ret) && nzchar(input$ret)
+    har_salat <- !is.null(input$salat) && nzchar(input$salat)
+    har_tilh <- !is.null(input$tilbehor) && nzchar(input$tilbehor)
+    
+    if (har_ret) {
+      df_ret <- get_df(ret = input$ret, pers = input$pers)
+      if (har_salat) {
+        df_sal <- get_df(salat = input$salat, pers = input$pers)
+        df_merged <- dplyr::bind_rows(df_ret, df_sal)
+        title <- paste0(input$ret, " m. ", input$salat)
+        link  <- get_link(input$ret) %||% get_link(input$salat)
+      } else {
+        df_merged <- df_ret
+        title <- input$ret
+        link  <- get_link(input$ret)
+      }
+      rv_valgte_opskrifter$items <- c(
+        rv_valgte_opskrifter$items,
+        list(list(
+          title = title,
+          pers  = input$pers,
+          df    = df_merged,
+          link  = link
+        ))
+      )
+    } else {
+      # Ingen ret valgt → salat/tilbehør må gerne stå alene
+      if (har_salat) {
+        df_sal <- get_df(salat = input$salat, pers = input$pers)
+        rv_valgte_opskrifter$items <- c(
+          rv_valgte_opskrifter$items,
+          list(list(
+            title = paste0("Salat: ", input$salat),
+            pers  = input$pers,
+            df    = df_sal,
+            link  = get_link(input$salat)
+          ))
+        )
+      }
+      if (har_tilh) {
+        df_til <- get_df(tilbeh = input$tilbehor, pers = input$pers)
+        rv_valgte_opskrifter$items <- c(
+          rv_valgte_opskrifter$items,
+          list(list(
+            title = paste0("Tilbehør: ", input$tilbehor),
+            pers  = input$pers,
+            df    = df_til,
+            link  = NA_character_
+          ))
+        )
+      }
+    }
     
     # nulstiller inputfelter
     updateSelectInput(
@@ -524,6 +579,7 @@ server <- function(input, output, session) {
   
   
   # binder hele indkøbslisten ----
+  # sætter indkøbslisten
   observe({
   
     if (!is.null(rv_indk_liste$df) | !is.null(rv_opskrift_all$df)) {
@@ -552,6 +608,49 @@ server <- function(input, output, session) {
     }
   })
   
+  # tilføjer opskrift + link 
+  combined_lines <- reactive({
+    # Synlige linjer = kun indkøbsvarer (før evt. tom-separator)
+    vis_df <- rv_indkobsseddel_samlet$df
+    vis <- character()
+    
+    if (!is.null(vis_df) && nrow(vis_df) > 0) {
+      v <- vis_df[[1]]
+      v <- v[nzchar(v)]
+      vis <- v
+    }
+    
+    n_visible <- length(vis)
+    
+    secs <- character()
+    if (!is.null(rv_valgte_opskrifter) && length(rv_valgte_opskrifter$items) > 0) {
+      secs <- c(secs, "────────────────────────────────")
+      for (it in rv_valgte_opskrifter$items) {
+        secs <- c(secs, "", sprintf("%s (til %s pers.)", it$title, it$pers))
+        if (!is.null(it$df) && nrow(it$df) > 0) {
+          ing <- apply(it$df, 1, function(r){
+            m <- r[["maengde"]]
+            e <- r[["enhed"]]
+            n <- r[["Indkobsliste"]]
+            if (!is.na(m) && nzchar(as.character(m))) {
+              paste0(m, if (nzchar(e)) paste0(" ", e) else "", " ", n)
+            } else n
+          })
+          secs <- c(secs, ing)
+        }
+        if (!is.null(it$link) && nzchar(it$link)) {
+          secs <- c(secs, paste0("Link: ", it$link))
+        }
+      }
+    }
+    
+    list(
+      visible = vis, # det, der vises
+      hidden = secs, # kun til copy
+      n_visible = n_visible
+    )
+  })
+
   # konstruerer "slet-knap" kolonne til indkøbsseddel ----
   deleteCol <- reactive({
     if (!is.null(rv_indkobsseddel_samlet$df)) {
@@ -630,47 +729,67 @@ server <- function(input, output, session) {
   # udstiller indkøbsseddel ----
   output$indkobsseddel <- DT::renderDT(server = FALSE, {
     
-    page_len <- ifelse(is.null(rv_indkobsseddel_samlet$df), 1,
-                ifelse(any(rv_indkobsseddel_samlet$df[["Indk\u00F8bsliste"]] == ""),
-                       which(rv_indkobsseddel_samlet$df[["Indk\u00F8bsliste"]] == "")[1] - 1,
-                       nrow(rv_indkobsseddel_samlet$df)))
+    payload <- combined_lines()
+    lines_visible <- payload$visible
+    lines_hidden  <- payload$hidden
+    n_visible     <- payload$n_visible
     
-    themed_dt(cbind(
-                rv_indkobsseddel_samlet$df, 
-                edit   = editCol(),
-                delete = deleteCol()
-              ),
-              colnames = NULL, 
-              escape = FALSE,
-              editable = TRUE,
-              extensions = "Buttons",
-              options = list(
-                dom = "B", ordering = FALSE, pageLength = page_len,
-                buttons = list(
-                  list(
-                    extend = "copy",
-                    text   = "Kopiér indkøbslisten",
-                    title  = NULL,
-                    exportOptions = list(columns = 0), # kopierer kun den 1. kolonne
-                    attr = list( # styler knap
-                      style = paste(
-                        "background:#22c55e;"
-                        ,"color:#fff;"
-                        ,"border:1px solid #16a34a;"
-                        ,"border-radius:100px;"
-                        ,"font-weight:500;"
-                      )
-                    )
-                    
-                  )
-                ), # Disable sorting for the delete column
-                columnDefs = list(
-                  list(targets = 1, sortable = FALSE)
-                ),
-                language = list(
-                  emptyTable  = "Ingen varer på indkøbslisten!"
-                )
-              )
+    # Vis KUN varer i tabellen, hvis der ikke er nogen varer → vis tom tabel.
+    if (n_visible == 0) {
+      df_tbl <- data.frame(`Indkøbsliste` = character())
+      edit_col <- delete_col <- character()
+      page_len <- 1L
+    } else {
+      # læg de skjulte linjer bagpå, så copy kan tage dem via "page=all"
+      all_lines <- c(lines_visible, lines_hidden)
+      df_tbl <- data.frame(`Indkøbsliste` = all_lines, check.names = FALSE)
+      
+      # Knapper kun på de synlige (vare) rækker
+      edit_btn <- ga_make_edit_buttons(n_visible, table_id = "indkobsseddel")
+      del_btn  <- vapply(seq_len(n_visible), function(i) add_slet_knap(i), "")
+      edit_col   <- c(edit_btn, rep("", length(all_lines) - n_visible))
+      delete_col <- c(del_btn,  rep("", length(all_lines) - n_visible))
+      page_len <- n_visible
+    }
+    
+    DT::datatable(
+      cbind(df_tbl, edit = edit_col, delete = delete_col),
+      rownames = FALSE,
+      colnames = NULL,
+      escape   = c(1),
+      extensions = "Buttons",
+      options = list(
+        paging = TRUE,
+        pageLength = max(1, page_len),
+        lengthChange = FALSE,
+        info = FALSE,
+        ordering = FALSE,
+        searching = FALSE,
+        dom = "Bft",
+        buttons = list(
+          list(
+            extend = "copy",
+            text   = "Kopiér indkøbslisten",
+            title  = NULL,
+            exportOptions = list(
+              columns  = 0,
+              modifier = list(page = "all")  # kopier alle rækker (inkl. opskrifter)
+            ),
+            attr = list(style = paste(
+              "background:#22c55e;",
+              "color:#fff;",
+              "border:1px solid #16a34a;",
+              "border-radius:100px;",
+              "font-weight:500;"
+            ))
+          )
+        ),
+        columnDefs = list(
+          list(targets = 1, orderable = FALSE, searchable = FALSE),
+          list(targets = 2, orderable = FALSE, searchable = FALSE)
+        ),
+        language = list(emptyTable = "Ingen varer på indkøbslisten!")
+      )
     )
   })
   
