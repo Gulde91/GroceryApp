@@ -14,6 +14,7 @@
 "fryseposer4L",1,"stk","husholdning",""
 "fryseposer8L",1,"stk","husholdning",""
 "gitterfritter",1,"pakke(r)","frost",""
+"gær",1,"gram","køl",""
 "havreris",1,"kg","konserves",""
 "hindbærsyltetøj",1,"stk","konserves",""
 "husholdningsfilm",1,"stk","husholdning",""
