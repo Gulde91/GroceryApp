@@ -27,7 +27,8 @@ ui <- f7Page(
   title = "IndkøbsApp",
   options = list(
     theme = "auto",
-    dark = TRUE
+    dark = TRUE,
+    preloader = TRUE
     ),
   
   f7TabLayout(
