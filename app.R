@@ -18,7 +18,8 @@ ui <- f7Page(
     fa_html_dependency(),
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
     htmltools::singleton(tags$script(src = "button-press.js")),
-    htmltools::singleton(tags$script(src = "copy-helper.js"))
+    htmltools::singleton(tags$script(src = "copy-helper.js")),
+    htmltools::singleton(tags$script(src = "DT-copy-feedback.js"))
   ),
   
   useShinyjs(),
@@ -782,7 +783,8 @@ server <- function(input, output, session) {
               "border:1px solid #16a34a;",
               "border-radius:100px;",
               "font-weight:500;"
-            ))
+            )),
+            action = DT::JS("copyWithFeedback")
           )
         ),
         columnDefs = list(
