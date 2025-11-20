@@ -26,7 +26,7 @@ window.copyWithFeedback = function (e, dt, node, config) {
     toast = document.createElement("div");
     toast.id = "copy-toast";
     toast.className = "copy-toast";
-    toast.innerText = "Indkøbslisten er kopieret✔";
+    toast.innerText = "Indkøbsliste kopieret ✔";
     document.body.appendChild(toast);
   }
 
