@@ -356,7 +356,7 @@ kalkunschnitzel_opskr <- tibble::tribble(
 risengrod_opskr <- tibble::tribble(
   ~"Risengr\u00F8d", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "gr\u00F8dris", 90, "gram", "konserves", "",
-  "skummetm\u00E6lk", 0.33, "liter", "mejeri", "m\u00E6lk",
+  "skummetm\u00E6lk", 0.5, "liter", "mejeri", "m\u00E6lk",
   "sukker", 25, "gram", "konserves", "",
   "kanel (tilsmagning)", NA, "", "konserves", "krydderi",
   "hvidt\u00F8l", 0.25, "liter", "konserves", ""
@@ -618,7 +618,8 @@ links <- tibble::tribble(
   "Kartoffel-porre suppe", "https://madensverden.dk/kartoffel-porre-suppe/",
   "Kylling kiev", "https://www.hellofresh.dk/recipes/chicken-kiev-5efed5bde9cd8816990b92d6",
   "Kyllingespyd", "https://martinys.dk/grill-kyllingespyd-med-barbeque-marinade/",
-  "Frikadeller", "https://www.dropbox.com/scl/fi/kq7ejsqpcoo83r9q1pgoh/Frikadeller.txt?rlkey=44yccp720l6k7r8qkcbtpbwf9&dl=0"
+  "Frikadeller", "https://www.dropbox.com/scl/fi/kq7ejsqpcoo83r9q1pgoh/Frikadeller.txt?rlkey=44yccp720l6k7r8qkcbtpbwf9&dl=0",
+  "Risengr\u00F8d", "https://www.arla.dk/opskrifter/risengrod-med-kanelsukker-og-smorklat/"
 )
 
 
