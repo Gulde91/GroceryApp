@@ -6,6 +6,8 @@ library(dplyr)
 library(purrr)
 library(fontawesome)
 library(shinyjs)
+library(forcats)
+library(ggplot2)
 
 source("./data.R")
 source("./funktioner.R")
@@ -86,6 +88,16 @@ ui <- f7Page(
           inset = TRUE,
           strong = TRUE,
           "Her kan du senere samle idéer og inspiration."
+        ),
+        f7Block(inset = TRUE, strong = TRUE,
+                f7Slider(
+                  inputId = "top_n",
+                  label = "Vælg antal top opskrifter:",
+                  min = 1,
+                  max = 10,
+                  value = 5
+                ),
+                plotOutput("opskrifter_statistik_plot")
         )
       )
     ),
@@ -832,6 +844,13 @@ server <- function(input, output, session) {
     
   })
   
+  # statistik over brugte opskrifter ----
+  opskrifter_statistik <- brugte_opskrifter(retter$retter)
+  
+  output$opskrifter_statistik_plot <- renderPlot({
+    plot_brugte_opskrifter(opskrifter_statistik, top_n = input$top_n)
+  })
+
 }
 
 shinyApp(ui = ui, server = server)

@@ -365,7 +365,6 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
   )
 }
 
-
 get_link <- function(navn) {
   L <- links$link[links$ret == navn]
   if (length(L) == 1) return(L)
@@ -381,4 +380,96 @@ get_df <- function(ret = "", salat = "", pers = 2, tilbeh = "") {
     colnames(out) <- c("Indkobsliste","maengde","enhed","kat_1","kat_2")
   }
   out
+}
+
+
+#' @title Udtræk af brugte opskrifter fra indkøbssedler
+#'
+#' @description Funktionen gennemgår alle filer i mappen `./data/indkobssedler/`,
+#' udtrækker retter via `find_retter()` og returnerer et datasæt med én række 
+#' per registreret ret samt tilhørende dato udledt af filnavnet.
+#' Filnavnene forventes at følge mønsteret:
+#' `"indkobsseddel_YYYYMMDD.rdaX"`, hvor X kan være et eller flere cifre.
+#' 
+#' @param alle_retter Alle retter der findes i løsningen
+#' 
+#' @return En data.frame med to kolonner: \code{retter} og \code{dato}.
+#' 
+brugte_opskrifter <- function(alle_retter) {
+  
+  files <- list.files("./data/indkobssedler/")
+  
+  retter_count <- sapply(files,function(x) find_retter(x, alle_retter)) |> unlist() |> sort()
+  
+  retter_count_df <- data.frame(retter = retter_count)
+  retter_count_df$dato <- 
+    sub("indkobsseddel_([0-9]+)\\.rda\\d*", "\\1", row.names(retter_count_df)) |> 
+    as.Date(format = "%Y%m%d")
+  row.names(retter_count_df) <- NULL
+  
+  retter_count_df
+  
+}
+
+#' @title Udtræk af retter fra en indkøbsseddel-fil
+#'
+#' @description Funktionen indlæser en `.rda`-fil fra mappen `./data/indkobssedler/`, 
+#' finder retter baseret på et starts-with match mod listen `retter$retter`, og 
+#' renser teksten for uønskede tegn og tilføjelser.
+#'
+#' @param x Filnavn (streng) på en indkøbsseddel, som skal behandles.
+#'          Filen skal ligge i mappen `./data/indkobssedler/`.
+#' @param alle_retter Alle retter der findes i løsningen
+#'          
+#' @return En vektor af strenge, som repræsenterer de fundne og rensede retter.
+#'          
+find_retter <- function(x, alle_retter) {
+  
+  load(paste0("./data/indkobssedler/", x))
+  
+  pattern <- paste0("^(", paste(alle_retter, collapse = "|"), ")")
+  resultat <- df$Indkøbsliste[grepl(pattern, df$Indkøbsliste)]
+  resultat <- gsub(":", "", resultat)
+  renset <- sub(" m\\..*$", "", resultat)
+  
+  renset
+  
+}
+
+#' @title Plot af brugte opskrifter
+#'
+#' @description Funktionen filtrerer et datasæt af brugte opskrifter på 
+#' baggrund af en startdato og plotter derefter hyppigheden af retter i 
+#' faldende rækkefølge. 
+#' 
+#' @param df En data.frame som indeholder variablerne:
+#'   \describe{
+#'     \item{retter}{Navn på retten (streng eller faktor)}
+#'     \item{dato}{Dato for hvornår retten indgik (klasse: Date)}
+#'   }
+#' @param dato_filter En tegnstreng eller Date-værdi der angiver den tidligste
+#'   dato der skal medtages i plottet. Default er `"2024-01-01"`.
+#' @param top_n integer med de n mest benyttede retter der skal vises
+#'   
+#' @return Et ggplot2‐objekt med et søjlediagram.
+#' 
+plot_brugte_opskrifter <- function(df, dato_filter = "2024-01-01", top_n = 5) {
+  
+  df_plot <- subset(df, dato >= dato_filter)
+  
+  top_n_brugte <- df_plot |>
+    count(retter) |> 
+    arrange(desc(n)) |> 
+    slice_head(n = top_n) |>
+    pull(retter)
+    
+  df_plot <- subset(df_plot, retter %in% top_n_brugte)
+  
+  ggplot(df_plot, aes(x = fct_infreq(retter))) +
+    geom_bar() + 
+    labs(x = "Antal", y = "Retter") +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+  
 }

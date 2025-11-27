@@ -36,9 +36,6 @@ retter <- tibble::tribble(
   "grillet medister", "grillet_medister_opsk", "gris"
   ) %>% arrange(retter)
 
-retter$count <- 1
-
-
 # gnocchi med kylling og chorizo ----
 gnocchi_med_kylling_og_chorizo_opskr <- tibble::tribble(
   ~"Gnocchi med kylling og chorizo", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
