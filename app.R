@@ -8,6 +8,7 @@ library(fontawesome)
 library(shinyjs)
 library(forcats)
 library(ggplot2)
+library(lubridate)
 
 source("./data.R")
 source("./funktioner.R")
@@ -97,6 +98,23 @@ ui <- f7Page(
                   max = 10,
                   value = 5
                 ),
+                
+                f7DatePicker(
+                  inputId = "date_from",
+                  label = "Fra dato",
+                  minDate = as.Date("2023-07-20"),
+                  value = today() %m-% years(1),
+                  type = "date"
+                ),
+                
+                f7DatePicker(
+                  inputId = "date_to",
+                  label = "Til dato",
+                  maxDate = today(),
+                  value = today(),
+                  type = "date"
+                ),
+                
                 plotOutput("opskrifter_statistik_plot")
         )
       )
@@ -848,7 +866,12 @@ server <- function(input, output, session) {
   opskrifter_statistik <- brugte_opskrifter(retter$retter)
   
   output$opskrifter_statistik_plot <- renderPlot({
-    plot_brugte_opskrifter(opskrifter_statistik, top_n = input$top_n)
+    plot_brugte_opskrifter(
+      opskrifter_statistik,  
+      dato_start = input$date_from,
+      dato_slut = input$date_to,
+      top_n = input$top_n
+      )
   })
 
 }

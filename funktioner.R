@@ -449,14 +449,35 @@ find_retter <- function(x, alle_retter) {
 #'   }
 #' @param dato_filter En tegnstreng eller Date-værdi der angiver den tidligste
 #'   dato der skal medtages i plottet. Default er `"2024-01-01"`.
+#' @param dato_start Startdato for hvornår brugte opskrifter skal med i plottet
+#' @param dato_slut Slutdato for hvornår brugte opskrifter skal med i plottet
 #' @param top_n integer med de n mest benyttede retter der skal vises
 #'   
 #' @return Et ggplot2‐objekt med et søjlediagram.
 #' 
-plot_brugte_opskrifter <- function(df, dato_filter = "2024-01-01", top_n = 5) {
+plot_brugte_opskrifter <- function(df, dato_start, dato_slut, top_n = 5) {
   
-  df_plot <- subset(df, dato >= dato_filter)
+  if (nrow(df) == 0) {
+    return(
+      ggplot() +
+        geom_blank() +
+        labs(title = "Ingen data i valgt interval")
+    )
+  }
   
+  # filtrér på datointerval
+  df_plot <- df |> 
+    subset(dato >= as.Date(dato_start) & dato <= as.Date(dato_slut))
+  
+  if (nrow(df_plot) == 0) {
+    return(
+      ggplot() +
+        geom_blank() +
+        labs(title = "Ingen data i dette datointerval")
+    )
+  } 
+ 
+  # find top_n retter i dette interval
   top_n_brugte <- df_plot |>
     count(retter) |> 
     arrange(desc(n)) |> 
