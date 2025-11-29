@@ -16,6 +16,7 @@ source("./funktioner.R")
 
 ui <- f7Page(
   
+  # opsætning ----
   tags$head(
     includeCSS("www/styles.css"),
     fa_html_dependency(),
@@ -40,7 +41,7 @@ ui <- f7Page(
       id = "main_tabs",
       animated = FALSE,
       swipeable = TRUE,
-      # indkøbsliste
+      # Indkøbsliste ----
       f7Tab(
         tabName = "Indkøbsseddel",
         icon = f7Icon("cart"),
@@ -66,7 +67,7 @@ ui <- f7Page(
         h5(strong("Forslag til manglende varer:")),
         tableOutput("tidl_kob"),
       ),
-      # Varer (bruttoliste)
+      # Varer (bruttoliste) ----
       f7Tab(
         tabName = "Varer",
         icon = f7Icon("square_list"),
@@ -80,7 +81,7 @@ ui <- f7Page(
         ),
         DT::DTOutput("varer_tbl")
       ),
-      # Inspiration
+      # Inspiration----
       f7Tab(
         tabName = "Inspiration",
         icon = f7Icon("sparkles"),
@@ -90,36 +91,28 @@ ui <- f7Page(
           strong = TRUE,
           "Her kan du senere samle idéer og inspiration."
         ),
-        f7Block(inset = TRUE, strong = TRUE,
-                f7Slider(
-                  inputId = "top_n",
-                  label = "Vælg antal top opskrifter:",
-                  min = 1,
-                  max = 10,
-                  value = 5
-                ),
-                
-                f7DatePicker(
-                  inputId = "date_from",
-                  label = "Fra dato",
-                  minDate = as.Date("2023-07-20"),
-                  value = today() %m-% years(1),
-                  type = "date"
-                ),
-                
-                f7DatePicker(
-                  inputId = "date_to",
-                  label = "Til dato",
-                  maxDate = today(),
-                  value = today(),
-                  type = "date"
-                ),
-                
-                plotOutput("opskrifter_statistik_plot")
+        f7Block(
+          inset = TRUE,
+          strong = TRUE,
+          # Knap som åbner filter-sheet (Framework7 styret)
+          tags$a(
+            class = "sheet-open",
+            `data-sheet` = "#plot_filters_sheet",
+            f7Button(
+              inputId = "open_filters",
+              label = "Filtre",
+              icon = f7Icon("slider_horizontal_3"),
+              fill = TRUE,
+              color = "blue"
+            )
+          ),
+          br(),
+          plotOutput("opskrifter_statistik_plot")
         )
       )
     ),
     
+    # Modals ----
     # Custom "modal" (overlay) – skjult til at starte med. går igen flere steder
     tags$div(
       id = "edit-overlay",
@@ -209,7 +202,53 @@ ui <- f7Page(
                )
       )
     )
+    
   ),
+  
+  # --- NYT: Sheet til filtre for plottet ---
+  f7Sheet(
+    id = "plot_filters_sheet",
+    label = "Filtre for statistik",
+    orientation = "bottom",
+    swipeToClose = TRUE,
+    backdrop = TRUE,
+    f7Block(
+      strong = TRUE,
+      
+      f7Slider(
+        inputId = "top_n",
+        label = "Antal top-opskrifter",
+        min = 1,
+        max = 10,
+        value = 5
+      ),
+      
+      f7DatePicker(
+        inputId = "date_from",
+        label = "Fra dato",
+        value = as.Date("2024-01-01"),
+        type = "date"
+      ),
+      
+      f7DatePicker(
+        inputId = "date_to",
+        label = "Til dato",
+        value = Sys.Date(),
+        type = "date"
+      ),
+      
+      tags$a(
+        class = "sheet-close",
+        f7Button(
+          inputId = "close_filters",
+          label = "Luk",
+          fill = TRUE,
+          color = "gray"
+        )
+      )
+    )
+  ),
+  
   uiOutput("edit_popup_ui")
 )
 
