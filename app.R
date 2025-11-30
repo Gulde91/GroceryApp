@@ -89,9 +89,7 @@ ui <- f7Page(
           strong = TRUE,
           "Her kan du senere samle idéer og inspiration."
         ),
-        f7Block(
-          inset = TRUE,
-          strong = TRUE,
+        f7Block(inset = TRUE, strong = TRUE,
           # Knap som åbner filter-sheet (Framework7 styret)
           tags$a(
             class = "sheet-open",
