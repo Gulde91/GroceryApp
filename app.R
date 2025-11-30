@@ -212,37 +212,14 @@ ui <- f7Page(
     backdrop = TRUE,
     f7Block(
       strong = TRUE,
-      
-      f7Slider(
-        inputId = "top_n",
-        label = "Antal top-opskrifter",
-        min = 1,
-        max = 20,
-        value = 10
-      ),
-      
-      f7DatePicker(
-        inputId = "date_from",
-        label = "Fra dato",
-        value = lubridate::`%m-%`(Sys.Date(), lubridate::years(1)),
-        type = "date"
-      ),
-      
-      f7DatePicker(
-        inputId = "date_to",
-        label = "Til dato",
-        value = Sys.Date(),
-        type = "date"
-      ),
+      f7Slider("top_n", "Antal top-opskrifter", 1, 20, 10),
+      f7DatePicker("date_from", "Fra dato", type = "date",
+        value = lubridate::`%m-%`(Sys.Date(), lubridate::years(1))),
+      f7DatePicker("date_to", "Til dato", Sys.Date(), type = "date"),
       
       tags$a(
         class = "sheet-close",
-        f7Button(
-          inputId = "close_filters",
-          label = "Luk",
-          fill = TRUE,
-          color = "gray"
-        )
+        f7Button("close_filters", "Luk", fill = TRUE, color = "gray")
       )
     )
   ),
