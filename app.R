@@ -6,7 +6,6 @@ library(dplyr)
 library(purrr)
 library(fontawesome)
 library(shinyjs)
-library(forcats)
 library(ggplot2)
 
 source("./data.R")
