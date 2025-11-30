@@ -498,11 +498,8 @@ plot_brugte_opskrifter <- function(df, dato_start, dato_slut, top_n = 5) {
     labs(x = "Antal", y = "Retter", title = "Mest brugte opskrifter") +
     theme_minimal(base_size = 16) +
     theme(
-      #plot.background = element_rect(fill = "#1c1c1e", color = NA),
-      #panel.background = element_rect(fill = "#1c1c1e", color = NA),
-      panel.background = element_rect(fill = "#2C2C2E", color = NA),
-      plot.background = element_rect(fill = "#2C2C2E", color = NA),
-      plot.margin = margin(10, 10, 10, 10),
+      plot.background = element_rect(fill = "#1c1c1e", color = NA),
+      panel.background = element_rect(fill = "#1c1c1e", color = NA),
       axis.text = element_text(color = "white"),
       axis.title = element_text(color = "white"),
       plot.title = element_text(color = "white", face = "bold", size = 18),
