@@ -204,7 +204,7 @@ ui <- f7Page(
     
   ),
   
-  # --- NYT: Sheet til filtre for plottet ---
+  # Sheet til filtre for plot med mest brugte opskrifter ----
   f7Sheet(
     id = "plot_filters_sheet",
     label = "Filtre for statistik",
@@ -218,8 +218,8 @@ ui <- f7Page(
         inputId = "top_n",
         label = "Antal top-opskrifter",
         min = 1,
-        max = 10,
-        value = 5
+        max = 20,
+        value = 10
       ),
       
       f7DatePicker(

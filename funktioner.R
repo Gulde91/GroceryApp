@@ -486,11 +486,27 @@ plot_brugte_opskrifter <- function(df, dato_start, dato_slut, top_n = 5) {
     
   df_plot <- subset(df_plot, retter %in% top_n_brugte)
   
+  # ggplot(df_plot, aes(x = fct_infreq(retter))) +
+  #   geom_bar() + 
+  #   labs(x = "Antal", y = "Retter", title = "Mest brugte opskrifter") +
+  #   theme(
+  #     axis.text.x = element_text(angle = 45, hjust = 1)
+  #   )
+  
   ggplot(df_plot, aes(x = fct_infreq(retter))) +
-    geom_bar() + 
-    labs(x = "Antal", y = "Retter") +
+    geom_bar(fill = "#8EB5FF") +
+    labs(x = "Antal", y = "Retter", title = "Mest brugte opskrifter") +
+    theme_minimal(base_size = 16) +
     theme(
+      plot.background = element_rect(fill = "#1c1c1e", color = NA),
+      panel.background = element_rect(fill = "#1c1c1e", color = NA),
+      panel.grid.major = element_line(color = "#3a3a3c"),
+      panel.grid.minor = element_blank(),
+      axis.text = element_text(color = "white"),
+      axis.title = element_text(color = "white"),
+      plot.title = element_text(color = "white", face = "bold", size = 18),
       axis.text.x = element_text(angle = 45, hjust = 1)
     )
+  
   
 }
