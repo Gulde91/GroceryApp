@@ -8,7 +8,6 @@ library(fontawesome)
 library(shinyjs)
 library(forcats)
 library(ggplot2)
-library(lubridate)
 
 source("./data.R")
 source("./funktioner.R")
@@ -226,7 +225,7 @@ ui <- f7Page(
       f7DatePicker(
         inputId = "date_from",
         label = "Fra dato",
-        value = as.Date("2024-01-01"),
+        value = lubridate::`%m-%`(Sys.Date(), lubridate::years(1)),
         type = "date"
       ),
       
