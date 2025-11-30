@@ -495,7 +495,7 @@ plot_brugte_opskrifter <- function(df, dato_start, dato_slut, top_n = 5) {
   
   ggplot(df_plot, aes(x = fct_infreq(retter))) +
     geom_bar(fill = "#8EB5FF") +
-    labs(x = "Antal", y = "Retter", title = "Mest brugte opskrifter") +
+    labs(x = "Retter", y = "Antal", title = "Mest brugte opskrifter") +
     theme_minimal(base_size = 16) +
     theme(
       plot.background = element_rect(fill = "#1c1c1e", color = NA),
