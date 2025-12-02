@@ -7,6 +7,7 @@ library(purrr)
 library(fontawesome)
 library(shinyjs)
 library(ggplot2)
+library(wordcloud2)
 
 source("./data.R")
 source("./funktioner.R")
@@ -71,7 +72,6 @@ ui <- f7Page(
         icon = f7Icon("square_list"),
         active = FALSE,
         f7BlockTitle(title = "Bruttoliste over varer"),
-        #p("Her kan du se alle varer, der kan vælges fra. (Søg i feltet nedenfor)"),
         f7Block(
           inset = TRUE,
           strong = TRUE,
@@ -83,11 +83,11 @@ ui <- f7Page(
       f7Tab(
         tabName = "Inspiration",
         icon = f7Icon("sparkles"),
-        f7BlockTitle(title = "Indhold kommer snart"),
-        f7Block(
-          inset = TRUE,
-          strong = TRUE,
-          "Her kan du senere samle idéer og inspiration."
+        f7BlockTitle(title = "Inspiration"),
+        f7Block(inset = TRUE, strong = TRUE,
+                sInput("menu_type", "V\u00E6lg type",
+                      c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
+          wordcloud2Output("wordcloud_retter")
         ),
         f7Block(inset = TRUE, strong = TRUE,
           # Knap som åbner filter-sheet (Framework7 styret)
@@ -147,17 +147,15 @@ ui <- f7Page(
       tags$div(class="ga-dialog",
                tags$h3("Tilføj vare manuelt"),
                f7Block(inset=TRUE, strong=TRUE,
-                       tInput("basis_varer_manuel", label="Tilf\u00F8j varer manuelt"),
-                       br(), nInput("antal_basis_varer_manuel", "M\u00E6ngde", value=1),
-                       br(), sInput("enhed_basis_varer_manuel", "Enhed", "", "stk"),
-                       br(), sInput("add_kat_1", "Kategori 1", kategori_1, "konserves"),
-                       br(), sInput("add_kat_2", "Kategori 2", kategori_2, "konserves"),
-                       br(),
-                       f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
-                       br(),
-                       #f7Button("gem_vare", "Gem som basisvare", fill=TRUE, color="blue"),
-                       #br(),
-                       f7Button("close_manuel", "Luk", fill=TRUE, color="gray")
+                 tInput("basis_varer_manuel", label="Tilf\u00F8j varer manuelt"),
+                 br(), nInput("antal_basis_varer_manuel", "M\u00E6ngde", value=1),
+                 br(), sInput("enhed_basis_varer_manuel", "Enhed", "", "stk"),
+                 br(), sInput("add_kat_1", "Kategori 1", kategori_1, "konserves"),
+                 br(), sInput("add_kat_2", "Kategori 2", kategori_2, "konserves"),
+                 br(),
+                 f7Button("add_varer_manuel", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
+                 br(),
+                 f7Button("close_manuel", "Luk", fill=TRUE, color="gray")
                )
       )
     ),
@@ -168,14 +166,14 @@ ui <- f7Page(
       tags$div(class="ga-dialog",
                tags$h3("Tilføj fra opskrift"),
                f7Block(inset=TRUE, strong=TRUE,
-                       sInput("ret", "Vælg ret", c("", retter$retter)),
-                       br(), nInput("pers", "Vælg antal personer", value=2),
-                       br(), sInput("salat", "Vælg salat", salater$retter),
-                       br(), sInput("tilbehor", "Vælg tilbehør", c("", tilbehor$Indkobsliste)),
-                       br(),
-                       f7Button("add_opskrift", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
-                       br(),
-                       f7Button("close_opskrift", "Luk", fill=TRUE, color="gray")
+                 sInput("ret", "Vælg ret", c("", retter$retter)),
+                 br(), nInput("pers", "Vælg antal personer", value=2),
+                 br(), sInput("salat", "Vælg salat", salater$retter),
+                 br(), sInput("tilbehor", "Vælg tilbehør", c("", tilbehor$Indkobsliste)),
+                 br(),
+                 f7Button("add_opskrift", "Tilføj til indkøbssedlen", fill=TRUE, color="green"),
+                 br(),
+                 f7Button("close_opskrift", "Luk", fill=TRUE, color="gray")
                ),
                DT::DTOutput("opskrift")
       )
@@ -873,6 +871,27 @@ server <- function(input, output, session) {
     }
     
   })
+  
+  ## Inspiration og statistik
+  
+  # word cloud plot ----
+  output$wordcloud_retter <- renderWordcloud2({
+    
+    retter_tmp <- retter
+    
+    if (input$menu_type != "Alle") {
+      retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
+    }
+    
+    retter_tmp %>%
+      filter(retter != "V\u00E6lg ret") %>%
+      select(retter) %>%
+      mutate(count = 1) %>%
+      wordcloud2(size = .3, color = 'random-dark', backgroundColor = "#1c1c1e",
+                 minRotation = pi / 3, maxRotation = pi / 2, shape = "cardioid",
+                 rotateRatio = 0.3)
+  })
+  
   
   # statistik over brugte opskrifter ----
   opskrifter_statistik <- brugte_opskrifter(retter$retter)
