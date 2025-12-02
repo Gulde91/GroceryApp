@@ -879,15 +879,18 @@ server <- function(input, output, session) {
     
     retter_tmp <- retter
     
+    size <- 0.1
+    
     if (input$menu_type != "Alle") {
       retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
+      size <- 0.3
     }
     
     retter_tmp %>%
       filter(retter != "V\u00E6lg ret") %>%
       select(retter) %>%
       mutate(count = 1) %>%
-      wordcloud2(size = .3, color = 'random-dark', backgroundColor = "#1c1c1e",
+      wordcloud2(size = .2, color = 'random-dark', backgroundColor = "#1c1c1e",
                  minRotation = pi / 3, maxRotation = pi / 2, shape = "cardioid",
                  rotateRatio = 0.3)
   })
