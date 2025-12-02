@@ -890,7 +890,7 @@ server <- function(input, output, session) {
       filter(retter != "V\u00E6lg ret") %>%
       select(retter) %>%
       mutate(count = 1) %>%
-      wordcloud2(size = .2, color = 'random-dark', backgroundColor = "#1c1c1e",
+      wordcloud2(size = size, color = 'random-dark', backgroundColor = "#1c1c1e",
                  minRotation = pi / 3, maxRotation = pi / 2, shape = "cardioid",
                  rotateRatio = 0.3)
   })
