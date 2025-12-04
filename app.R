@@ -7,7 +7,6 @@ library(purrr)
 library(fontawesome)
 library(shinyjs)
 library(ggplot2)
-library(wordcloud2)
 
 source("./data.R")
 source("./funktioner.R")
@@ -87,8 +86,9 @@ ui <- f7Page(
         f7Block(inset = TRUE, strong = TRUE,
                 sInput("menu_type", "V\u00E6lg type",
                       c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
-          wordcloud2Output("wordcloud_retter")
-        ),
+          #wordcloud2Output("wordcloud_retter")
+          plotOutput("wordcloud_retter", height = "300px")
+          ),
         f7Block(inset = TRUE, strong = TRUE,
           # Knap som åbner filter-sheet (Framework7 styret)
           tags$a(
@@ -875,27 +875,77 @@ server <- function(input, output, session) {
   ## Inspiration og statistik
   
   # word cloud plot ----
-  output$wordcloud_retter <- renderWordcloud2({
+  # output$wordcloud_retter <- renderWordcloud2({
+  # 
+  #   # Kør KUN når "Inspiration"-fanen er aktiv
+  #   req(input$main_tabs == "Inspiration")
+  #   
+  #   retter_tmp <- retter
+  # 
+  #   size <- 0.1
+  # 
+  #   if (input$menu_type != "Alle") {
+  #     retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
+  #     size <- 0.3
+  #   }
+  # 
+  #   retter_tmp %>%
+  #     filter(retter != "V\u00E6lg ret") %>%
+  #     select(retter) %>%
+  #     mutate(count = 1) %>%
+  #     wordcloud2(size = size, color = 'random-light', backgroundColor = "#1c1c1e",
+  #                minRotation = pi / 3, maxRotation = pi / 2, shape = "cardioid",
+  #                rotateRatio = 0.3)
+  # })
+  
+  output$wordcloud_retter <- renderPlot({
     
-    retter_tmp <- retter
+    #req(input$main_tabs == "Inspiration")
+#    menu_type <- input$menu_type %||% "Alle"
     
-    size <- 0.1
+    # Filtrér retter
+    # retter_tmp <- retter |>
+    #   dplyr::filter(retter != "V\u00E6lg ret")
     
-    if (input$menu_type != "Alle") {
-      retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
-      size <- 0.3
-    }
+    # if (!identical(menu_type, "Alle")) {
+    #   retter_tmp <- retter_tmp |>
+    #     dplyr::filter(grepl(menu_type, type, ignore.case = TRUE))
+    # }
     
-    retter_tmp %>%
-      filter(retter != "V\u00E6lg ret") %>%
-      select(retter) %>%
-      mutate(count = 1) %>%
-      wordcloud2(size = size, color = 'random-light', backgroundColor = "#1c1c1e",
-                 minRotation = pi / 3, maxRotation = pi / 2, shape = "cardioid",
-                 rotateRatio = 0.3)
+      retter_tmp <- retter
+
+      if (input$menu_type != "Alle") {
+        retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
+      }
+
+    # Lav freq + tilfældige lyse farver
+    wc_data <- retter_tmp |>
+      count(retter, name = "freq") |>
+      mutate(
+        col = sample(
+          c("#fde68a", "#bef264", "#6ee7b7", "#93c5fd", "#e5e7eb"),
+          size = n(),
+          replace = TRUE
+        )
+      )
+    
+    ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
+      ggwordcloud::geom_text_wordcloud_area(
+        rm_outside  = TRUE,   # fjern ord der ikke kan være i området
+        eccentricity = 0.8    # lidt oval form i stedet for perfekt cirkel
+      ) +
+      scale_size_area(max_size = 18) +  # justér max tekststørrelse
+      scale_colour_identity() +         # brug farverne som de er
+      theme_void() +
+      theme(
+        plot.background  = element_rect(fill = "#1c1c1e", colour = NA),
+        panel.background = element_rect(fill = "#1c1c1e", colour = NA),
+        plot.margin      = margin(5, 5, 5, 5)
+      )
+    
   })
   
-  
+
   # statistik over brugte opskrifter ----
   opskrifter_statistik <- brugte_opskrifter(retter$retter)
   
