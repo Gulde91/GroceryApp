@@ -464,7 +464,7 @@ server <- function(input, output, session) {
       df_ret <- get_df(ret = input$ret, pers = input$pers)
       if (har_salat) {
         df_sal <- get_df(salat = input$salat, pers = input$pers)
-        df_merged <- dplyr::bind_rows(df_ret, df_sal)
+        df_merged <- bind_rows(df_ret, df_sal)
         title <- paste0(input$ret, " m. ", input$salat)
         link  <- get_link(input$ret) %||% get_link(input$salat)
       } else {
