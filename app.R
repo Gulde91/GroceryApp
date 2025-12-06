@@ -898,52 +898,40 @@ server <- function(input, output, session) {
   #                rotateRatio = 0.3)
   # })
   
-  output$wordcloud_retter <- renderPlot({
-    
-    #req(input$main_tabs == "Inspiration")
-#    menu_type <- input$menu_type %||% "Alle"
-    
-    # Filtrér retter
-    # retter_tmp <- retter |>
-    #   dplyr::filter(retter != "V\u00E6lg ret")
-    
-    # if (!identical(menu_type, "Alle")) {
-    #   retter_tmp <- retter_tmp |>
-    #     dplyr::filter(grepl(menu_type, type, ignore.case = TRUE))
-    # }
-    
-      retter_tmp <- retter
-
-      if (input$menu_type != "Alle") {
-        retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
-      }
-
-    # Lav freq + tilfældige lyse farver
-    wc_data <- retter_tmp |>
-      count(retter, name = "freq") |>
-      mutate(
-        col = sample(
-          c("#fde68a", "#bef264", "#6ee7b7", "#93c5fd", "#e5e7eb"),
-          size = n(),
-          replace = TRUE
-        )
-      )
-    
-    ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
-      ggwordcloud::geom_text_wordcloud_area(
-        rm_outside  = TRUE,   # fjern ord der ikke kan være i området
-        eccentricity = 0.8    # lidt oval form i stedet for perfekt cirkel
-      ) +
-      scale_size_area(max_size = 18) +  # justér max tekststørrelse
-      scale_colour_identity() +         # brug farverne som de er
-      theme_void() +
-      theme(
-        plot.background  = element_rect(fill = "#1c1c1e", colour = NA),
-        panel.background = element_rect(fill = "#1c1c1e", colour = NA),
-        plot.margin      = margin(5, 5, 5, 5)
-      )
-    
-  })
+  # output$wordcloud_retter <- renderPlot({
+  #   
+  #   retter_tmp <- retter
+  #   
+  #   if (input$menu_type != "Alle") {
+  #     retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
+  #   }
+  # 
+  #   # Lav freq + tilfældige lyse farver
+  #   wc_data <- retter_tmp |>
+  #     count(retter, name = "freq") |>
+  #     mutate(
+  #       col = sample(
+  #         c("#fde68a", "#bef264", "#6ee7b7", "#93c5fd", "#e5e7eb"),
+  #         size = n(),
+  #         replace = TRUE
+  #       )
+  #     )
+  #   
+  #   ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
+  #     ggwordcloud::geom_text_wordcloud_area(
+  #       rm_outside  = TRUE,   # fjern ord der ikke kan være i området
+  #       eccentricity = 0.8    # lidt oval form i stedet for perfekt cirkel
+  #     ) +
+  #     scale_size_area(max_size = 18) +  # justér max tekststørrelse
+  #     scale_colour_identity() +         # brug farverne som de er
+  #     theme_void() +
+  #     theme(
+  #       plot.background  = element_rect(fill = "#1c1c1e", colour = NA),
+  #       panel.background = element_rect(fill = "#1c1c1e", colour = NA),
+  #       plot.margin      = margin(5, 5, 5, 5)
+  #     )
+  #   
+  # })
   
 
   # statistik over brugte opskrifter ----
