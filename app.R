@@ -78,6 +78,15 @@ ui <- f7Page(
         ),
         DT::DTOutput("varer_tbl")
       ),
+      # Opskrifter ----
+      f7Tab(
+        tabName = "Opskrifter",
+        icon = f7Icon("book"),
+        active = FALSE,
+        f7BlockTitle(title = "Opskrifter"),
+        # Dynamisk indhold til alle opskrifter
+        uiOutput("opskrifter_ui")
+      ),
       # Inspiration----
       f7Tab(
         tabName = "Inspiration",
@@ -921,6 +930,65 @@ server <- function(input, output, session) {
       top_n = input$top_n
       )
   })
+  
+  # Dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
+  output$opskrifter_ui <- renderUI({
+    
+    # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
+    ops_sorted <- opskrifter[order(vapply(opskrifter, function(x) names(x)[1], ""))]
+    
+    ui_list <- lapply(names(ops_sorted), function(key) {
+      df <- ops_sorted[[key]]
+      
+      # Opskriftnavn = navnet på første kolonne i opskrifts-tabellen
+      ret_navn <- names(df)[1]
+      
+      # Unikt output-id til DT for denne opskrift
+      output_id <- paste0("opskrift_tbl_", key)
+      
+      # Find evt. link via helperen get_link()
+      link_url <- get_link(ret_navn)
+      
+      # Definér renderDT for denne opskrift (brug local så hver iteration får sin egen kopi)
+      local({
+        df_vis <- df[, 1:3]  # kun navn på vare, mængde, enhed
+        names(df_vis) <- c("Vare", "Mængde", "Enhed")
+        id <- output_id
+        
+        output[[id]] <- DT::renderDT({
+          themed_dt(
+            df_vis,
+            options = list(
+              dom       = "t",
+              paging    = FALSE,
+              ordering  = FALSE,
+              searching = FALSE
+            )
+          )
+        })
+      })
+      
+      # Byg UI-blok for én opskrift
+      f7Block(
+        inset  = TRUE,
+        strong = TRUE,
+        tags$h3(ret_navn),
+        DT::DTOutput(output_id),
+        if (!is.null(link_url)) {
+          tags$p(
+            class = "opskrift-link",
+            "Link til opskriften: ",
+            tags$a(href = link_url, target = "_blank", link_url)
+          )
+        } else {
+          NULL
+        }
+      )
+    })
+    
+    do.call(tagList, ui_list)
+  })
+  
 
 }
 
