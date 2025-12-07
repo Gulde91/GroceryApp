@@ -84,6 +84,11 @@ ui <- f7Page(
         icon = f7Icon("book"),
         active = FALSE,
         f7BlockTitle(title = "Opskrifter"),
+        f7Block(inset = TRUE, strong = TRUE,
+          tags$p(
+            "Alle opskrifter nedenfor er angivet med mængder svarende til ",
+            tags$b("1 person"), ".")
+        ),
         # Dynamisk indhold til alle opskrifter
         uiOutput("opskrifter_ui")
       ),
@@ -951,8 +956,15 @@ server <- function(input, output, session) {
       
       # Definér renderDT for denne opskrift (brug local så hver iteration får sin egen kopi)
       local({
-        df_vis <- df[, 1:3]  # kun navn på vare, mængde, enhed
-        names(df_vis) <- c("Vare", "Mængde", "Enhed")
+        df_loc <- df
+        
+        # Kombinér mængde, enhed og vare-navn til én tekst, fx "1 stk æg"
+        linjer <- paste(df_loc$maengde, df_loc$enhed, df_loc[[1]])
+        linjer <- gsub("NA", "", linjer)
+        linjer <- trimws(linjer)
+        
+        df_vis <- data.frame(Ingredienser = linjer)
+        
         id <- output_id
         
         output[[id]] <- DT::renderDT({
@@ -968,26 +980,36 @@ server <- function(input, output, session) {
         })
       })
       
+      # Byg evt. klikbart link-tag
+      link_tag <- NULL
+      if (!is.null(link_url)) {
+        link_tag <- tags$p(
+          class = "opskrift-link",
+          "Link til opskriften: ",
+          tags$a(
+            href   = link_url,
+            target = "_blank",
+            rel    = "noopener noreferrer",
+            class  = "external",   # hjælper Framework7 med at forstå at det er et eksternt link
+            link_url
+          )
+        )
+      }
+      
       # Byg UI-blok for én opskrift
       f7Block(
         inset  = TRUE,
         strong = TRUE,
         tags$h3(ret_navn),
         DT::DTOutput(output_id),
-        if (!is.null(link_url)) {
-          tags$p(
-            class = "opskrift-link",
-            "Link til opskriften: ",
-            tags$a(href = link_url, target = "_blank", link_url)
-          )
-        } else {
-          NULL
-        }
+        link_tag
       )
     })
     
+    # Alle opskriftsblokke
     do.call(tagList, ui_list)
   })
+  
   
 
 }
