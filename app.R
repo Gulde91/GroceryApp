@@ -38,7 +38,7 @@ ui <- f7Page(
     f7Tabs(
       id = "main_tabs",
       animated = FALSE,
-      swipeable = TRUE,
+      swipeable = FALSE,
       # Indkøbsliste ----
       f7Tab(
         tabName = "Indkøbsseddel",
