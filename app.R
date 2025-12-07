@@ -943,6 +943,7 @@ server <- function(input, output, session) {
     ops_sorted <- opskrifter[order(vapply(opskrifter, function(x) names(x)[1], ""))]
     
     ui_list <- lapply(names(ops_sorted), function(key) {
+      
       df <- ops_sorted[[key]]
       
       # Opskriftnavn = navnet på første kolonne i opskrifts-tabellen
@@ -954,30 +955,25 @@ server <- function(input, output, session) {
       # Find evt. link via helperen get_link()
       link_url <- get_link(ret_navn)
       
-      # Definér renderDT for denne opskrift (brug local så hver iteration får sin egen kopi)
-      local({
-        df_loc <- df
-        
-        # Kombinér mængde, enhed og vare-navn til én tekst, fx "1 stk æg"
-        linjer <- paste(df_loc$maengde, df_loc$enhed, df_loc[[1]])
-        linjer <- gsub("NA", "", linjer)
-        linjer <- trimws(linjer)
-        
-        df_vis <- data.frame(Ingredienser = linjer)
-        
-        id <- output_id
-        
-        output[[id]] <- DT::renderDT({
-          themed_dt(
-            df_vis,
-            options = list(
-              dom       = "t",
-              paging    = FALSE,
-              ordering  = FALSE,
-              searching = FALSE
-            )
+      # Kombinér mængde, enhed og vare-navn til én tekst, fx "1 stk æg"
+      linjer <- paste(df$maengde, df$enhed, df[[ret_navn]])
+      linjer <- gsub("NA", "", linjer)
+      linjer <- trimws(linjer)
+      
+      df_vis <- data.frame(Ingredienser = linjer)
+      
+      id <- output_id
+      
+      output[[id]] <- DT::renderDT({
+        themed_dt(
+          df_vis,
+          options = list(
+            dom       = "t",
+            paging    = FALSE,
+            ordering  = FALSE,
+            searching = FALSE
           )
-        })
+        )
       })
       
       # Byg evt. klikbart link-tag
@@ -1009,8 +1005,7 @@ server <- function(input, output, session) {
     # Alle opskriftsblokke
     do.call(tagList, ui_list)
   })
-  
-  
+
 
 }
 
