@@ -942,12 +942,40 @@ server <- function(input, output, session) {
     # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
     ops_sorted <- opskrifter[order(vapply(opskrifter, function(x) names(x)[1], ""))]
     
-    ui_list <- lapply(names(ops_sorted), function(key) {
+    keys <- names(ops_sorted)
+    titler <- vapply(ops_sorted, function(df) names(df)[1], "")
+    
+    # Indholdsfortegnelse øverst
+    toc_block <- f7Block(
+      inset  = TRUE,
+      strong = TRUE,
+      tags$h3("Indhold"),
+      tags$ul(
+        class = "opskrift-toc",
+        lapply(seq_along(keys), function(i) {
+          target_id <- paste0("opskrift_", keys[i])
+          tags$li(
+            tags$a(
+              href = "#",  # vi bruger onclick i stedet
+              onclick = sprintf(
+                "document.getElementById('%s').scrollIntoView({behavior:'smooth', block:'start'}); return false;",
+                target_id
+              ),
+              titler[i]
+            )
+          )
+        })
+      )
+    )
+    
+    # Selve opskrifts-blokke
+    ui_list <- lapply(seq_along(keys), function(i) {
       
-      df <- ops_sorted[[key]]
+      key <- keys[i]
+      df  <- ops_sorted[[i]]
       
       # Opskriftnavn = navnet på første kolonne i opskrifts-tabellen
-      ret_navn <- names(df)[1]
+      ret_navn <- titler[i]
       
       # Unikt output-id til DT for denne opskrift
       output_id <- paste0("opskrift_tbl_", key)
@@ -962,9 +990,7 @@ server <- function(input, output, session) {
       
       df_vis <- data.frame(Ingredienser = linjer)
       
-      id <- output_id
-      
-      output[[id]] <- DT::renderDT({
+      output[[output_id]] <- DT::renderDT({
         themed_dt(
           df_vis,
           options = list(
@@ -986,26 +1012,30 @@ server <- function(input, output, session) {
             href   = link_url,
             target = "_blank",
             rel    = "noopener noreferrer",
-            class  = "external",   # hjælper Framework7 med at forstå at det er et eksternt link
+            class  = "external",
             link_url
           )
         )
       }
       
-      # Byg UI-blok for én opskrift
-      f7Block(
-        inset  = TRUE,
-        strong = TRUE,
-        tags$h3(ret_navn),
-        DT::DTOutput(output_id),
-        link_tag
+      # Wrap i en div med id + klasse, så vi kan styre scroll-offset med CSS
+      tags$div(
+        id    = paste0("opskrift_", key),
+        class = "opskrift-anchor",
+        f7Block(
+          inset = TRUE,
+          strong = TRUE,
+          tags$h3(ret_navn),
+          DT::DTOutput(output_id),
+          link_tag
+        )
       )
     })
     
-    # Alle opskriftsblokke
-    do.call(tagList, ui_list)
+    # Indholdsfortegnelse + alle opskriftsblokke
+    do.call(tagList, c(list(toc_block), ui_list))
   })
-
+  
 
 }
 

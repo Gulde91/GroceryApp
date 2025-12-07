@@ -399,3 +399,11 @@ button.dt-button.copy-btn-pushed {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+
+/* Tab: opskrifter
+   Sørg for at overskriften ikke gemmer sig under navbaren,
+   når vi scroller til en opskrift via indholdsfortegnelsen */
+.opskrift-anchor {
+  scroll-margin-top: 80px; /* justér evt. til 70/90 afhængigt af navbar-højde */
+}
