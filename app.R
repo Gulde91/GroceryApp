@@ -1027,7 +1027,21 @@ server <- function(input, output, session) {
           strong = TRUE,
           tags$h3(ret_navn),
           DT::DTOutput(output_id),
-          link_tag
+          link_tag,
+          tags$p(
+            class = "til-toppen-link",
+            tags$a(
+              href = "#",
+              onclick = "
+                  var page = this.closest('.page-content');
+                  if (page) {
+                    page.scrollTo({top: 0, behavior: 'smooth'});
+                  }
+                  return false;
+                ",
+              "Til toppen"
+            )
+          )
         )
       )
     })
