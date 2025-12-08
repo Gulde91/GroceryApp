@@ -1012,8 +1012,8 @@ server <- function(input, output, session) {
             href   = link_url,
             target = "_blank",
             rel    = "noopener noreferrer",
-            class  = "external",
-            link_url
+            class  = "external opskrift-link-url",
+            "Åbn opskriften"
           )
         )
       }
