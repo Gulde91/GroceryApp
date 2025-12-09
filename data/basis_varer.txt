@@ -1,4 +1,5 @@
 "Indkobsliste","maengde","enhed","kat_1","kat_2"
+"afspændingsmiddel",1,"stk","husholdning",""
 "appelsinjuice",1,"liter","konserves","juice"
 "babypads",1,"stk","baby",""
 "bagekartofler",1,"stk","frugt og grønt",""
@@ -56,6 +57,7 @@
 "toastbrød",1,"stk","konserves","brød"
 "toiletpapir",1,"pakke","husholdning",""
 "tomatsuppe",1,"dåse(r)","konserves",""
+"tortellini",1,"pakke(r)","køl",""
 "tunsalat",1,"pakke(r)","pålæg",""
 "vindruer",1,"pakke(r)","frugt og grønt",""
 "vitaminpiller",1,"pakke(r)","konserves",""
