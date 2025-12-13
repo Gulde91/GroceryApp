@@ -1,0 +1,11 @@
+Pitabrød;maengde;enhed;kat_1;kat_2
+Pitabrød;2;stk;frost;
+kylling;0.08;kg;kød;
+pepperoni;60;gram;kød;pålæg
+bacon i skiver;60;gram;kød;pålæg
+cocktailpølser;40;gram;kød;pålæg
+rød peber;0.4;stk;frugt og grønt;
+agurk;0.2;stk;frugt og grønt;
+frosne majs;40;gram;frost;
+iceberg;0.1;stk;frugt og grønt;
+creme fraiche dressing;50;gram;konserves;dressing

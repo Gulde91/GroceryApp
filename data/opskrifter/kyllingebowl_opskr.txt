@@ -1,0 +1,10 @@
+Kyllingebowl;maengde;enhed;kat_1;kat_2
+rød peber;1;stk;frugt og grønt;
+rødløg;0.5;stk;frugt og grønt;
+frosne majs;50;gram;frost;
+hvidløgsfed;1;stk;frugt og grønt;
+basmatiris;50;gram;konserves;
+kylling;0.125;kg;kød;
+lime;0.25;stk;frugt og grønt;
+creme fraiche;1.2;dl;mejeri;mælk
+fajita tex mex;10;gram;konserves;mexico

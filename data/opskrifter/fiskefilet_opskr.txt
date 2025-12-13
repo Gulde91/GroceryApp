@@ -1,0 +1,4 @@
+Fiskefilet;maengde;enhed;kat_1;kat_2
+fiskefilet;1;stk;frost;
+remoulade (tilbehør);;;konserves;dressing
+citronsaft (tilbehør);;;konserves;

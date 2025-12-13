@@ -1,0 +1,10 @@
+Madpandekager;maengde;enhed;kat_1;kat_2
+kylling;0.125;kg;kød;
+crispy chicken tex mex;0.5;stk;konserves;mexico
+madpandekager;1;stk;konserves;mexico
+tacoskal;1;stk;konserves;mexico
+rød peber;0.5;stk;frugt og grønt;
+agurk;0.25;stk;frugt og grønt;
+frosne majs;50;gram;frost;
+iceberg;0.2;stk;frugt og grønt;
+creme fraiche dressing;50;gram;konserves;dressing

@@ -1,0 +1,2 @@
+Kalkunschnitzel;maengde;enhed;kat_1;kat_2
+kalkun;150;gram;kød;

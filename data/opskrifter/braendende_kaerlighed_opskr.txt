@@ -1,0 +1,8 @@
+Brændende kærlighed;maengde;enhed;kat_1;kat_2
+kartofler;0.38;kg;frugt og grønt;
+smør;37.5;gram;mejeri;
+skummetmælk;0.025;liter;mejeri;mælk
+bacon i skiver;125;gram;kød;pålæg
+løg;1;stk;frugt og grønt;
+rødbeder (tilbehør);;;konserves;
+persille;20;gram;frugt og grønt;

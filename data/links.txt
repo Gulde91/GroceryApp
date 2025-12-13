@@ -1,0 +1,16 @@
+ret;link
+Mørbradgryde;https://www.femina.dk/mad/aftensmad/klassisk-moerbradgryde
+Carbonara;https://www.valdemarsro.dk/carbonara_opskrift/
+Spaghetti kødsovs;https://www.dk-kogebogen.dk/opskrifter/15127/spaghetti-med-koedsovs?personer=1
+Pizza surdej;https://rigeligtsmor.dk/opskrift-pizzadej-med-surdej/
+Kyllingebowl;https://www.hellofresh.dk/recipes/fajita-kyllingebowl-5fa3dff00e1d695ec60e5721
+Dahl;https://www.valdemarsro.dk/dhal-med-raita/
+Lasagne;https://www.dk-kogebogen.dk/opskrifter/19934/kyllingelasagne-med-spinat
+Lasagne okse;https://www.valdemarsro.dk/lasagne/
+Chili con carne;https://www.valdemarsro.dk/chili-con-carne/
+Brændende kærlighed;https://www.valdemarsro.dk/braendende-kaerlighed/
+Kartoffel-porre suppe;https://madensverden.dk/kartoffel-porre-suppe/
+Kylling kiev;https://www.hellofresh.dk/recipes/chicken-kiev-5efed5bde9cd8816990b92d6
+Kyllingespyd;https://martinys.dk/grill-kyllingespyd-med-barbeque-marinade/
+Frikadeller;https://www.dropbox.com/scl/fi/kq7ejsqpcoo83r9q1pgoh/Frikadeller.txt?rlkey=44yccp720l6k7r8qkcbtpbwf9&dl=0
+Risengrød;https://www.arla.dk/opskrifter/risengrod-med-kanelsukker-og-smorklat/

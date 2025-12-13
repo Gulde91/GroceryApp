@@ -1,0 +1,14 @@
+Chicken Tikka Masala;maengde;enhed;kat_1;kat_2
+græsk yoghurt;50;gram;mejeri;mælk
+hvidløgsfed;1.5;stk;frugt og grønt;
+ingefær;40;gram;frugt og grønt;
+garam masala (tilsmagning);;;konserves;krydderi
+gurkemeje (tilsmagning);;;konserves;krydderi
+chiliflager;;tsk;konserves;krydderi
+stødt nelike (tilsmagning);;;konserves;krydderi
+limesaft (tilsmagning);;;konserves;
+kylling;0.15;kg;kød;
+løg;0.5;stk;frugt og grønt;
+tomatpure;20;gram;konserves;tomat
+piskefløde;0.5;dl;mejeri;mælk
+basmatiris;50;gram;konserves;

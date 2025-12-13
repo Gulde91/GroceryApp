@@ -1,0 +1,7 @@
+Madpangekager på panden;maengde;enhed;kat_1;kat_2
+løg;2;stk;frugt og grønt;
+kylling;0.15;kg;kød;
+rød peber;0.75;stk;frugt og grønt;
+revet mozzarella;50;gram;mejeri;ost
+madpandekager;2;stk;konserves;mexico
+salsa;0.5;dåse(r);konserves;mexico

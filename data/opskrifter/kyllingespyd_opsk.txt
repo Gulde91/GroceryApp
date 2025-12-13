@@ -1,0 +1,14 @@
+Kyllingespyd;maengde;enhed;kat_1;kat_2
+kylling;0.15;kg;kød;
+rødløg;0.25;stk;frugt og grønt;
+rød peber;0.5;stk;frugt og grønt;
+olivenolie;1;spsk;konserves;
+tomatpure;50;gram;konserves;tomat
+hvidvinseddike;0.75;spsk;konserves;
+brun farin;0.5;spsk;konserves;
+paprika;2;tsk;konserves;krydderi
+hvidløgspulver;2;tsk;konserves;krydderi
+oregano;2;tsk;konserves;krydderi
+chiliflager;0.1;tsk;konserves;krydderi
+salt;0.25;tsk;konserves;krydderi
+peber;0.25;tsk;konserves;krydderi

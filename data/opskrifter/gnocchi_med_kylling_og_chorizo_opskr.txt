@@ -1,0 +1,18 @@
+Gnocchi med kylling og chorizo;maengde;enhed;kat_1;kat_2
+chorizo;50;gram;konserves;
+løg;0.25;stk;frugt og grønt;
+kylling;0.1;kg;kød;
+hvidløgsfed;0.75;stk;frugt og grønt;
+soltørrede tomater;0.75;spsk;konserves;tomat
+basilikum;;;frugt og grønt;
+fennikelfrø;0.25;tsk;konserves;
+squash;75;gram;frugt og grønt;
+bladselleri;;;frugt og grønt;
+grøntsagsbouillon;0.25;stk;konserves;krydderi
+hakkede tomater;0.25;dåse(r);konserves;tomat
+gnocchi;125;gram;konserves;
+frisk mozzarella;0.25;stk;mejeri;ost
+parmesan;12.5;gram;mejeri;ost
+olivenolie;;spsk;konserves;
+salt;;tsk;konserves;krydderi
+peber;;tsk;konserves;krydderi

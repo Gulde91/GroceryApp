@@ -1,0 +1,12 @@
+Lasagne;maengde;enhed;kat_1;kat_2
+kylling;0.15;kg;kød;
+hakkede tomater;0.25;dåse(r);konserves;tomat
+løg;0.25;stk;frugt og grønt;
+piskefløde;0.63;dl;mejeri;mælk
+gulerødder;50;gram;frugt og grønt;
+rød peber;0.5;stk;frugt og grønt;
+ketchup;;;konserves;
+lasagneplader;2.25;stk;konserves;
+revet mozzarella;50;gram;mejeri;ost
+paprika;;tsk;konserves;krydderi
+oregano;;tsk;konserves;krydderi

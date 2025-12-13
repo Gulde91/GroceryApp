@@ -1,0 +1,11 @@
+Spaghetti kødsovs;maengde;enhed;kat_1;kat_2
+spaghetti;80;gram;konserves;
+løg;0.75;stk;frugt og grønt;
+hvidløgsfed;0.5;stk;frugt og grønt;
+hakket oksekød;0.15;kg;kød;
+hakkede tomater;0.25;dåse(r);konserves;tomat
+gulerødder;20;gram;frugt og grønt;
+oregano;;tsk;konserves;krydderi
+salt;;tsk;konserves;krydderi
+peber;;tsk;konserves;krydderi
+parmasam;25;gram;mejeri;ost

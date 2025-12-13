@@ -1,0 +1,9 @@
+Fyldte peberfrugter;maengde;enhed;kat_1;kat_2
+rød peber;1;stk;frugt og grønt;
+løg;0.3;stk;frugt og grønt;
+paprika;;tsk;konserves;krydderi
+chiliflager;;tsk;konserves;krydderi
+tomatpure;18;gram;konserves;tomat
+hakket oksekød;0.09;kg;kød;
+revet cheddar;15;gram;mejeri;ost
+basmatiris;35;gram;konserves;

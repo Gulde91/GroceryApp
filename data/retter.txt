@@ -1,0 +1,30 @@
+retter;key;type
+Brændende kærlighed;braendende_kaerlighed_opskr;gris
+Burger;burger_opskr;okse|gris
+Carbonara;carbonara_opskr;gris
+Chicken Tikka Masala;chickentikka_opskr;kylling
+Chili con carne;chili_con_carne_opskr;okse
+Dahl;dahl_opskr;vegetar
+Fiskefilet;fiskefilet_opskr;fisk
+Frikadeller;frikadeller_opskr;gris
+Fyldte peberfrugter;fyldtepeberfrugter_opskr;okse
+Gnocchi med kylling og chorizo;gnocchi_med_kylling_og_chorizo_opskr;kylling
+Gullasch;gullasch_opskr;okse
+Kalkunschnitzel;kalkunschnitzel_opskr;kalkun
+Kartoffel-porre suppe;kartoffel_porre_suppe_opskr;gris
+Kylling kiev;kylling_kiev_opskr;kylling
+Kyllingebowl;kyllingebowl_opskr;kylling
+Kyllingespyd;kyllingespyd_opsk;kylling
+Lasagne;lasagne_opskr;kylling
+Lasagne okse;lasagne_okse_opskr;okse
+Madpandekager;madpandekager_opskr;kylling
+Madpangekager på panden;madpangekager_paa_panden_opskr;kylling
+Mørbradgryde;morbrad_opskr;gris
+Pitabrød;pitabrod_opskr;vegetar|kylling|gris
+Pizza;pizza_opskr;vegetar|gris|okse
+Pizza surdej;pizza_surdej_opskr;vegetar|gris|okse
+Pulled chicken;pulledchicken_opskr;kylling
+Ravioli;ravioli_opskr;vegetar
+Risengrød;risengrod_opskr;vegetar
+Spaghetti kødsovs;spaghetti_kodsovs_opskr;okse
+grillet medister;grillet_medister_opsk;gris
