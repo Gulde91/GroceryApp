@@ -853,7 +853,10 @@ server <- function(input, output, session) {
   # gemmer indkøbsseddel ----
   observeEvent(input$gem_indkobsseddel, {
     
-    df <- rv_indkobsseddel_samlet$df
+    samlet <- combined_lines()
+    df <- data.frame(Indkøbsliste = c(samlet$visible, samlet$hidden))
+    df$Indkøbsliste <- trimws(df$Indkøbsliste)
+    
     path <- paste0("./data/indkobssedler/indkobsseddel_", gsub("-", "", Sys.Date()), ".rda")
     save(df, file = path)
     

@@ -427,6 +427,10 @@ find_retter <- function(x, alle_retter) {
   
   load(paste0("./data/indkobssedler/", x))
   
+  # "til xx pers.
+  df$Indkøbsliste <- gsub("\\(til \\d+ pers\\.\\)", "", df$Indkøbsliste)
+  
+  # udtager kun retter
   pattern <- paste0("^(", paste(alle_retter, collapse = "|"), ")")
   resultat <- df$Indkøbsliste[grepl(pattern, df$Indkøbsliste)]
   resultat <- gsub(":", "", resultat)
