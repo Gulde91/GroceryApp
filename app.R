@@ -646,7 +646,8 @@ server <- function(input, output, session) {
       indkob <- indkob %>%
         group_by(Indkobsliste, enhed, kat_1, kat_2) %>%
         summarise(maengde = sum(maengde, na.rm = TRUE), .groups = "drop") %>%
-        arrange(kat_1, kat_2)
+        sort_by_cat(first = c("frugt og grønt", "konserves"),
+                    last = c("husholdning"))
 
       # runder op
       rund_op <- c("stk ", "d\u00E5se(r)", "pakke(r)", "rulle(r)")

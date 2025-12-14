@@ -4,7 +4,7 @@
 "babypads",1,"stk","baby",""
 "bagekartofler",1,"stk","frugt og grønt",""
 "bagepapir",1,"stk","husholdning",""
-"bananer",1,"stk","frugtoggrønt",""
+"bananer",1,"stk","frugt og grønt",""
 "boller",1,"pakke(r)","konserves","brød"
 "brie",1,"stk","mejeri","ost"
 "chokoladeost",1,"stk","mejeri","ost"
