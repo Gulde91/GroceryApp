@@ -681,7 +681,6 @@ server <- function(input, output, session) {
     
     secs <- character()
     if (!is.null(rv_valgte_opskrifter) && length(rv_valgte_opskrifter$items) > 0) {
-      secs <- c(secs, "─────────────")
       for (it in rv_valgte_opskrifter$items) {
         secs <- c(secs, "", sprintf("%s (til %s pers.)", it$title, it$pers))
         if (!is.null(it$df) && nrow(it$df) > 0) {
