@@ -115,7 +115,7 @@ spaghetti_kodsovs_opskr <- tibble::tribble(
   "oregano", NA, "tsk", "konserves", "krydderi",
   "salt", NA, "tsk", "konserves", "krydderi",
   "peber", NA, "tsk", "konserves", "krydderi",
-  "parmasam", 25, "gram", "mejeri", "ost"
+  "parmesan", 25, "gram", "mejeri", "ost"
 )
 
 
