@@ -269,20 +269,22 @@ server <- function(input, output, session) {
   }) 
   
   # Reaktive inputs ----
-  observeEvent(input$open_filters, {
+  #observeEvent(input$open_filters, {
+  observe({
     v_min <- max(
       as.Date("2025-12-01"), # kan ændres på sigt, så det bare er det seneste år
       lubridate::`%m-%`(Sys.Date(), lubridate::years(1))
       )
-    
+
     updateF7DatePicker("date_from", v_min, dateFormat = "dd-mm-yyyy")
-  })
+    }
+  )
   
-  observeEvent(input$open_filters, {
+  #observeEvent(input$open_filters, {
+  observe(
     updateF7DatePicker("date_to", Sys.Date(), dateFormat = "dd-mm-yyyy")
-  })
-  
-    
+  )
+
   observe(
     updateSelectizeInput(
       session, 
