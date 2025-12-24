@@ -269,7 +269,6 @@ server <- function(input, output, session) {
   }) 
   
   # Reaktive inputs ----
-  #observeEvent(input$open_filters, {
   observe({
     v_min <- max(
       as.Date("2025-12-01"), # kan ændres på sigt, så det bare er det seneste år
@@ -280,7 +279,6 @@ server <- function(input, output, session) {
     }
   )
   
-  #observeEvent(input$open_filters, {
   observe(
     updateF7DatePicker("date_to", Sys.Date(), dateFormat = "dd-mm-yyyy")
   )
