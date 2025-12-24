@@ -222,9 +222,8 @@ ui <- f7Page(
     f7Block(
       strong = TRUE,
       f7Slider("top_n", "Antal top-opskrifter", 1, 20, 10),
-      f7DatePicker("date_from", "Fra dato", type = "date",
-        value = lubridate::`%m-%`(Sys.Date(), lubridate::years(1))),
-      f7DatePicker("date_to", "Til dato", Sys.Date(), type = "date"),
+      f7DatePicker("date_from", "Fra dato"),
+      f7DatePicker("date_to", "Til dato"),
       
       tags$a(
         class = "sheet-close",
@@ -251,6 +250,9 @@ server <- function(input, output, session) {
       arrange(Indkobsliste)
     )
   
+  # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
+  rv_editState <- reactiveValues(table = NULL, row = NULL)
+  
   # indlæser basis varer ved genload af appen
   session$onFlushed(function() {
     rv_varer_custom(read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8"))
@@ -267,6 +269,20 @@ server <- function(input, output, session) {
   }) 
   
   # Reaktive inputs ----
+  observeEvent(input$open_filters, {
+    v_min <- max(
+      as.Date("2025-12-01"), # kan ændres på sigt, så det bare er det seneste år
+      lubridate::`%m-%`(Sys.Date(), lubridate::years(1))
+      )
+    
+    updateF7DatePicker("date_from", v_min, dateFormat = "dd-mm-yyyy")
+  })
+  
+  observeEvent(input$open_filters, {
+    updateF7DatePicker("date_to", Sys.Date(), dateFormat = "dd-mm-yyyy")
+  })
+  
+    
   observe(
     updateSelectizeInput(
       session, 
@@ -298,9 +314,6 @@ server <- function(input, output, session) {
       choices = sort(setdiff(unique(rv_varer()$kat_2), ""))
     )
   )
-  
-  # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
-  rv_editState <- reactiveValues(table = NULL, row = NULL)
   
   
   # Bruttoliste: vis, rediger og slet alle varer ----
