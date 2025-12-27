@@ -905,11 +905,28 @@ server <- function(input, output, session) {
   
   # word cloud plot ----
   output$wordcloud_retter <- renderPlot({
-
+    
+    start <- Sys.time()
+    
+    
     retter_tmp <- retter
 
     if (input$menu_type != "Alle") {
       retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
+    }
+    
+    # tjekker om plot allerede findes
+    p_sti <- paste0("./data/plot/wordcloud_", input$menu_type, ".rds")
+    if (file.exists(p_sti)) {
+      p_saved <- readRDS(p_sti)
+      
+      if (identical(p_saved@meta, retter_tmp)) {
+        slut <- Sys.time()
+        cat("Returnerer gemt wordcloud plot\n")
+        cat("Det tog", slut - start , "sekunder \n")
+        
+        return(p_saved)
+      }
     }
 
     # Lav freq + tilfældige lyse farver
@@ -923,7 +940,7 @@ server <- function(input, output, session) {
         )
       )
 
-    ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
+    p <- ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
       ggwordcloud::geom_text_wordcloud_area(
         rm_outside  = TRUE,   # fjern ord der ikke kan være i området
         eccentricity = 0.8    # lidt oval form i stedet for perfekt cirkel
@@ -936,7 +953,18 @@ server <- function(input, output, session) {
         panel.background = element_rect(fill = "#1c1c1e", colour = NA),
         plot.margin      = margin(5, 5, 5, 5)
       )
+    
+    p@meta <- retter_tmp
 
+    saveRDS(p, file = paste0("./data/plot/wordcloud_", input$menu_type, ".rds"))
+    
+    slut <- Sys.time()
+    
+    cat("Returnerer nyt wordcloud plot\n")
+    cat("Det tog", slut - start , "sekunder \n")
+    
+    p
+    
   })
   
 
@@ -957,7 +985,7 @@ server <- function(input, output, session) {
     
     # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
     ops_sorted <- opskrifter[order(vapply(opskrifter, function(x) names(x)[1], ""))]
-    
+  
     keys <- names(ops_sorted)
     titler <- vapply(ops_sorted, function(df) names(df)[1], "")
     
