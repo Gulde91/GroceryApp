@@ -260,7 +260,7 @@ server <- function(input, output, session) {
   
   
   # laves som reactive (og ikke reactiveVal) fordi der ikke kan indgå
-  # reactive ellementer i en reactiveVal
+  # reactive elementer i en reactiveVal
   rv_varer <- reactive({
     bind_rows(opskrift_df, rv_varer_custom()) |>
       arrange(Indkobsliste) |>
@@ -877,29 +877,29 @@ server <- function(input, output, session) {
   
   # mest populære varer ----
   # loader tidligere indkøbssedler
-  # tidl_kob <- reactive({
-  #   mest_brugte_varer(c(rv_varer()$enhed, rv_varer_custom()$enhed))
-  # })
+  tidl_kob <- reactive({
+    mest_brugte_varer(c(rv_varer()$enhed, rv_varer_custom()$enhed))
+  })
   
   
-  # observe({
-  #   
-  #   if (!is.null(rv_indkobsseddel_samlet$df)) {
-  #     paa_listen <- medtag_kun_varer(rv_indkobsseddel_samlet$df)
-  #     paa_listen <- rens_varer(
-  #       paa_listen$Indkøbsliste,
-  #       c(rv_varer()$enhed, rv_varer_custom()$enhed)
-  #     )
-  #     
-  #     tidl_kob_out <- tidl_kob()[!tidl_kob()$Indkøbsliste %in% paa_listen, ] |> slice(1:10)
-  #     
-  #     output$tidl_kob <- renderTable(
-  #       tidl_kob_out,
-  #       colnames = FALSE
-  #     )
-  #   }
-  #   
-  # })
+  observe({
+
+    if (!is.null(rv_indkobsseddel_samlet$df)) {
+      paa_listen <- medtag_kun_varer(rv_indkobsseddel_samlet$df)
+      paa_listen <- rens_varer(
+        paa_listen$Indkøbsliste,
+        c(rv_varer()$enhed, rv_varer_custom()$enhed)
+      )
+
+      tidl_kob_out <- tidl_kob()[!tidl_kob()$Indkøbsliste %in% paa_listen, ] |> slice(1:10)
+
+      output$tidl_kob <- renderTable(
+        tidl_kob_out,
+        colnames = FALSE
+      )
+    }
+
+  })
   
   ## Inspiration og statistik
   
