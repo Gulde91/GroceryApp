@@ -293,7 +293,11 @@ medtag_kun_varer <- function(x) {
     index <- nrow(x)
   }
 
-  x[1:index, ]
+  # må lave til df igen da subsetting af 1 col laves df om til character
+  out <- as.data.frame(x[1:index, ])
+  names(out) <- "Indkøbsliste"
+  
+  out
 
 }
 
