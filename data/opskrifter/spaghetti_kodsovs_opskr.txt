@@ -8,4 +8,4 @@ gulerødder;20;gram;frugt og grønt;
 oregano;;tsk;konserves;krydderi
 salt;;tsk;konserves;krydderi
 peber;;tsk;konserves;krydderi
-parmasam;25;gram;mejeri;ost
+parmesan;25;gram;mejeri;ost
