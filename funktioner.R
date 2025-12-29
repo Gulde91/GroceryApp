@@ -535,7 +535,8 @@ plot_brugte_opskrifter <- function(df, dato_start, dato_slut, top_n = 5) {
   
   # filtrér på datointerval
   df_plot <- df |> 
-    subset(dato >= as.Date(dato_start) & dato <= as.Date(dato_slut))
+    subset(dato >= as.Date(dato_start) & dato <= as.Date(dato_slut)) |> 
+    mutate(retter = trimws(retter))
   
   if (nrow(df_plot) == 0) {
     return(
