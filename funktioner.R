@@ -174,6 +174,66 @@ add_links <- function(retter, links) {
 
 }
 
+#' @title Sortér indkøbsseddel efter kategorier i kat_1 med special-rækkefølge
+#'
+#' @description
+#' Sorterer en data.frame efter en kategorikolonne (default: "kat_1") sådan, at:
+#' \itemize{
+#'   \item de kategorier der angives i \code{first} kommer først (i den 
+#'   rækkefølge, de er angivet)
+#'   \item de kategorier der angives i \code{last} kommer til sidst (i den 
+#'   rækkefølge, de er angivet)
+#'   \item alle øvrige kategorier sorteres alfabetisk og placeres imellem 
+#'   \code{first} og \code{last}.
+#' }
+#'
+#' Derudover sorteres inden for kategorierne alfabetisk på varenavn (eller en 
+#' valgfri sekundær kolonne).
+#'
+#' @param df Data.frame der indeholder mindst kolonnen angivet i \code{cat_col}.
+#' @param first Tegnvektor med kategorinavne, der skal komme først (kan være tom).
+#' @param last Tegnvektor med kategorinavne, der skal komme sidst (kan være tom).
+#' @param cat_col Navnet på kategorikolonnen (som streng), default "kat_1".
+#' @param secondary_col Navn på kolonne der skal bruges som sekundær sortering
+#'   inden for kategorierne. Default "Indkobsliste". Sættes til \code{NULL}
+#'   hvis der ikke ønskes sekundær sortering.
+#'
+#' @return Data.frame i samme format som \code{df}, men sorteret.
+#'
+sort_by_cat <- function(df,
+                        first = NULL,
+                        last = NULL,
+                        cat_col = "kat_1",
+                        secondary_col = "kat_2") {
+  
+  stopifnot(cat_col %in% names(df))
+  
+  cats <- unique(df[[cat_col]])
+  
+  # Sørg for kun at bruge kategorier, der faktisk findes i data
+  first <- intersect(first, cats)
+  last  <- intersect(last, setdiff(cats, first))
+  
+  mid <- setdiff(cats, c(first, last))
+  mid <- sort(mid)  # alfabetisk midterblok
+  
+  level_order <- c(first, mid, last)
+  
+  df$.sort_cat <- factor(df[[cat_col]], levels = level_order, ordered = TRUE)
+  
+  # Byg arrange-kaldet dynamisk, så secondary_col kan være NULL
+  if (!is.null(secondary_col) && secondary_col %in% names(df)) {
+    df <- df[order(df$.sort_cat, df[[secondary_col]]), , drop = FALSE]
+  } else {
+    df <- df[order(df$.sort_cat), , drop = FALSE]
+  }
+  
+  df$.sort_cat <- NULL
+  
+  df
+}
+
+
 #' Mest Brugte Varer
 #'
 #' Finder de mest brugte varer fra indkøbssedler.
@@ -233,7 +293,11 @@ medtag_kun_varer <- function(x) {
     index <- nrow(x)
   }
 
-  x[1:index, ]
+  # må lave til df igen da subsetting af 1 col laves df om til character
+  out <- as.data.frame(x[1:index, ])
+  names(out) <- "Indkøbsliste"
+  
+  out
 
 }
 
@@ -427,6 +491,10 @@ find_retter <- function(x, alle_retter) {
   
   load(paste0("./data/indkobssedler/", x))
   
+  # "til xx pers.
+  df$Indkøbsliste <- gsub("\\(til \\d+ pers\\.\\)", "", df$Indkøbsliste)
+  
+  # udtager kun retter
   pattern <- paste0("^(", paste(alle_retter, collapse = "|"), ")")
   resultat <- df$Indkøbsliste[grepl(pattern, df$Indkøbsliste)]
   resultat <- gsub(":", "", resultat)

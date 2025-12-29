@@ -222,9 +222,8 @@ ui <- f7Page(
     f7Block(
       strong = TRUE,
       f7Slider("top_n", "Antal top-opskrifter", 1, 20, 10),
-      f7DatePicker("date_from", "Fra dato", type = "date",
-        value = lubridate::`%m-%`(Sys.Date(), lubridate::years(1))),
-      f7DatePicker("date_to", "Til dato", Sys.Date(), type = "date"),
+      f7DatePicker("date_from", "Fra dato"),
+      f7DatePicker("date_to", "Til dato"),
       
       tags$a(
         class = "sheet-close",
@@ -251,6 +250,9 @@ server <- function(input, output, session) {
       arrange(Indkobsliste)
     )
   
+  # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
+  rv_editState <- reactiveValues(table = NULL, row = NULL)
+  
   # indlæser basis varer ved genload af appen
   session$onFlushed(function() {
     rv_varer_custom(read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8"))
@@ -258,7 +260,7 @@ server <- function(input, output, session) {
   
   
   # laves som reactive (og ikke reactiveVal) fordi der ikke kan indgå
-  # reactive ellementer i en reactiveVal
+  # reactive elementer i en reactiveVal
   rv_varer <- reactive({
     bind_rows(opskrift_df, rv_varer_custom()) |>
       arrange(Indkobsliste) |>
@@ -267,6 +269,20 @@ server <- function(input, output, session) {
   }) 
   
   # Reaktive inputs ----
+  observe({
+    v_min <- max(
+      as.Date("2025-12-01"), # kan ændres på sigt, så det bare er det seneste år
+      lubridate::`%m-%`(Sys.Date(), lubridate::years(1))
+      )
+
+    updateF7DatePicker("date_from", v_min, dateFormat = "dd-mm-yyyy")
+    }
+  )
+  
+  observe(
+    updateF7DatePicker("date_to", Sys.Date(), dateFormat = "dd-mm-yyyy")
+  )
+
   observe(
     updateSelectizeInput(
       session, 
@@ -298,9 +314,6 @@ server <- function(input, output, session) {
       choices = sort(setdiff(unique(rv_varer()$kat_2), ""))
     )
   )
-  
-  # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
-  rv_editState <- reactiveValues(table = NULL, row = NULL)
   
   
   # Bruttoliste: vis, rediger og slet alle varer ----
@@ -646,7 +659,8 @@ server <- function(input, output, session) {
       indkob <- indkob %>%
         group_by(Indkobsliste, enhed, kat_1, kat_2) %>%
         summarise(maengde = sum(maengde, na.rm = TRUE), .groups = "drop") %>%
-        arrange(kat_1, kat_2)
+        sort_by_cat(first = c("frugt og grønt", "konserves"),
+                    last = c("husholdning"))
 
       # runder op
       rund_op <- c("stk ", "d\u00E5se(r)", "pakke(r)", "rulle(r)")
@@ -680,7 +694,6 @@ server <- function(input, output, session) {
     
     secs <- character()
     if (!is.null(rv_valgte_opskrifter) && length(rv_valgte_opskrifter$items) > 0) {
-      secs <- c(secs, "─────────────")
       for (it in rv_valgte_opskrifter$items) {
         secs <- c(secs, "", sprintf("%s (til %s pers.)", it$title, it$pers))
         if (!is.null(it$df) && nrow(it$df) > 0) {
@@ -853,7 +866,10 @@ server <- function(input, output, session) {
   # gemmer indkøbsseddel ----
   observeEvent(input$gem_indkobsseddel, {
     
-    df <- rv_indkobsseddel_samlet$df
+    samlet <- combined_lines()
+    df <- data.frame(Indkøbsliste = c(samlet$visible, samlet$hidden))
+    df$Indkøbsliste <- trimws(df$Indkøbsliste)
+    
     path <- paste0("./data/indkobssedler/indkobsseddel_", gsub("-", "", Sys.Date()), ".rda")
     save(df, file = path)
     
@@ -867,33 +883,45 @@ server <- function(input, output, session) {
   
   
   observe({
-    
+
     if (!is.null(rv_indkobsseddel_samlet$df)) {
       paa_listen <- medtag_kun_varer(rv_indkobsseddel_samlet$df)
       paa_listen <- rens_varer(
         paa_listen$Indkøbsliste,
         c(rv_varer()$enhed, rv_varer_custom()$enhed)
       )
-      
+
       tidl_kob_out <- tidl_kob()[!tidl_kob()$Indkøbsliste %in% paa_listen, ] |> slice(1:10)
-      
+
       output$tidl_kob <- renderTable(
         tidl_kob_out,
         colnames = FALSE
       )
     }
-    
+
   })
   
   ## Inspiration og statistik
   
   # word cloud plot ----
   output$wordcloud_retter <- renderPlot({
-
+    
     retter_tmp <- retter
 
     if (input$menu_type != "Alle") {
       retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
+    }
+    
+    # tjekker om plot allerede findes
+    p_sti <- paste0("./data/plot/wordcloud_", input$menu_type, ".rds")
+    
+    if (file.exists(p_sti)) {
+      p_saved <- readRDS(p_sti)
+      
+      if (identical(p_saved@meta, retter_tmp)) {
+        cat("Returnerer gemt wordcloud plot\n")
+        return(p_saved)
+      }
     }
 
     # Lav freq + tilfældige lyse farver
@@ -907,7 +935,7 @@ server <- function(input, output, session) {
         )
       )
 
-    ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
+    p <- ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
       ggwordcloud::geom_text_wordcloud_area(
         rm_outside  = TRUE,   # fjern ord der ikke kan være i området
         eccentricity = 0.8    # lidt oval form i stedet for perfekt cirkel
@@ -920,7 +948,15 @@ server <- function(input, output, session) {
         panel.background = element_rect(fill = "#1c1c1e", colour = NA),
         plot.margin = margin(5, 5, 5, 5)
       )
+    
+    # gemmer retter i plot og gemmer selve plottet
+    p@meta <- retter_tmp
+    saveRDS(p, file = paste0("./data/plot/wordcloud_", input$menu_type, ".rds"))
+    
+    cat("Returnerer nyt wordcloud plot\n")
 
+    p
+    
   })
   
 
@@ -936,12 +972,12 @@ server <- function(input, output, session) {
       )
   })
   
-  # Dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
+  # dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
   output$opskrifter_ui <- renderUI({
     
     # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
     ops_sorted <- opskrifter[order(vapply(opskrifter, function(x) names(x)[1], ""))]
-    
+  
     keys <- names(ops_sorted)
     titler <- vapply(ops_sorted, function(df) names(df)[1], "")
     
