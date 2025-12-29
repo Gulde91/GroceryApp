@@ -906,9 +906,6 @@ server <- function(input, output, session) {
   # word cloud plot ----
   output$wordcloud_retter <- renderPlot({
     
-    start <- Sys.time()
-    
-    
     retter_tmp <- retter
 
     if (input$menu_type != "Alle") {
@@ -917,14 +914,12 @@ server <- function(input, output, session) {
     
     # tjekker om plot allerede findes
     p_sti <- paste0("./data/plot/wordcloud_", input$menu_type, ".rds")
+    
     if (file.exists(p_sti)) {
       p_saved <- readRDS(p_sti)
       
       if (identical(p_saved@meta, retter_tmp)) {
-        slut <- Sys.time()
         cat("Returnerer gemt wordcloud plot\n")
-        cat("Det tog", slut - start , "sekunder \n")
-        
         return(p_saved)
       }
     }
@@ -954,15 +949,12 @@ server <- function(input, output, session) {
         plot.margin      = margin(5, 5, 5, 5)
       )
     
+    # gemmer retter i plot og gemmer selve plottet
     p@meta <- retter_tmp
-
     saveRDS(p, file = paste0("./data/plot/wordcloud_", input$menu_type, ".rds"))
     
-    slut <- Sys.time()
-    
     cat("Returnerer nyt wordcloud plot\n")
-    cat("Det tog", slut - start , "sekunder \n")
-    
+
     p
     
   })
@@ -980,7 +972,7 @@ server <- function(input, output, session) {
       )
   })
   
-  # Dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
+  # dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
   output$opskrifter_ui <- renderUI({
     
     # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
