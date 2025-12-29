@@ -1,0 +1,10 @@
+Bacon kyllinge tærte;maengde;enhed;kat_1;kat_2
+færdig tærtedej;0.25;rulle(r);køl;
+bacon i tern;50;gram;kød;pålæg
+forårsløg;0.25;bundt;frugt og grønt;
+frosne ærter;50;gram;frost;
+karry (tilsmagning);;;konserves;krydderi
+chiliflager;;tsk;konserves;krydderi
+æg;1.25;stk;mejeri;
+creme fraiche;0.63;dl;mejeri;mælk
+revet mozzarella;18.75;gram;mejeri;ost

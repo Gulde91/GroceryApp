@@ -1,0 +1,16 @@
+Lasagne okse;maengde;enhed;kat_1;kat_2
+hakket oksekød;0.1;kg;kød;
+løg;0.5;stk;frugt og grønt;
+hvidløgsfed;1;stk;frugt og grønt;
+oregano;0.5;tsk;konserves;krydderi
+gulerødder;50;gram;frugt og grønt;
+tomatpure;25;gram;konserves;tomat
+hakkede tomater;0.5;dåse(r);konserves;tomat
+grøntsagsbouillon;0.25;stk;konserves;krydderi
+olivenolie;0.5;spsk;konserves;
+smør;10;gram;mejeri;
+hvedemel;10;gram;konserves;mel
+skummetmælk;0.075;liter;mejeri;mælk
+muskatnød;0.1;tsk;konserves;krydderi
+frisk mozzarella;0.5;stk;mejeri;ost
+lasagneplader;2.25;stk;konserves;

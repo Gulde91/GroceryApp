@@ -1,0 +1,5 @@
+Pulled chicken;maengde;enhed;kat_1;kat_2
+pulled chicken;0.5;stk;kød;pålæg
+coleslaw;0.33;stk;frugt og grønt;
+brioche bolle;1;stk;konserves;brød
+mayonnaise;20;gram;konserves;dressing

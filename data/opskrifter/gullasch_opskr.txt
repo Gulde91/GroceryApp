@@ -1,0 +1,12 @@
+Gullasch;maengde;enhed;kat_1;kat_2
+løg;0.5;stk;frugt og grønt;
+hvidløgsfed;0.25;stk;frugt og grønt;
+kartofler;0.25;kg;frugt og grønt;
+gulerødder;25;gram;frugt og grønt;
+oksebov;125;gram;køl;
+paprika;;tsk;konserves;krydderi
+spidskommen (tilsmagning);;;konserves;krydderi
+grøntsagsbouillon;;;konserves;krydderi
+tomatpure;25;gram;konserves;tomat
+skummetmælk;0.38;liter;mejeri;mælk
+smør;25;gram;mejeri;

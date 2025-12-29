@@ -1,0 +1,10 @@
+Kartoffel-porre suppe;maengde;enhed;kat_1;kat_2
+smør;2.5;gram;mejeri;
+løg;0.25;stk;frugt og grønt;
+hvidløgsfed;0.5;stk;frugt og grønt;
+kartofler;0.125;kg;frugt og grønt;
+porre;0.5;stk;frugt og grønt;
+hønsefondbouillon;2;stk;konserves;krydderi
+piskefløde;0.25;dl;mejeri;mælk
+bacon i skiver;37.5;gram;kød;pålæg
+brød (tilbehør);;;konserves;brød

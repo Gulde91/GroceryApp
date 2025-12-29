@@ -1,0 +1,15 @@
+Dahl;maengde;enhed;kat_1;kat_2
+hvidløgsfed;1.25;stk;frugt og grønt;
+ingefær;30;gram;frugt og grønt;
+karry (tilsmagning);;;konserves;krydderi
+spidskommen (tilsmagning);;;konserves;krydderi
+koriander (tilsmagning);;;konserves;krydderi
+kardemomme (tilsmagning);;;konserves;krydderi
+chiliflager;;tsk;konserves;krydderi
+grøntsagsbouillon;1;stk;konserves;krydderi
+røde linser;50;gram;konserves;
+hakkede tomater;0.5;dåse(r);konserves;tomat
+yoghurt naturel;0.5;dl;mejeri;mælk
+agurk;0.13;stk;frugt og grønt;
+naanbrød;1;stk;konserves;brød
+peanuts;0.5;pose(r);konserves;chips

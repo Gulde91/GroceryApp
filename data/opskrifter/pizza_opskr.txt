@@ -1,0 +1,5 @@
+Pizza;maengde;enhed;kat_1;kat_2
+tomatpure;50;gram;konserves;tomat
+pizza sauce;1;stk;konserves;tomat
+frisk mozzarella;1;stk;mejeri;ost
+pizzabund;1;stk;køl;

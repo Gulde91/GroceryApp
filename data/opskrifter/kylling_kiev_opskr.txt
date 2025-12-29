@@ -1,0 +1,11 @@
+Kylling kiev;maengde;enhed;kat_1;kat_2
+kyllingebrystfilet;1;stk;kød;
+spinat;30;gram;frugt og grønt;
+citron;0.5;stk;frugt og grønt;
+persille;20;gram;frugt og grønt;
+rødløg;0.5;stk;frugt og grønt;
+hvidløgsfed;0.5;stk;frugt og grønt;
+panko;15;gram;konserves;
+aioli;25;gram;konserves;dressing
+æg;0.5;stk;mejeri;
+smør;30;gram;mejeri;

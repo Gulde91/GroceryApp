@@ -1,0 +1,10 @@
+Pizza surdej;maengde;enhed;kat_1;kat_2
+tipo 00 mel;125;gram;konserves;mel
+durummel;25;gram;konserves;mel
+løg;0.25;stk;frugt og grønt;
+hvidløgsfed;1;stk;frugt og grønt;
+hvidvinseddike;1;spsk;konserves;
+tomatpure;100;gram;konserves;tomat
+hakkede tomater;0.5;dåse(r);konserves;tomat
+engelsk sovs (tilsmagning);;;konserves;
+frisk mozzarella;1;stk;mejeri;ost

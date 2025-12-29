@@ -1,0 +1,12 @@
+Burger;maengde;enhed;kat_1;kat_2
+hakket oksekød;0.175;kg;kød;
+bacon i skiver;50;gram;kød;pålæg
+brioche bolle;1;stk;konserves;brød
+agurk;0.2;stk;frugt og grønt;
+iceberg;0.1;stk;frugt og grønt;
+toastost;2;skiver;mejeri;ost
+ketchup;;;konserves;
+remoulade (tilbehør);;;konserves;dressing
+ristet løg (tilbehør);;;konserves;
+BBQ dressing (tilsmagning);;;konserves;dressing
+eddike (tilsmagning);;;konserves;

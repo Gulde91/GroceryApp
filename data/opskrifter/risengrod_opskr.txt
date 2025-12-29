@@ -1,0 +1,6 @@
+Risengrød;maengde;enhed;kat_1;kat_2
+grødris;90;gram;konserves;
+skummetmælk;0.5;liter;mejeri;mælk
+sukker;25;gram;konserves;
+kanel (tilsmagning);;;konserves;krydderi
+hvidtøl;0.25;liter;konserves;

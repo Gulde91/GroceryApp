@@ -1,0 +1,8 @@
+Frikadeller;maengde;enhed;kat_1;kat_2
+hakket svinekød;166.6;gram;kød;
+løg;0.33;stk;frugt og grønt;
+hvedemel;10;gram;konserves;mel
+havregryn;10;gram;konserves;mel
+salt;;tsk;konserves;krydderi
+æg;0.33;stk;mejeri;
+skummetmælk;0.066;liter;mejeri;mælk

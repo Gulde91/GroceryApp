@@ -1,0 +1,3 @@
+Ravioli;maengde;enhed;kat_1;kat_2
+ravioli;200;gram;køl;
+pesto;40;gram;konserves;

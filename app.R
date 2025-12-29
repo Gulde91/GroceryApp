@@ -946,7 +946,7 @@ server <- function(input, output, session) {
       theme(
         plot.background  = element_rect(fill = "#1c1c1e", colour = NA),
         panel.background = element_rect(fill = "#1c1c1e", colour = NA),
-        plot.margin      = margin(5, 5, 5, 5)
+        plot.margin = margin(5, 5, 5, 5)
       )
     
     # gemmer retter i plot og gemmer selve plottet

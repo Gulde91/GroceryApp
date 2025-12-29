@@ -1,0 +1,13 @@
+Grillet medister;maengde;enhed;kat_1;kat_2
+medisterpølse;100;gram;kød;
+kartofler;0.25;kg;frugt og grønt;
+spidskål;0.25;stk;frugt og grønt;
+ærter;37;gram;frugt og grønt;
+persille;;;frugt og grønt;
+creme fraiche;0.25;dl;mejeri;mælk
+mayonnaise;20;gram;konserves;dressing
+sennep;20;gram;konserves;dressing
+sukker;5;gram;konserves;
+purløg;;;frugt og grønt;
+salt;;tsk;konserves;krydderi
+peber;;tsk;konserves;krydderi

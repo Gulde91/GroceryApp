@@ -1,0 +1,7 @@
+Carbonara;maengde;enhed;kat_1;kat_2
+spaghetti;75;gram;konserves;
+parmesan;25;gram;mejeri;ost
+æggeblommer;1;stk;mejeri;
+piskefløde;0.5;dl;mejeri;mælk
+løg;0.5;stk;frugt og grønt;
+bacon i tern;100;gram;kød;pålæg

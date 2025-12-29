@@ -1,0 +1,16 @@
+Chili con carne;maengde;enhed;kat_1;kat_2
+spidskommen (tilsmagning);;;konserves;krydderi
+kanel (tilsmagning);;;konserves;krydderi
+chiliflager;;tsk;konserves;krydderi
+hvidløgsfed;0.5;stk;frugt og grønt;
+løg;0.5;stk;frugt og grønt;
+hakket oksekød;0.0875;kg;kød;
+hakkede tomater;0.25;dåse(r);konserves;tomat
+soltørrede tomater;15;gram;konserves;tomat
+oksebouillon;0.25;stk;konserves;krydderi
+kidneybønner;0.2;dåse(r);konserves;
+mørk chokolade;10;gram;slik;
+olivenolie;;spsk;konserves;
+nachos;31.25;gram;chips;
+basmatiris;0.5;gram;konserves;
+creme fraiche;0.5;dl;mejeri;mælk

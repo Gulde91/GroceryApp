@@ -1,0 +1,12 @@
+Mørbradgryde;maengde;enhed;kat_1;kat_2
+svinemørbrad;0.25;stk;kød;
+cocktailpølser;50;gram;kød;pålæg
+bacon i skiver;40;gram;kød;pålæg
+løg;0.5;stk;frugt og grønt;
+tomatpure;50;gram;konserves;tomat
+grøntsagsbouillon;0.5;stk;konserves;krydderi
+oksebouillon;0.25;stk;konserves;krydderi
+madlavningsfløde;0.1;liter;mejeri;mælk
+ribsgele (tilsmagning);;;konserves;
+paprika;;tsk;konserves;krydderi
+engelsk sovs (tilsmagning);;;konserves;
