@@ -906,7 +906,7 @@ server <- function(input, output, session) {
   # word cloud plot ----
   output$wordcloud_retter <- renderPlot({
     
-    retter_tmp <- retter
+    retter_tmp <- as.data.frame(retter)
 
     if (input$menu_type != "Alle") {
       retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
