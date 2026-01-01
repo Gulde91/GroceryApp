@@ -7,6 +7,7 @@ library(purrr)
 library(fontawesome)
 library(shinyjs)
 library(ggplot2)
+library(wordcloud2)
 
 source("./data.R")
 source("./funktioner.R")
@@ -100,7 +101,7 @@ ui <- f7Page(
         f7Block(inset = TRUE, strong = TRUE,
                 sInput("menu_type", "V\u00E6lg type",
                       c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
-          plotOutput("wordcloud_retter", height = "300px")
+          wordcloud2Output("wordcloud_retter")
           ),
         f7Block(inset = TRUE, strong = TRUE,
           # Knap som åbner filter-sheet (Framework7 styret)
@@ -904,61 +905,27 @@ server <- function(input, output, session) {
   ## Inspiration og statistik
   
   # word cloud plot ----
-  output$wordcloud_retter <- renderPlot({
+  output$wordcloud_retter <- renderWordcloud2({
     
-    retter_tmp <- as.data.frame(retter)
-
+    retter_tmp <- retter
+    
     if (input$menu_type != "Alle") {
       retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
     }
     
-    # tjekker om plot allerede findes
-    p_sti <- paste0("./data/plot/wordcloud_", input$menu_type, ".rds")
+    farver <- c("#fde68a", "#bef264", "#6ee7b7", "#93c5fd", "#e5e7eb")
     
-    if (file.exists(p_sti)) {
-      p_saved <- readRDS(p_sti)
-      
-      if (identical(p_saved@meta, retter_tmp)) {
-        cat("Returnerer gemt wordcloud plot\n")
-        return(p_saved)
-      }
-    }
-
-    # Lav freq + tilfældige lyse farver
-    wc_data <- retter_tmp |>
-      count(retter, name = "freq") |>
-      mutate(
-        col = sample(
-          c("#fde68a", "#bef264", "#6ee7b7", "#93c5fd", "#e5e7eb"),
-          size = n(),
-          replace = TRUE
-        )
-      )
-
-    p <- ggplot(wc_data, aes(label = retter, size = freq, colour = col)) +
-      ggwordcloud::geom_text_wordcloud_area(
-        rm_outside  = TRUE,   # fjern ord der ikke kan være i området
-        eccentricity = 0.8    # lidt oval form i stedet for perfekt cirkel
-      ) +
-      scale_size_area(max_size = 18) +  # justér max tekststørrelse
-      scale_colour_identity() +         # brug farverne som de er
-      theme_void() +
-      theme(
-        plot.background  = element_rect(fill = "#1c1c1e", colour = NA),
-        panel.background = element_rect(fill = "#1c1c1e", colour = NA),
-        plot.margin = margin(5, 5, 5, 5)
-      )
-    
-    # gemmer retter i plot og gemmer selve plottet
-    p@meta <- retter_tmp
-    saveRDS(p, file = paste0("./data/plot/wordcloud_", input$menu_type, ".rds"))
-    
-    cat("Returnerer nyt wordcloud plot\n")
-
-    p
-    
+    retter_tmp %>%
+      filter(retter != "V\u00E6lg ret") %>%
+      select(retter) %>%
+      mutate(count = 0.2) %>%
+      wordcloud2(
+        size = 0.1, 
+        color = sample(farver, size = nrow(.), replace= TRUE), 
+        backgroundColor = "#1c1c1e",
+        shape = "circle",
+        rotateRatio = 0)
   })
-  
 
   # statistik over brugte opskrifter ----
   opskrifter_statistik <- brugte_opskrifter(retter$retter)
