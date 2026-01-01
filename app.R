@@ -101,7 +101,7 @@ ui <- f7Page(
         f7Block(inset = TRUE, strong = TRUE,
                 sInput("menu_type", "V\u00E6lg type",
                       c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
-          wordcloud2Output("wordcloud_retter", height = "200px")
+          wordcloud2Output("wordcloud_retter", height = "250px")
           ),
         f7Block(inset = TRUE, strong = TRUE,
           # Knap som åbner filter-sheet (Framework7 styret)
