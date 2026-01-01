@@ -27,4 +27,4 @@ Pulled chicken;pulledchicken_opskr;kylling
 Ravioli;ravioli_opskr;vegetar
 Risengrød;risengrod_opskr;vegetar
 Spaghetti kødsovs;spaghetti_kodsovs_opskr;okse
-grillet medister;grillet_medister_opsk;gris
+Grillet medister;grillet_medister_opsk;gris

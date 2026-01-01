@@ -101,7 +101,7 @@ ui <- f7Page(
         f7Block(inset = TRUE, strong = TRUE,
                 sInput("menu_type", "V\u00E6lg type",
                       c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
-          wordcloud2Output("wordcloud_retter")
+          wordcloud2Output("wordcloud_retter", height = "300px")
           ),
         f7Block(inset = TRUE, strong = TRUE,
           # Knap som åbner filter-sheet (Framework7 styret)
@@ -904,7 +904,7 @@ server <- function(input, output, session) {
   
   ## Inspiration og statistik
   
-  # word cloud plot ----
+  # wordcloud plot ----
   output$wordcloud_retter <- renderWordcloud2({
     
     retter_tmp <- retter
@@ -918,7 +918,8 @@ server <- function(input, output, session) {
     retter_tmp %>%
       filter(retter != "V\u00E6lg ret") %>%
       select(retter) %>%
-      mutate(count = 0.2) %>%
+      mutate(count = sample(c(0.2, 0.3, 0.4), nrow(.), 
+                            replace = TRUE, prob = c(0.6, 0.3, 0.1))) %>%
       wordcloud2(
         size = 0.1, 
         color = sample(farver, size = nrow(.), replace= TRUE), 
