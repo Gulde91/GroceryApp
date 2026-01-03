@@ -99,11 +99,6 @@ ui <- f7Page(
         icon = f7Icon("sparkles"),
         f7BlockTitle(title = "Inspiration"),
         f7Block(inset = TRUE, strong = TRUE,
-                sInput("menu_type", "V\u00E6lg type",
-                      c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
-          wordcloud2Output("wordcloud_retter", height = "250px")
-          ),
-        f7Block(inset = TRUE, strong = TRUE,
           # Knap som åbner filter-sheet (Framework7 styret)
           tags$a(
             class = "sheet-open",
@@ -118,6 +113,11 @@ ui <- f7Page(
           ),
           br(),
           plotOutput("opskrifter_statistik_plot")
+        ),
+        f7Block(inset = TRUE, strong = TRUE,
+                sInput("menu_type", "V\u00E6lg type",
+                       c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
+                wordcloud2Output("wordcloud_retter", height = "250px")
         )
       )
     ),
