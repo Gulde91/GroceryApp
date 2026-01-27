@@ -28,3 +28,4 @@ Ravioli;ravioli_opskr;vegetar
 Risengrød;risengrod_opskr;vegetar
 Spaghetti kødsovs;spaghetti_kodsovs_opskr;okse
 Grillet medister;grillet_medister_opsk;gris
+Tomatsuppe;tomatsuppe_opskr;gris|vegatar
