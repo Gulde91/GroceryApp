@@ -95,7 +95,7 @@ ui <- f7Page(
         uiOutput("opskrifter_ui")
       ),
       # Inspiration----
-      mod_inspiration_ui("inspiration")
+      mod_inspiration_tab_ui("inspiration")
     ),
     
     # Modals ----
@@ -189,6 +189,8 @@ ui <- f7Page(
     
   ),
   
+  mod_inspiration_sheet_ui("inspiration"),
+
   uiOutput("edit_popup_ui")
 )
 

@@ -1,9 +1,7 @@
-mod_inspiration_ui <- function(id) {
+mod_inspiration_tab_ui <- function(id) {
   ns <- NS(id)
-  sheet_id <- ns("plot_filters_sheet")
 
-  tagList(
-    f7Tab(
+  f7Tab(
       tabName = "Inspiration",
       icon = f7Icon("sparkles"),
       f7BlockTitle(title = "Inspiration"),
@@ -12,7 +10,7 @@ mod_inspiration_ui <- function(id) {
         strong = TRUE,
         tags$a(
           class = "sheet-open",
-          `data-sheet` = paste0("#", sheet_id),
+          `data-sheet` = paste0("#", ns("plot_filters_sheet")),
           f7Button(
             inputId = ns("open_filters"),
             label = "Filtre",
@@ -34,22 +32,26 @@ mod_inspiration_ui <- function(id) {
         ),
         wordcloud2Output(ns("wordcloud_retter"), height = "250px")
       )
-    ),
-    f7Sheet(
-      id = sheet_id,
-      label = "Filtre for statistik",
-      orientation = "bottom",
-      swipeToClose = TRUE,
-      backdrop = TRUE,
-      f7Block(
-        strong = TRUE,
-        f7Slider(ns("top_n"), "Antal top-opskrifter", 1, 20, 10),
-        f7DatePicker(ns("date_from"), "Fra dato"),
-        f7DatePicker(ns("date_to"), "Til dato"),
-        tags$a(
-          class = "sheet-close",
-          f7Button(ns("close_filters"), "Luk", fill = TRUE, color = "gray")
-        )
+    )
+}
+
+mod_inspiration_sheet_ui <- function(id) {
+  ns <- NS(id)
+
+  f7Sheet(
+    id = ns("plot_filters_sheet"),
+    label = "Filtre for statistik",
+    orientation = "bottom",
+    swipeToClose = TRUE,
+    backdrop = TRUE,
+    f7Block(
+      strong = TRUE,
+      f7Slider(ns("top_n"), "Antal top-opskrifter", 1, 20, 10),
+      f7DatePicker(ns("date_from"), "Fra dato"),
+      f7DatePicker(ns("date_to"), "Til dato"),
+      tags$a(
+        class = "sheet-close",
+        f7Button(ns("close_filters"), "Luk", fill = TRUE, color = "gray")
       )
     )
   )
