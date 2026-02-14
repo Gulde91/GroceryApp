@@ -536,30 +536,17 @@ server <- function(input, output, session) {
       }
     }
     
-    # nulstiller inputfelter
-    updateSelectInput(
-      session = session,
-      inputId = "ret",
-      choices = c("", retter$retter)
-    )
-    
-    updateSelectInput(
-      session = session,
-      inputId = "salat",
-      choices = c("", salater$retter)
-    )
-    
-    updateSelectInput(
-      session = session,
-      inputId = "tilbehor",
-      choices = c("", tilbehor$Indkobsliste)
-    )
-    
     hide(id = "popup_opskrift", anim = TRUE, animType = "fade")
     
   })
 
-  observeEvent(input$open_opskrift, {show(id = "popup_opskrift", anim = TRUE, animType = "fade")})
+  observeEvent(input$open_opskrift, {
+    updateSelectInput(session = session, inputId = "ret", selected = "")
+    updateNumericInput(session = session, inputId = "pers", value = 2)
+    updateSelectInput(session = session, inputId = "salat", selected = salater$retter[[1]])
+    updateSelectInput(session = session, inputId = "tilbehor", selected = "")
+    show(id = "popup_opskrift", anim = TRUE, animType = "fade")
+  })
   observeEvent(input$close_opskrift, {hide(id = "popup_opskrift", anim = TRUE, animType = "fade")})
   
   # Tilføj varer fra liste ----
