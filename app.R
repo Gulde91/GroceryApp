@@ -554,11 +554,14 @@ server <- function(input, output, session) {
   # viser enhed på valgt vare
   observe({ 
     
+    enhed_valgt <- rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed
+    if (length(enhed_valgt) == 0 || is.na(enhed_valgt)) enhed_valgt <- "stk"
+    
     updateSelectInput(
       session = session,
       inputId = "enhed_alle_varer",
       choices = sort(setdiff(unique(rv_varer()$enhed), "")),
-      selected = rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed
+      selected = enhed_valgt
     )
   })
   
@@ -578,7 +581,12 @@ server <- function(input, output, session) {
     
   })
   
-  observeEvent(input$open_varer, {show(id = "popup_varer", anim = TRUE, animType = "fade")})
+  observeEvent(input$open_varer, {
+    updateSelectizeInput(session, inputId = "basis_varer", selected = character(0))
+    updateNumericInput(session = session, inputId = "antal_basis_varer", value = 1)
+    updateSelectInput(session = session, inputId = "enhed_alle_varer", selected = "stk")
+    show(id = "popup_varer", anim = TRUE, animType = "fade")
+  })
   observeEvent(input$close_varer, {hide(id = "popup_varer", anim = TRUE, animType = "fade")})
   
   # Tilføj varer manuel ----
