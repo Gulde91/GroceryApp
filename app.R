@@ -536,30 +536,17 @@ server <- function(input, output, session) {
       }
     }
     
-    # nulstiller inputfelter
-    updateSelectInput(
-      session = session,
-      inputId = "ret",
-      choices = c("", retter$retter)
-    )
-    
-    updateSelectInput(
-      session = session,
-      inputId = "salat",
-      choices = c("", salater$retter)
-    )
-    
-    updateSelectInput(
-      session = session,
-      inputId = "tilbehor",
-      choices = c("", tilbehor$Indkobsliste)
-    )
-    
     hide(id = "popup_opskrift", anim = TRUE, animType = "fade")
     
   })
 
-  observeEvent(input$open_opskrift, {show(id = "popup_opskrift", anim = TRUE, animType = "fade")})
+  observeEvent(input$open_opskrift, {
+    updateSelectInput(session = session, inputId = "ret", selected = "")
+    updateNumericInput(session = session, inputId = "pers", value = 2)
+    updateSelectInput(session = session, inputId = "salat", selected = salater$retter[[1]])
+    updateSelectInput(session = session, inputId = "tilbehor", selected = "")
+    show(id = "popup_opskrift", anim = TRUE, animType = "fade")
+  })
   observeEvent(input$close_opskrift, {hide(id = "popup_opskrift", anim = TRUE, animType = "fade")})
   
   # Tilføj varer fra liste ----
@@ -591,7 +578,12 @@ server <- function(input, output, session) {
     
   })
   
-  observeEvent(input$open_varer, {show(id = "popup_varer", anim = TRUE, animType = "fade")})
+  observeEvent(input$open_varer, {
+    updateSelectizeInput(session, inputId = "basis_varer", selected = character(0))
+    updateNumericInput(session = session, inputId = "antal_basis_varer", value = 1)
+    updateSelectInput(session = session, inputId = "enhed_alle_varer", selected = "stk")
+    show(id = "popup_varer", anim = TRUE, animType = "fade")
+  })
   observeEvent(input$close_varer, {hide(id = "popup_varer", anim = TRUE, animType = "fade")})
   
   # Tilføj varer manuel ----
