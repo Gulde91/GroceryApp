@@ -873,6 +873,7 @@ server <- function(input, output, session) {
     
     path <- paste0("./data/indkobssedler/indkobsseddel_", gsub("-", "", Sys.Date()), ".rda")
     save(df, file = path)
+    runjs("showCopyToast(\"Indkøbsseddel gemt ✔\", \"blue\")")
     
   })
   
