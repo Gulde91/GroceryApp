@@ -1,0 +1,3 @@
+Tortellini;maengde;enhed;kat_1;kat_2
+tortellini;0.5;pakke;køl;
+pesto;0.5;dåse;konserves;

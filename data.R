@@ -43,7 +43,8 @@ salater <- tibble::tribble(
   "Spidsk\u00E5lsalat med agurk og edamameb\u00F8nner", "spidskaal_agurk_opskr", "vegetar",
   "Hytteostsalat", "hytteost_salat_opskr", "vegetar",
   "Broccoli", "broccoli_opskr", "",
-  "B\u00F8nnesalat", "boenne_salat_opskr", "vegetar"
+  "B\u00F8nnesalat", "boenne_salat_opskr", "vegetar",
+  "Gr\u00F8nne b\u00F8nner", "groenne_boenner_opskr", "vegetar"
   ) %>% arrange(retter)
 
 # revet gulerødder ----
@@ -98,6 +99,13 @@ broccoli_opskr <- tibble::tribble(
   "broccoli", 0.25, "stk", "frugt og gr\u00F8nt", "",
 )
 
+# bønner ----
+groenne_boenner_opskr <- tibble::tribble(
+  ~"Gr\u00F8nne b\u00F8nner", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
+  "gr\u00F8nne b\u00F8nner (fros)", 75, "gram", "frost", ""
+)
+
+
 # alle salater ----
 salater_opskrifter <- list(
   revet_gulerodder_opskr = revet_gulerodder_opskr,
@@ -105,7 +113,8 @@ salater_opskrifter <- list(
   spidskaal_agurk_opskr = spidskaal_agurk_opskr,
   hytteost_salat_opskr = hytteost_salat_opskr,
   broccoli_opskr = broccoli_opskr,
-  boenne_salat_opskr = boenne_salat_opskr
+  boenne_salat_opskr = boenne_salat_opskr,
+  groenne_boenner_opskr = groenne_boenner_opskr
 )
 
 # opskrifter ----
