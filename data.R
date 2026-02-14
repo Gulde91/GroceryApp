@@ -102,7 +102,7 @@ broccoli_opskr <- tibble::tribble(
 # bønner ----
 groenne_boenner_opskr <- tibble::tribble(
   ~"Gr\u00F8nne b\u00F8nner", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
-  "gr\u00F8nne b\u00F8nner (fros)", 75, "gram", "frost", ""
+  "gr\u00F8nne b\u00F8nner (frost)", 75, "gram", "frost", ""
 )
 
 
