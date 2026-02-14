@@ -395,11 +395,11 @@ button.dt-button.copy-btn-pushed {
 }
 
 #copy-toast.toast-green {
-  background: #16a34a;
+  background: #22c55e;
 }
 
 #copy-toast.toast-blue {
-  background: #2563eb;
+  background: #0ea5e9;
 }
 
 #copy-toast.show {
@@ -407,6 +407,14 @@ button.dt-button.copy-btn-pushed {
   transform: translateX(-50%) translateY(0);
 }
 
+
+
+/* Gem-knap med præcis samme blå hex som blå toast */
+.ga-save-btn {
+  background: #0ea5e9 !important;
+  border: 1px solid #0ea5e9 !important;
+  color: #ffffff !important;
+}
 
 /* Tab: opskrifter
    Sørg for at overskriften ikke gemmer sig under navbaren,

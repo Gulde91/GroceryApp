@@ -61,7 +61,7 @@ ui <- f7Page(
         DT::DTOutput("indkobsseddel"),
         f7Block(
           f7Button("gem_indkobsseddel", "Gem indkøbssedlen til database", 
-                   fill = TRUE, color = "blue"),
+                   fill = TRUE, color = "blue", class = "ga-save-btn"),
         ),
         h5(strong("Forslag til manglende varer:")),
         tableOutput("tidl_kob"),
