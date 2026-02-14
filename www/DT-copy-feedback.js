@@ -1,6 +1,6 @@
 // www/copy-feedback.js
 
-function showCopyToast(message) {
+window.showCopyToast = function (message) {
   var toast = document.getElementById("copy-toast");
   if (!toast) {
     toast = document.createElement("div");
