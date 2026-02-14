@@ -1,5 +1,24 @@
 // www/copy-feedback.js
 
+function showCopyToast(message) {
+  var toast = document.getElementById("copy-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "copy-toast";
+    toast.className = "copy-toast";
+    document.body.appendChild(toast);
+  }
+
+  toast.innerText = message || "Indkøbsliste kopieret ✔";
+  toast.classList.add("show");
+
+  // Sørg for at flere klik bare forlænger samme toast
+  clearTimeout(window.copyToastTimeout);
+  window.copyToastTimeout = setTimeout(function () {
+    toast.classList.remove("show");
+  }, 2000);
+}
+
 // Gør funktionen global, så DT::JS("copyWithFeedback") kan finde den
 window.copyWithFeedback = function (e, dt, node, config) {
   // 1) Kør standard copy-aktion (brug copyHtml5-varianten)
@@ -21,20 +40,12 @@ window.copyWithFeedback = function (e, dt, node, config) {
   }, 150);
 
   // 3) Lille toast-notifikation
-  var toast = document.getElementById("copy-toast");
-  if (!toast) {
-    toast = document.createElement("div");
-    toast.id = "copy-toast";
-    toast.className = "copy-toast";
-    toast.innerText = "Indkøbsliste kopieret ✔";
-    document.body.appendChild(toast);
-  }
-
-  toast.classList.add("show");
-
-  // Sørg for at flere klik bare forlænger samme toast
-  clearTimeout(window.copyToastTimeout);
-  window.copyToastTimeout = setTimeout(function () {
-    toast.classList.remove("show");
-  }, 2000);
+  showCopyToast("Indkøbsliste kopieret ✔");
 };
+
+if (window.Shiny && window.Shiny.addCustomMessageHandler) {
+  window.Shiny.addCustomMessageHandler("show_toast", function (msg) {
+    var text = msg && msg.text ? msg.text : "Udført ✔";
+    showCopyToast(text);
+  });
+}
