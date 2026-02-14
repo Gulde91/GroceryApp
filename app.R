@@ -554,20 +554,20 @@ server <- function(input, output, session) {
   # viser enhed på valgt vare
   observe({ 
     
-    enhed_valgt <- rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed
-    enhed_valgt <- enhed_valgt[!is.na(enhed_valgt) & nzchar(enhed_valgt)]
-    enhed_valgt <- unique(enhed_valgt)
-    if (length(enhed_valgt) == 0) {
-      enhed_valgt <- "stk"
-    } else {
-      enhed_valgt <- enhed_valgt[[1]]
-    }
+    # enhed_valgt <- rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed
+    # enhed_valgt <- enhed_valgt[!is.na(enhed_valgt) & nzchar(enhed_valgt)]
+    # enhed_valgt <- unique(enhed_valgt)
+    # if (length(enhed_valgt) == 0) {
+    #   enhed_valgt <- "stk"
+    # } else {
+    #   enhed_valgt <- enhed_valgt[[1]]
+    # }
     
     updateSelectInput(
       session = session,
       inputId = "enhed_alle_varer",
       choices = sort(setdiff(unique(rv_varer()$enhed), "")),
-      selected = enhed_valgt
+      selected = rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed # enhed_valgt
     )
   })
   
