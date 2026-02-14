@@ -1,6 +1,6 @@
 // www/copy-feedback.js
 
-window.showCopyToast = function (message) {
+window.showCopyToast = function (message, tone) {
   var toast = document.getElementById("copy-toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -10,6 +10,10 @@ window.showCopyToast = function (message) {
   }
 
   toast.innerText = message || "Indkøbsliste kopieret ✔";
+
+  var toastTone = tone || "green";
+  toast.classList.remove("toast-green", "toast-blue");
+  toast.classList.add(toastTone === "blue" ? "toast-blue" : "toast-green");
   toast.classList.add("show");
 
   // Sørg for at flere klik bare forlænger samme toast
@@ -40,12 +44,13 @@ window.copyWithFeedback = function (e, dt, node, config) {
   }, 150);
 
   // 3) Lille toast-notifikation
-  showCopyToast("Indkøbsliste kopieret ✔");
+  showCopyToast("Indkøbsliste kopieret ✔", "green");
 };
 
 if (window.Shiny && window.Shiny.addCustomMessageHandler) {
   window.Shiny.addCustomMessageHandler("show_toast", function (msg) {
     var text = msg && msg.text ? msg.text : "Udført ✔";
-    showCopyToast(text);
+    var tone = msg && msg.tone ? msg.tone : "green";
+    showCopyToast(text, tone);
   });
 }

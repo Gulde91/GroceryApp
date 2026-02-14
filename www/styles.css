@@ -383,7 +383,6 @@ button.dt-button.copy-btn-pushed {
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%) translateY(8px);
-  background: #16a34a;
   color: #ffffff;
   padding: 6px 14px;
   border-radius: 999px;
@@ -393,6 +392,14 @@ button.dt-button.copy-btn-pushed {
   transition: opacity 0.2s ease, transform 0.2s ease;
   z-index: 9999;
   white-space: nowrap;
+}
+
+#copy-toast.toast-green {
+  background: #16a34a;
+}
+
+#copy-toast.toast-blue {
+  background: #2563eb;
 }
 
 #copy-toast.show {
