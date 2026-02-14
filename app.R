@@ -555,7 +555,13 @@ server <- function(input, output, session) {
   observe({ 
     
     enhed_valgt <- rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]$enhed
-    if (length(enhed_valgt) == 0 || is.na(enhed_valgt)) enhed_valgt <- "stk"
+    enhed_valgt <- enhed_valgt[!is.na(enhed_valgt) & nzchar(enhed_valgt)]
+    enhed_valgt <- unique(enhed_valgt)
+    if (length(enhed_valgt) == 0) {
+      enhed_valgt <- "stk"
+    } else {
+      enhed_valgt <- enhed_valgt[[1]]
+    }
     
     updateSelectInput(
       session = session,
