@@ -410,7 +410,7 @@ button.dt-button.copy-btn-pushed {
 
 
 /* Gem-knap med præcis samme blå hex som blå toast */
-.ga-save-btn {
+button#gem_indkobsseddel {
   background: #0ea5e9 !important;
   border: 1px solid #0ea5e9 !important;
   color: #ffffff !important;
