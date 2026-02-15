@@ -11,14 +11,19 @@ sti <- "./data/opskrifter/"
 filer <- list.files(sti)
 
 opskrifter <- lapply(filer, function(x) {
-  readr::read_delim(
+  
+  tmp <- readr::read_delim(
     paste0(sti, x), col_types = c("c", "d", "c", "c", "c"),
-    delim = ";", escape_double = FALSE, trim_ws = TRUE, 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE, na = ""
   )
+  
+  tmp$enhed[is.na(tmp$enhed)] <- ""
+  tmp$kat_2[is.na(tmp$kat_2)] <- ""
+  
+  tmp
 })
 
 names(opskrifter) <- gsub("\\.txt", "", filer)
-
 
 # TILBEHØR ----
 tilbehor <- tibble::tribble(
