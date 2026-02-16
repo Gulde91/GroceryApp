@@ -565,16 +565,20 @@ server <- function(input, output, session) {
   # mulighed for at tilføje varer
   observeEvent(input$add_varer, {
     
-    if (input$basis_varer != "V\u00E6lg vare") {
+    if (is.null(input$enhed_alle_varer)) {
+      showNotification("Vælg en enhed, før varen tilføjes.", type = "warning")
+    } else {
+      
       varer_tmp <- rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]
       varer_tmp$maengde <- varer_tmp$maengde * input$antal_basis_varer
       varer_tmp$enhed <- input$enhed_alle_varer
       
       cat(input$basis_varer, "er tilføjet!\n")
       rv_indk_liste$df <- bind_rows(rv_indk_liste$df, varer_tmp)
+      
+      hide(id = "popup_varer", anim = TRUE, animType = "fade")
+      
     }
-    
-    hide(id = "popup_varer", anim = TRUE, animType = "fade")
     
   })
   
