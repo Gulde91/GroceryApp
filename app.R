@@ -11,6 +11,7 @@ library(wordcloud2)
 
 source("./data.R")
 source("./funktioner.R")
+source("./R/modules/mod_inspiration.R")
 
 
 ui <- f7Page(
@@ -94,32 +95,7 @@ ui <- f7Page(
         uiOutput("opskrifter_ui")
       ),
       # Inspiration----
-      f7Tab(
-        tabName = "Inspiration",
-        icon = f7Icon("sparkles"),
-        f7BlockTitle(title = "Inspiration"),
-        f7Block(inset = TRUE, strong = TRUE,
-          # Knap som åbner filter-sheet (Framework7 styret)
-          tags$a(
-            class = "sheet-open",
-            `data-sheet` = "#plot_filters_sheet",
-            f7Button(
-              inputId = "open_filters",
-              label = "Filtre",
-              icon = f7Icon("slider_horizontal_3"),
-              fill = TRUE,
-              color = "blue"
-            )
-          ),
-          br(),
-          plotOutput("opskrifter_statistik_plot")
-        ),
-        f7Block(inset = TRUE, strong = TRUE,
-                sInput("menu_type", "V\u00E6lg type",
-                       c("Alle", "Vegetar", "Kylling", "Gris", "Okse", "Fisk")),
-                wordcloud2Output("wordcloud_retter", height = "250px")
-        )
-      )
+      mod_inspiration_tab_ui("inspiration")
     ),
     
     # Modals ----
@@ -213,26 +189,8 @@ ui <- f7Page(
     
   ),
   
-  # Sheet til filtre for plot med mest brugte opskrifter ----
-  f7Sheet(
-    id = "plot_filters_sheet",
-    label = "Filtre for statistik",
-    orientation = "bottom",
-    swipeToClose = TRUE,
-    backdrop = TRUE,
-    f7Block(
-      strong = TRUE,
-      f7Slider("top_n", "Antal top-opskrifter", 1, 20, 10),
-      f7DatePicker("date_from", "Fra dato"),
-      f7DatePicker("date_to", "Til dato"),
-      
-      tags$a(
-        class = "sheet-close",
-        f7Button("close_filters", "Luk", fill = TRUE, color = "gray")
-      )
-    )
-  ),
-  
+  mod_inspiration_sheet_ui("inspiration"),
+
   uiOutput("edit_popup_ui")
 )
 
@@ -899,43 +857,7 @@ server <- function(input, output, session) {
 
   })
   
-  ## Inspiration og statistik
-  
-  # wordcloud plot ----
-  output$wordcloud_retter <- renderWordcloud2({
-    
-    retter_tmp <- retter
-    
-    if (input$menu_type != "Alle") {
-      retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
-    }
-    
-    farver <- c("#fde68a", "#bef264", "#6ee7b7", "#93c5fd", "#e5e7eb")
-    
-    retter_tmp %>%
-      filter(retter != "V\u00E6lg ret") %>%
-      select(retter) %>%
-      mutate(count = sample(c(0.4, 0.45, 0.5), nrow(.), 
-                            replace = TRUE, prob = c(0.6, 0.3, 0.1))) %>%
-      wordcloud2(
-        size = 0.1, 
-        color = sample(farver, size = nrow(.), replace= TRUE), 
-        backgroundColor = "#1c1c1e",
-        shape = "circle",
-        rotateRatio = 0)
-  })
-
-  # statistik over brugte opskrifter ----
-  opskrifter_statistik <- brugte_opskrifter(retter$retter)
-  
-  output$opskrifter_statistik_plot <- renderPlot({
-    plot_brugte_opskrifter(
-      opskrifter_statistik,  
-      dato_start = input$date_from,
-      dato_slut = input$date_to,
-      top_n = input$top_n
-      )
-  })
+  mod_inspiration_server("inspiration", retter = retter)
   
   # dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
   output$opskrifter_ui <- renderUI({
