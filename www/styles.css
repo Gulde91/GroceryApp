@@ -383,7 +383,6 @@ button.dt-button.copy-btn-pushed {
   bottom: 18px;
   left: 50%;
   transform: translateX(-50%) translateY(8px);
-  background: #16a34a;
   color: #ffffff;
   padding: 6px 14px;
   border-radius: 999px;
@@ -395,11 +394,27 @@ button.dt-button.copy-btn-pushed {
   white-space: nowrap;
 }
 
+#copy-toast.toast-green {
+  background: #22c55e;
+}
+
+#copy-toast.toast-blue {
+  background: #0ea5e9;
+}
+
 #copy-toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
+
+
+/* Gem-knap med præcis samme blå hex som blå toast */
+button#gem_indkobsseddel {
+  background: #0ea5e9 !important;
+  border: 1px solid #0ea5e9 !important;
+  color: #ffffff !important;
+}
 
 /* Tab: opskrifter
    Sørg for at overskriften ikke gemmer sig under navbaren,

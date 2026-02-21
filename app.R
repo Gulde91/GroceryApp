@@ -536,30 +536,17 @@ server <- function(input, output, session) {
       }
     }
     
-    # nulstiller inputfelter
-    updateSelectInput(
-      session = session,
-      inputId = "ret",
-      choices = c("", retter$retter)
-    )
-    
-    updateSelectInput(
-      session = session,
-      inputId = "salat",
-      choices = c("", salater$retter)
-    )
-    
-    updateSelectInput(
-      session = session,
-      inputId = "tilbehor",
-      choices = c("", tilbehor$Indkobsliste)
-    )
-    
     hide(id = "popup_opskrift", anim = TRUE, animType = "fade")
     
   })
 
-  observeEvent(input$open_opskrift, {show(id = "popup_opskrift", anim = TRUE, animType = "fade")})
+  observeEvent(input$open_opskrift, {
+    updateSelectInput(session = session, inputId = "ret", selected = "")
+    updateNumericInput(session = session, inputId = "pers", value = 2)
+    updateSelectInput(session = session, inputId = "salat", selected = salater$retter[[1]])
+    updateSelectInput(session = session, inputId = "tilbehor", selected = "")
+    show(id = "popup_opskrift", anim = TRUE, animType = "fade")
+  })
   observeEvent(input$close_opskrift, {hide(id = "popup_opskrift", anim = TRUE, animType = "fade")})
   
   # Tilføj varer fra liste ----
@@ -578,20 +565,29 @@ server <- function(input, output, session) {
   # mulighed for at tilføje varer
   observeEvent(input$add_varer, {
     
-    if (input$basis_varer != "V\u00E6lg vare") {
+    if (is.null(input$enhed_alle_varer)) {
+      showNotification("Vælg en enhed, før varen tilføjes.", type = "warning")
+    } else {
+      
       varer_tmp <- rv_varer()[rv_varer()$Indkobsliste == input$basis_varer, ]
       varer_tmp$maengde <- varer_tmp$maengde * input$antal_basis_varer
       varer_tmp$enhed <- input$enhed_alle_varer
       
       cat(input$basis_varer, "er tilføjet!\n")
       rv_indk_liste$df <- bind_rows(rv_indk_liste$df, varer_tmp)
+      
+      hide(id = "popup_varer", anim = TRUE, animType = "fade")
+      
     }
-    
-    hide(id = "popup_varer", anim = TRUE, animType = "fade")
     
   })
   
-  observeEvent(input$open_varer, {show(id = "popup_varer", anim = TRUE, animType = "fade")})
+  observeEvent(input$open_varer, {
+    updateSelectizeInput(session, inputId = "basis_varer", selected = character(0))
+    updateNumericInput(session = session, inputId = "antal_basis_varer", value = 1)
+    updateSelectInput(session = session, inputId = "enhed_alle_varer", selected = "stk")
+    show(id = "popup_varer", anim = TRUE, animType = "fade")
+  })
   observeEvent(input$close_varer, {hide(id = "popup_varer", anim = TRUE, animType = "fade")})
   
   # Tilføj varer manuel ----
@@ -873,6 +869,7 @@ server <- function(input, output, session) {
     
     path <- paste0("./data/indkobssedler/indkobsseddel_", gsub("-", "", Sys.Date()), ".rda")
     save(df, file = path)
+    runjs("showCopyToast(\"Indkøbsseddel gemt ✔\", \"blue\")")
     
   })
   
