@@ -17,12 +17,20 @@ ui <- f7Page(
   
   # opsætning ----
   tags$head(
+    tags$meta(
+      name = "viewport",
+      content = "width=device-width, initial-scale=1, viewport-fit=cover"
+    ),
+    tags$meta(name = "apple-mobile-web-app-capable", content = "yes"),
+    tags$meta(name = "apple-mobile-web-app-status-bar-style", content = "default"),
+    tags$meta(name = "mobile-web-app-capable", content = "yes"),
     includeCSS("www/styles.css"),
     fa_html_dependency(),
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
     htmltools::singleton(tags$script(src = "button-press.js")),
     htmltools::singleton(tags$script(src = "copy-helper.js")),
-    htmltools::singleton(tags$script(src = "DT-copy-feedback.js"))
+    htmltools::singleton(tags$script(src = "DT-copy-feedback.js")),
+    htmltools::singleton(tags$script(src = "pwa-viewport-fix.js"))
   ),
   
   useShinyjs(),
