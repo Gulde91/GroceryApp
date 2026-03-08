@@ -1,0 +1,48 @@
+/* --- iOS PWA (standalone) viewport + safe-area finetuning --- */
+:root {
+  --ga-safe-top: env(safe-area-inset-top, 0px);
+  --ga-safe-right: env(safe-area-inset-right, 0px);
+  --ga-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ga-safe-left: env(safe-area-inset-left, 0px);
+  --ga-vh: 1vh;
+  --ga-app-height: 100vh;
+}
+
+/* Brug dynamisk viewport-højde i app-sider */
+.view,
+.view-main,
+.page {
+  min-height: calc(var(--ga-vh) * 100);
+  min-height: 100svh;
+  min-height: 100dvh;
+}
+
+/* Ekstra robust i iOS homescreen mode (Framework7 wrappers) */
+html.ga-standalone,
+html.ga-standalone body,
+html.ga-standalone .views,
+html.ga-standalone .view,
+html.ga-standalone .view-main,
+html.ga-standalone .page {
+  height: var(--ga-app-height);
+  min-height: var(--ga-app-height);
+}
+
+/* Safe-area padding kun i standalone */
+html.ga-standalone body {
+  padding-top: var(--ga-safe-top);
+  padding-left: var(--ga-safe-left);
+  padding-right: var(--ga-safe-right);
+  padding-bottom: 0;
+}
+
+html.ga-standalone .toolbar,
+html.ga-standalone .tabbar,
+html.ga-standalone .tabbar-icons {
+  padding-bottom: var(--ga-safe-bottom);
+}
+
+/* Sørg for at indhold ikke gemmes bag bund-tabbar i standalone */
+html.ga-standalone .page-content {
+  padding-bottom: calc(var(--ga-safe-bottom) + 60px);
+}

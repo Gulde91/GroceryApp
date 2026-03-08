@@ -25,6 +25,7 @@ ui <- f7Page(
     tags$meta(name = "apple-mobile-web-app-status-bar-style", content = "default"),
     tags$meta(name = "mobile-web-app-capable", content = "yes"),
     includeCSS("www/styles.css"),
+    includeCSS("www/ios-standalone-fix.css"),
     fa_html_dependency(),
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
     htmltools::singleton(tags$script(src = "button-press.js")),
