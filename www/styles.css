@@ -430,6 +430,21 @@ button#gem_indkobsseddel {
   --ga-safe-bottom: env(safe-area-inset-bottom, 0px);
   --ga-safe-left: env(safe-area-inset-left, 0px);
   --ga-vh: 1vh;
+  --ga-vw: 1vw;
+}
+
+/* Brug dynamisk viewport-størrelse i app-sider */
+html,
+body,
+#app,
+.views,
+.view,
+.view-main,
+.page,
+.page-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: calc(var(--ga-vw) * 100);
 }
 
 .view,
