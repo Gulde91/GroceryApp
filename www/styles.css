@@ -430,7 +430,6 @@ button#gem_indkobsseddel {
   --ga-safe-bottom: env(safe-area-inset-bottom, 0px);
   --ga-safe-left: env(safe-area-inset-left, 0px);
   --ga-vh: 1vh;
-  --ga-vw: 1vw;
 }
 
 /* Brug dynamisk viewport-størrelse i app-sider */
@@ -444,16 +443,22 @@ body,
 .page-content {
   width: 100%;
   max-width: 100%;
-  min-width: calc(var(--ga-vw) * 100);
+  min-width: 100%;
 }
 
 .view,
 .view-main,
 .page {
-  min-height: calc(var(--ga-vh) * 100);
   min-height: 100vh;
   min-height: 100svh;
   min-height: 100dvh;
+}
+
+/* Fallback til ældre iOS standalone: brug JS-beregnet viewport-højde */
+html.ga-standalone .view,
+html.ga-standalone .view-main,
+html.ga-standalone .page {
+  min-height: calc(var(--ga-vh) * 100);
 }
 
 html.ga-standalone,
