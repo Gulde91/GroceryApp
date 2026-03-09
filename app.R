@@ -28,8 +28,8 @@ ui <- f7Page(
     fa_html_dependency(),
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
     htmltools::singleton(tags$script(src = "button-press.js")),
-    htmltools::singleton(tags$script(src = "copy-helper.js"))#,
-    # htmltools::singleton(tags$script(src = "DT-copy-feedback.js")),
+    htmltools::singleton(tags$script(src = "copy-helper.js")),
+    htmltools::singleton(tags$script(src = "DT-copy-feedback.js"))#,
     # htmltools::singleton(tags$script(src = "pwa-viewport-fix.js"))
   ),
   
