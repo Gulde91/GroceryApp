@@ -1,5 +1,6 @@
 "Indkobsliste","maengde","enhed","kat_1","kat_2"
 "afspændingsmiddel",1,"stk","husholdning",""
+"agf",1,"stk","baby",""
 "appelsinjuice",1,"liter","konserves","juice"
 "babypads",1,"stk","baby",""
 "bagekartofler",1,"stk","frugt og grønt",""
