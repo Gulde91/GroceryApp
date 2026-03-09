@@ -29,8 +29,8 @@ ui <- f7Page(
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
     htmltools::singleton(tags$script(src = "button-press.js")),
     htmltools::singleton(tags$script(src = "copy-helper.js")),
-    htmltools::singleton(tags$script(src = "DT-copy-feedback.js"))#,
-    # htmltools::singleton(tags$script(src = "pwa-viewport-fix.js"))
+    htmltools::singleton(tags$script(src = "DT-copy-feedback.js")),
+    htmltools::singleton(tags$script(src = "pwa-viewport-fix.js"))
   ),
   
   useShinyjs(),
