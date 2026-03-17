@@ -97,6 +97,8 @@ ui <- f7Page(
           tags$p(
             "Alle opskrifter nedenfor er angivet med mængder svarende til ",
             tags$b("1 person"), ".")
+          ,
+          tags$p("Du kan redigere mængde, enhed, kategori 1, kategori 2 og link. Husk at trykke Gem på den enkelte opskrift.")
         ),
         # Dynamisk indhold til alle opskrifter
         uiOutput("opskrifter_ui")
@@ -253,6 +255,9 @@ server <- function(input, output, session) {
   rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
   rv_valgte_opskrifter <- reactiveValues(items = list())
+  rv_opskrifter_custom <- reactiveVal(opskrifter)
+  rv_links_custom <- reactiveVal(links)
+  recipe_keys <- names(opskrifter)
 
   rv_varer_custom <- reactiveVal(
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
@@ -271,7 +276,14 @@ server <- function(input, output, session) {
   # laves som reactive (og ikke reactiveVal) fordi der ikke kan indgå
   # reactive elementer i en reactiveVal
   rv_varer <- reactive({
-    bind_rows(opskrift_df, rv_varer_custom()) |>
+    opskrift_df_custom <- c(rv_opskrifter_custom(), salater_opskrifter) |>
+      lapply(function(x) {names(x)[1] <- "Indkobsliste"; x}) |>
+      dplyr::bind_rows() |>
+      dplyr::arrange(Indkobsliste) |>
+      dplyr::mutate(maengde = 1) |>
+      dplyr::distinct()
+
+    bind_rows(opskrift_df_custom, rv_varer_custom()) |>
       arrange(Indkobsliste) |>
       mutate(maengde = 1) |>
       distinct()
@@ -944,12 +956,117 @@ server <- function(input, output, session) {
       top_n = input$top_n
       )
   })
+
+  # Opskrifter: redigering af mængde/enhed/kategori og link ----
+  lapply(recipe_keys, function(key) {
+    local({
+      key_local <- key
+      cell_id <- paste0("opskrift_tbl_", key_local, "_cell_edit")
+
+      observeEvent(input[[cell_id]], {
+          edit <- input[[cell_id]]
+          req(!is.null(edit))
+
+          df <- rv_opskrifter_custom()[[key_local]]
+          req(!is.null(df), nrow(df) >= edit$row)
+
+          # Kolonne 1 = ingrediensnavn (låst), 2:5 kan redigeres
+          col_map <- c("maengde", "enhed", "kat_1", "kat_2")
+          col_idx <- edit$col - 1
+          if (col_idx < 1 || col_idx > length(col_map)) return(invisible(NULL))
+
+          col_name <- col_map[col_idx]
+          val_raw <- trimws(as.character(edit$value %||% ""))
+
+          if (col_name == "maengde") {
+            val_num <- suppressWarnings(as.numeric(val_raw))
+            if (is.na(val_num) || val_num <= 0) {
+              showNotification("Mængde skal være et tal større end 0.", type = "error")
+              return(invisible(NULL))
+            }
+            df[[col_name]][edit$row] <- val_num
+          } else {
+            if (col_name == "kat_1" && val_raw == "") {
+              showNotification("Kategori 1 må ikke være tom.", type = "error")
+              return(invisible(NULL))
+            }
+            df[[col_name]][edit$row] <- val_raw
+          }
+
+          ops <- rv_opskrifter_custom()
+          ops[[key_local]] <- df
+          rv_opskrifter_custom(ops)
+      })
+    })
+  })
+
+  lapply(recipe_keys, function(key) {
+    local({
+      key_local <- key
+      save_id <- paste0("save_opskrift_", key_local)
+      link_id <- paste0("opskrift_link_", key_local)
+
+      observeEvent(input[[save_id]], {
+          ops <- rv_opskrifter_custom()
+          links_df <- rv_links_custom()
+          df <- ops[[key_local]]
+          req(!is.null(df))
+
+          ret_navn <- names(df)[1]
+          link_val <- trimws(input[[link_id]] %||% "")
+
+          if (any(is.na(df$maengde)) || any(df$maengde <= 0)) {
+            showNotification("Alle mængder skal være tal større end 0.", type = "error")
+            return(invisible(NULL))
+          }
+          if (any(trimws(df$kat_1) == "")) {
+            showNotification("Kategori 1 skal være udfyldt på alle rækker.", type = "error")
+            return(invisible(NULL))
+          }
+          if (link_val != "" && !grepl("^https?://", link_val, ignore.case = TRUE)) {
+            showNotification("Link skal starte med http:// eller https://.", type = "error")
+            return(invisible(NULL))
+          }
+
+          write.table(
+            df,
+            file = file.path("./data/opskrifter", paste0(key_local, ".txt")),
+            sep = ";",
+            row.names = FALSE,
+            quote = FALSE,
+            fileEncoding = "UTF-8"
+          )
+
+          links_df <- links_df[links_df$ret != ret_navn, , drop = FALSE]
+          if (link_val != "") {
+            links_df <- bind_rows(
+              links_df,
+              data.frame(ret = ret_navn, link = link_val, stringsAsFactors = FALSE)
+            )
+          }
+          links_df <- links_df |> arrange(ret)
+
+          write.table(
+            links_df,
+            file = "./data/links.txt",
+            sep = ";",
+            row.names = FALSE,
+            quote = FALSE,
+            fileEncoding = "UTF-8"
+          )
+
+          rv_links_custom(links_df)
+          showNotification(sprintf('Opskriften "%s" er gemt.', ret_navn), type = "message")
+      }, ignoreInit = TRUE)
+    })
+  })
   
   # dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
   output$opskrifter_ui <- renderUI({
     
     # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
-    ops_sorted <- opskrifter[order(vapply(opskrifter, function(x) names(x)[1], ""))]
+    ops_local <- rv_opskrifter_custom()
+    ops_sorted <- ops_local[order(vapply(ops_local, function(x) names(x)[1], ""))]
   
     keys <- names(ops_sorted)
     titler <- vapply(ops_sorted, function(df) names(df)[1], "")
@@ -989,19 +1106,23 @@ server <- function(input, output, session) {
       # Unikt output-id til DT for denne opskrift
       output_id <- paste0("opskrift_tbl_", key)
       
-      # Find evt. link via helperen get_link()
-      link_url <- get_link(ret_navn)
-      
-      # Kombinér mængde, enhed og vare-navn til én tekst, fx "1 stk æg"
-      linjer <- paste(df$maengde, df$enhed, df[[ret_navn]])
-      linjer <- gsub("NA", "", linjer)
-      linjer <- trimws(linjer)
-      
-      df_vis <- data.frame(Ingredienser = linjer)
+      links_df <- rv_links_custom()
+      link_url <- links_df$link[links_df$ret == ret_navn]
+      link_url <- if (length(link_url) > 0) link_url[1] else ""
+
+      df_vis <- data.frame(
+        Ingrediens = df[[ret_navn]],
+        Maengde = df$maengde,
+        Enhed = df$enhed,
+        Kategori_1 = df$kat_1,
+        Kategori_2 = df$kat_2,
+        check.names = FALSE
+      )
       
       output[[output_id]] <- DT::renderDT({
         themed_dt(
           df_vis,
+          editable = list(target = "cell", disable = list(columns = c(0))),
           options = list(
             dom       = "t",
             paging    = FALSE,
@@ -1011,21 +1132,20 @@ server <- function(input, output, session) {
         )
       })
       
-      # Byg evt. klikbart link-tag
-      link_tag <- NULL
-      if (!is.null(link_url)) {
-        link_tag <- tags$p(
-          class = "opskrift-link",
-          "Link til opskriften: ",
-          tags$a(
-            href   = link_url,
-            target = "_blank",
-            rel    = "noopener noreferrer",
-            class  = "external opskrift-link-url",
-            "Åbn opskriften"
-          )
+      link_tag <- tagList(
+        tInput(
+          inputId = paste0("opskrift_link_", key),
+          label = "Link",
+          placeholder = "https://...",
+          value = link_url
+        ),
+        f7Button(
+          inputId = paste0("save_opskrift_", key),
+          label = "Gem",
+          fill = TRUE,
+          color = "blue"
         )
-      }
+      )
       
       # Wrap i en div med id + klasse, så vi kan styre scroll-offset med CSS
       tags$div(
