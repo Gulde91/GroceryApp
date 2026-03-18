@@ -1023,12 +1023,13 @@ server <- function(input, output, session) {
     req(!is.null(df), nrow(df) >= row)
 
     maengde <- suppressWarnings(as.numeric(input$opskrift_edit_maengde))
+    if (length(maengde) == 0) maengde <- NA_real_
     enhed <- trimws(as.character(input$opskrift_edit_enhed %||% ""))
     kat1 <- trimws(as.character(input$opskrift_edit_kat1 %||% ""))
     kat2 <- trimws(as.character(input$opskrift_edit_kat2 %||% ""))
 
-    if (is.na(maengde) || maengde <= 0) {
-      showNotification("Mængde skal være et tal større end 0.", type = "error")
+    if (!is.na(maengde) && maengde <= 0) {
+      showNotification("Mængde skal være tom eller et tal større end 0.", type = "error")
       return(invisible(NULL))
     }
     if (kat1 == "") {
@@ -1089,8 +1090,8 @@ server <- function(input, output, session) {
           ret_navn <- names(df)[1]
           link_val <- trimws(input[[link_id]] %||% "")
 
-          if (any(is.na(df$maengde)) || any(df$maengde <= 0)) {
-            showNotification("Alle mængder skal være tal større end 0.", type = "error")
+          if (any(!is.na(df$maengde) & df$maengde <= 0)) {
+            showNotification("Udfyldte mængder skal være tal større end 0.", type = "error")
             return(invisible(NULL))
           }
           if (any(trimws(df$kat_1) == "")) {
@@ -1108,6 +1109,7 @@ server <- function(input, output, session) {
             sep = ";",
             row.names = FALSE,
             quote = FALSE,
+            na = "",
             fileEncoding = "UTF-8"
           )
 
