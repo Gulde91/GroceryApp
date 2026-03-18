@@ -219,6 +219,25 @@ ui <- f7Page(
                  f7Button("close_ny_vare", "Luk", fill = TRUE, color = "gray")
                )
       )
+    ),
+    # POPUP: redigér ingrediens i opskrift
+    tags$div(
+      id = "popup_opskrift_rediger", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Redigér ingrediens"),
+               tags$p(textOutput("opskrift_edit_context")),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 nInput("opskrift_edit_maengde", "Mængde", value = 1),
+                 sInput("opskrift_edit_enhed", "Enhed", choices = c(""), selected = ""),
+                 sInput("opskrift_edit_kat1", "Kategori 1", choices = c(""), selected = ""),
+                 sInput("opskrift_edit_kat2", "Kategori 2", choices = c(""), selected = ""),
+                 br(),
+                 f7Button("save_opskrift_row", "Opdater række", fill = TRUE, color = "blue"),
+                 br(),
+                 f7Button("cancel_opskrift_row", "Luk", fill = TRUE, color = "gray")
+               )
+      )
     )
     
   ),
@@ -257,6 +276,7 @@ server <- function(input, output, session) {
   rv_valgte_opskrifter <- reactiveValues(items = list())
   rv_opskrifter_custom <- reactiveVal(opskrifter)
   rv_links_custom <- reactiveVal(links)
+  rv_recipeEditState <- reactiveValues(key = NULL, row = NULL)
   recipe_keys <- names(opskrifter)
 
   rv_varer_custom <- reactiveVal(
@@ -957,47 +977,74 @@ server <- function(input, output, session) {
       )
   })
 
-  # Opskrifter: redigering af mængde/enhed/kategori og link ----
-  lapply(recipe_keys, function(key) {
-    local({
-      key_local <- key
-      cell_id <- paste0("opskrift_tbl_", key_local, "_cell_edit")
+  # Opskrifter: redigering via modal pr. ingrediens ----
+  observeEvent(input$opskrift_editPressed, {
+    info <- input$opskrift_editPressed
+    req(!is.null(info$key), !is.null(info$row))
 
-      observeEvent(input[[cell_id]], {
-          edit <- input[[cell_id]]
-          req(!is.null(edit))
+    key <- as.character(info$key)
+    row <- suppressWarnings(as.integer(info$row))
+    req(key %in% names(rv_opskrifter_custom()), !is.na(row))
 
-          df <- rv_opskrifter_custom()[[key_local]]
-          req(!is.null(df), nrow(df) >= edit$row)
+    df <- rv_opskrifter_custom()[[key]]
+    req(nrow(df) >= row)
 
-          # Kolonne 1 = ingrediensnavn (låst), 2:5 kan redigeres
-          col_map <- c("maengde", "enhed", "kat_1", "kat_2")
-          col_idx <- edit$col - 1
-          if (col_idx < 1 || col_idx > length(col_map)) return(invisible(NULL))
+    rv_recipeEditState$key <- key
+    rv_recipeEditState$row <- row
 
-          col_name <- col_map[col_idx]
-          val_raw <- trimws(as.character(edit$value %||% ""))
+    enhed_choices <- sort(unique(c("", rv_varer()$enhed, df$enhed)))
+    kat1_choices <- sort(unique(c(kategori_1, rv_varer()$kat_1, df$kat_1)))
+    kat2_choices <- sort(unique(c("", kategori_2, rv_varer()$kat_2, df$kat_2)))
 
-          if (col_name == "maengde") {
-            val_num <- suppressWarnings(as.numeric(val_raw))
-            if (is.na(val_num) || val_num <= 0) {
-              showNotification("Mængde skal være et tal større end 0.", type = "error")
-              return(invisible(NULL))
-            }
-            df[[col_name]][edit$row] <- val_num
-          } else {
-            if (col_name == "kat_1" && val_raw == "") {
-              showNotification("Kategori 1 må ikke være tom.", type = "error")
-              return(invisible(NULL))
-            }
-            df[[col_name]][edit$row] <- val_raw
-          }
+    updateNumericInput(session, "opskrift_edit_maengde", value = df$maengde[row])
+    updateSelectInput(session, "opskrift_edit_enhed", choices = enhed_choices, selected = df$enhed[row])
+    updateSelectInput(session, "opskrift_edit_kat1", choices = kat1_choices, selected = df$kat_1[row])
+    updateSelectInput(session, "opskrift_edit_kat2", choices = kat2_choices, selected = df$kat_2[row])
 
-          ops <- rv_opskrifter_custom()
-          ops[[key_local]] <- df
-          rv_opskrifter_custom(ops)
-      })
+    output$opskrift_edit_context <- renderText({
+      paste0(names(df)[1], " — ", df[[1]][row])
     })
+
+    show(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$save_opskrift_row, {
+    key <- rv_recipeEditState$key
+    row <- rv_recipeEditState$row
+    req(!is.null(key), !is.null(row))
+
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df), nrow(df) >= row)
+
+    maengde <- suppressWarnings(as.numeric(input$opskrift_edit_maengde))
+    enhed <- trimws(as.character(input$opskrift_edit_enhed %||% ""))
+    kat1 <- trimws(as.character(input$opskrift_edit_kat1 %||% ""))
+    kat2 <- trimws(as.character(input$opskrift_edit_kat2 %||% ""))
+
+    if (is.na(maengde) || maengde <= 0) {
+      showNotification("Mængde skal være et tal større end 0.", type = "error")
+      return(invisible(NULL))
+    }
+    if (kat1 == "") {
+      showNotification("Kategori 1 må ikke være tom.", type = "error")
+      return(invisible(NULL))
+    }
+
+    df$maengde[row] <- maengde
+    df$enhed[row] <- enhed
+    df$kat_1[row] <- kat1
+    df$kat_2[row] <- kat2
+
+    ops <- rv_opskrifter_custom()
+    ops[[key]] <- df
+    rv_opskrifter_custom(ops)
+
+    hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+    showNotification("Ingrediensen er opdateret. Husk at trykke Gem på opskriften.", type = "message")
+  })
+
+  observeEvent(input$cancel_opskrift_row, {
+    hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
   })
 
   lapply(recipe_keys, function(key) {
@@ -1118,11 +1165,45 @@ server <- function(input, output, session) {
         Kategori_2 = df$kat_2,
         check.names = FALSE
       )
+
+      edit_col <- vapply(
+        seq_len(nrow(df_vis)),
+        function(r) {
+          as.character(
+            actionButton(
+              inputId = paste0("opskrift_row_btn_", key, "_", r),
+              label = NULL,
+              icon = icon("pen"),
+              class = "edit-btn btn btn-sm",
+              onclick = sprintf(
+                "Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+                key,
+                r
+              ),
+              type = "button",
+              style = paste(
+                "background:#0ea5e9;",
+                "color:#fff;",
+                "border:1px solid #0284c7;",
+                "border-radius:8px;",
+                "padding:6px 1px;",
+                "line-height:1;",
+                "font-weight:600;",
+                "box-shadow:none;",
+                "background-image:none;"
+              )
+            )
+          )
+        },
+        ""
+      )
+
+      df_vis$Rediger <- edit_col
       
       output[[output_id]] <- DT::renderDT({
         themed_dt(
           df_vis,
-          editable = list(target = "cell", disable = list(columns = c(0))),
+          escape = c(TRUE, TRUE, TRUE, TRUE, TRUE, FALSE),
           options = list(
             dom       = "t",
             paging    = FALSE,
