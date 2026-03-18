@@ -978,6 +978,12 @@ server <- function(input, output, session) {
   })
 
   # Opskrifter: redigering via modal pr. ingrediens ----
+  format_recipe_line <- function(maengde, enhed, ingrediens) {
+    linje <- paste(maengde, enhed, ingrediens)
+    linje <- gsub("NA", "", linje)
+    trimws(gsub("\\s+", " ", linje))
+  }
+
   observeEvent(input$opskrift_editPressed, {
     info <- input$opskrift_editPressed
     req(!is.null(info$key), !is.null(info$row))
@@ -1002,7 +1008,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, "opskrift_edit_kat2", choices = kat2_choices, selected = df$kat_2[row])
 
     output$opskrift_edit_context <- renderText({
-      paste0(names(df)[1], " — ", df[[1]][row])
+      format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
     })
 
     show(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
@@ -1045,6 +1051,27 @@ server <- function(input, output, session) {
 
   observeEvent(input$cancel_opskrift_row, {
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$opskrift_deletePressed, {
+    info <- input$opskrift_deletePressed
+    req(!is.null(info$key), !is.null(info$row))
+
+    key <- as.character(info$key)
+    row <- suppressWarnings(as.integer(info$row))
+    req(key %in% names(rv_opskrifter_custom()), !is.na(row))
+
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df), nrow(df) >= row)
+
+    slettet <- format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
+    df <- df[-row, , drop = FALSE]
+
+    ops <- rv_opskrifter_custom()
+    ops[[key]] <- df
+    rv_opskrifter_custom(ops)
+
+    showNotification(sprintf('Linjen "%s" er slettet. Husk at trykke Gem på opskriften.', slettet), type = "message")
   })
 
   lapply(recipe_keys, function(key) {
@@ -1157,12 +1184,9 @@ server <- function(input, output, session) {
       link_url <- links_df$link[links_df$ret == ret_navn]
       link_url <- if (length(link_url) > 0) link_url[1] else ""
 
+      ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[ret_navn]])
       df_vis <- data.frame(
-        Ingrediens = df[[ret_navn]],
-        Maengde = df$maengde,
-        Enhed = df$enhed,
-        Kategori_1 = df$kat_1,
-        Kategori_2 = df$kat_2,
+        Ingrediens = ingredienslinje,
         check.names = FALSE
       )
 
@@ -1198,12 +1222,45 @@ server <- function(input, output, session) {
         ""
       )
 
+      delete_col <- vapply(
+        seq_len(nrow(df_vis)),
+        function(r) {
+          as.character(
+            actionButton(
+              inputId = paste0("opskrift_row_del_", key, "_", r),
+              label = NULL,
+              icon = icon("trash"),
+              class = "delete-btn btn btn-sm",
+              onclick = sprintf(
+                "Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+                key,
+                r
+              ),
+              type = "button",
+              style = paste(
+                "background:#ef4444;",
+                "color:#fff;",
+                "border:1px solid #dc2626;",
+                "border-radius:8px;",
+                "padding:6px 1px;",
+                "line-height:1;",
+                "font-weight:600;",
+                "box-shadow:none;",
+                "background-image:none;"
+              )
+            )
+          )
+        },
+        ""
+      )
+
       df_vis$Rediger <- edit_col
+      df_vis$Slet <- delete_col
       
       output[[output_id]] <- DT::renderDT({
         themed_dt(
           df_vis,
-          escape = c(TRUE, TRUE, TRUE, TRUE, TRUE, FALSE),
+          escape = c(TRUE, FALSE, FALSE),
           options = list(
             dom       = "t",
             paging    = FALSE,
