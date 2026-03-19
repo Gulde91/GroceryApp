@@ -98,7 +98,7 @@ ui <- f7Page(
             "Alle opskrifter nedenfor er angivet med mængder svarende til ",
             tags$b("1 person"), ".")
           ,
-          tags$p("Du kan redigere mængde, enhed, kategori 1, kategori 2 og link. Husk at trykke Gem på den enkelte opskrift.")
+          tags$p("Du kan redigere og slette ingredienslinjer direkte. Ændringer gemmes automatisk.")
         ),
         # Dynamisk indhold til alle opskrifter
         uiOutput("opskrifter_ui")
@@ -238,6 +238,21 @@ ui <- f7Page(
                  f7Button("cancel_opskrift_row", "Luk", fill = TRUE, color = "gray")
                )
       )
+    ),
+    # POPUP: bekræft sletning af ingredienslinje
+    tags$div(
+      id = "popup_opskrift_slet_bekraeft", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Slet ingrediens"),
+               tags$p(textOutput("opskrift_delete_context")),
+               tags$p("Er du sikker på at du vil slette denne ingredienslinje?"),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 f7Button("confirm_delete_opskrift_row", "Ja, slet", fill = TRUE, color = "red"),
+                 br(),
+                 f7Button("cancel_delete_opskrift_row", "Nej", fill = TRUE, color = "gray")
+               )
+      )
     )
     
   ),
@@ -277,7 +292,7 @@ server <- function(input, output, session) {
   rv_opskrifter_custom <- reactiveVal(opskrifter)
   rv_links_custom <- reactiveVal(links)
   rv_recipeEditState <- reactiveValues(key = NULL, row = NULL)
-  recipe_keys <- names(opskrifter)
+  rv_recipeDeleteState <- reactiveValues(key = NULL, row = NULL)
 
   rv_varer_custom <- reactiveVal(
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
@@ -984,6 +999,21 @@ server <- function(input, output, session) {
     trimws(gsub("\\s+", " ", linje))
   }
 
+  persist_recipe <- function(key) {
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df))
+
+    write.table(
+      df,
+      file = file.path("./data/opskrifter", paste0(key, ".txt")),
+      sep = ";",
+      row.names = FALSE,
+      quote = FALSE,
+      na = "",
+      fileEncoding = "UTF-8"
+    )
+  }
+
   observeEvent(input$opskrift_editPressed, {
     info <- input$opskrift_editPressed
     req(!is.null(info$key), !is.null(info$row))
@@ -1046,8 +1076,10 @@ server <- function(input, output, session) {
     ops[[key]] <- df
     rv_opskrifter_custom(ops)
 
+    persist_recipe(key)
+
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
-    showNotification("Ingrediensen er opdateret. Husk at trykke Gem på opskriften.", type = "message")
+    showNotification("Ingrediensen er opdateret og gemt.", type = "message")
   })
 
   observeEvent(input$cancel_opskrift_row, {
@@ -1065,6 +1097,24 @@ server <- function(input, output, session) {
     df <- rv_opskrifter_custom()[[key]]
     req(!is.null(df), nrow(df) >= row)
 
+    rv_recipeDeleteState$key <- key
+    rv_recipeDeleteState$row <- row
+
+    output$opskrift_delete_context <- renderText({
+      format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
+    })
+
+    show(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$confirm_delete_opskrift_row, {
+    key <- rv_recipeDeleteState$key
+    row <- rv_recipeDeleteState$row
+    req(!is.null(key), !is.null(row))
+
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df), nrow(df) >= row)
+
     slettet <- format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
     df <- df[-row, , drop = FALSE]
 
@@ -1072,69 +1122,19 @@ server <- function(input, output, session) {
     ops[[key]] <- df
     rv_opskrifter_custom(ops)
 
-    showNotification(sprintf('Linjen "%s" er slettet. Husk at trykke Gem på opskriften.', slettet), type = "message")
+    persist_recipe(key)
+
+    hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
+    rv_recipeDeleteState$key <- NULL
+    rv_recipeDeleteState$row <- NULL
+
+    showNotification(sprintf('Linjen "%s" er slettet permanent.', slettet), type = "message")
   })
 
-  lapply(recipe_keys, function(key) {
-    local({
-      key_local <- key
-      save_id <- paste0("save_opskrift_", key_local)
-      link_id <- paste0("opskrift_link_", key_local)
-
-      observeEvent(input[[save_id]], {
-          ops <- rv_opskrifter_custom()
-          links_df <- rv_links_custom()
-          df <- ops[[key_local]]
-          req(!is.null(df))
-
-          ret_navn <- names(df)[1]
-          link_val <- trimws(input[[link_id]] %||% "")
-
-          if (any(!is.na(df$maengde) & df$maengde <= 0)) {
-            showNotification("Udfyldte mængder skal være tal større end 0.", type = "error")
-            return(invisible(NULL))
-          }
-          if (any(trimws(df$kat_1) == "")) {
-            showNotification("Kategori 1 skal være udfyldt på alle rækker.", type = "error")
-            return(invisible(NULL))
-          }
-          if (link_val != "" && !grepl("^https?://", link_val, ignore.case = TRUE)) {
-            showNotification("Link skal starte med http:// eller https://.", type = "error")
-            return(invisible(NULL))
-          }
-
-          write.table(
-            df,
-            file = file.path("./data/opskrifter", paste0(key_local, ".txt")),
-            sep = ";",
-            row.names = FALSE,
-            quote = FALSE,
-            na = "",
-            fileEncoding = "UTF-8"
-          )
-
-          links_df <- links_df[links_df$ret != ret_navn, , drop = FALSE]
-          if (link_val != "") {
-            links_df <- bind_rows(
-              links_df,
-              data.frame(ret = ret_navn, link = link_val, stringsAsFactors = FALSE)
-            )
-          }
-          links_df <- links_df |> arrange(ret)
-
-          write.table(
-            links_df,
-            file = "./data/links.txt",
-            sep = ";",
-            row.names = FALSE,
-            quote = FALSE,
-            fileEncoding = "UTF-8"
-          )
-
-          rv_links_custom(links_df)
-          showNotification(sprintf('Opskriften "%s" er gemt.', ret_navn), type = "message")
-      }, ignoreInit = TRUE)
-    })
+  observeEvent(input$cancel_delete_opskrift_row, {
+    hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
+    rv_recipeDeleteState$key <- NULL
+    rv_recipeDeleteState$row <- NULL
   })
   
   # dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
@@ -1272,20 +1272,20 @@ server <- function(input, output, session) {
         )
       })
       
-      link_tag <- tagList(
-        tInput(
-          inputId = paste0("opskrift_link_", key),
-          label = "Link",
-          placeholder = "https://...",
-          value = link_url
-        ),
-        f7Button(
-          inputId = paste0("save_opskrift_", key),
-          label = "Gem",
-          fill = TRUE,
-          color = "blue"
+      link_tag <- NULL
+      if (!is.null(link_url) && nzchar(link_url)) {
+        link_tag <- tags$p(
+          class = "opskrift-link",
+          "Link til opskriften: ",
+          tags$a(
+            href   = link_url,
+            target = "_blank",
+            rel    = "noopener noreferrer",
+            class  = "external opskrift-link-url",
+            "Åbn opskriften"
+          )
         )
-      )
+      }
       
       # Wrap i en div med id + klasse, så vi kan styre scroll-offset med CSS
       tags$div(
