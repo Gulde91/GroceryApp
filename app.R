@@ -97,6 +97,8 @@ ui <- f7Page(
           tags$p(
             "Alle opskrifter nedenfor er angivet med mængder svarende til ",
             tags$b("1 person"), ".")
+          ,
+          tags$p("Du kan redigere og slette ingredienslinjer direkte. Ændringer gemmes automatisk.")
         ),
         # Dynamisk indhold til alle opskrifter
         uiOutput("opskrifter_ui")
@@ -217,6 +219,40 @@ ui <- f7Page(
                  f7Button("close_ny_vare", "Luk", fill = TRUE, color = "gray")
                )
       )
+    ),
+    # POPUP: redigér ingrediens i opskrift
+    tags$div(
+      id = "popup_opskrift_rediger", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Redigér ingrediens"),
+               tags$p(textOutput("opskrift_edit_context")),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 nInput("opskrift_edit_maengde", "Mængde", value = 1),
+                 sInput("opskrift_edit_enhed", "Enhed", choices = c(""), selected = ""),
+                 sInput("opskrift_edit_kat1", "Kategori 1", choices = c(""), selected = ""),
+                 sInput("opskrift_edit_kat2", "Kategori 2", choices = c(""), selected = ""),
+                 br(),
+                 f7Button("save_opskrift_row", "Opdater række", fill = TRUE, color = "blue"),
+                 br(),
+                 f7Button("cancel_opskrift_row", "Luk", fill = TRUE, color = "gray")
+               )
+      )
+    ),
+    # POPUP: bekræft sletning af ingredienslinje
+    tags$div(
+      id = "popup_opskrift_slet_bekraeft", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Slet ingrediens"),
+               tags$p(textOutput("opskrift_delete_context")),
+               tags$p("Er du sikker på at du vil slette denne ingredienslinje?"),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 f7Button("confirm_delete_opskrift_row", "Ja, slet", fill = TRUE, color = "red"),
+                 br(),
+                 f7Button("cancel_delete_opskrift_row", "Nej", fill = TRUE, color = "gray")
+               )
+      )
     )
     
   ),
@@ -253,6 +289,10 @@ server <- function(input, output, session) {
   rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
   rv_valgte_opskrifter <- reactiveValues(items = list())
+  rv_opskrifter_custom <- reactiveVal(opskrifter)
+  rv_links_custom <- reactiveVal(links)
+  rv_recipeEditState <- reactiveValues(key = NULL, row = NULL)
+  rv_recipeDeleteState <- reactiveValues(key = NULL, row = NULL)
 
   rv_varer_custom <- reactiveVal(
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
@@ -271,7 +311,14 @@ server <- function(input, output, session) {
   # laves som reactive (og ikke reactiveVal) fordi der ikke kan indgå
   # reactive elementer i en reactiveVal
   rv_varer <- reactive({
-    bind_rows(opskrift_df, rv_varer_custom()) |>
+    opskrift_df_custom <- c(rv_opskrifter_custom(), salater_opskrifter) |>
+      lapply(function(x) {names(x)[1] <- "Indkobsliste"; x}) |>
+      dplyr::bind_rows() |>
+      dplyr::arrange(Indkobsliste) |>
+      dplyr::mutate(maengde = 1) |>
+      dplyr::distinct()
+
+    bind_rows(opskrift_df_custom, rv_varer_custom()) |>
       arrange(Indkobsliste) |>
       mutate(maengde = 1) |>
       distinct()
@@ -944,119 +991,305 @@ server <- function(input, output, session) {
       top_n = input$top_n
       )
   })
+
+  # Opskrifter: redigering via modal pr. ingrediens ----
+  format_recipe_line <- function(maengde, enhed, ingrediens) {
+    linje <- paste(maengde, enhed, ingrediens)
+    linje <- gsub("NA", "", linje)
+    trimws(gsub("\\s+", " ", linje))
+  }
+
+  persist_recipe <- function(key) {
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df))
+
+    write.table(
+      df,
+      file = file.path("./data/opskrifter", paste0(key, ".txt")),
+      sep = ";",
+      row.names = FALSE,
+      quote = FALSE,
+      na = "",
+      fileEncoding = "UTF-8"
+    )
+  }
+
+  observeEvent(input$opskrift_editPressed, {
+    info <- input$opskrift_editPressed
+    req(!is.null(info$key), !is.null(info$row))
+
+    key <- as.character(info$key)
+    row <- suppressWarnings(as.integer(info$row))
+    req(key %in% names(rv_opskrifter_custom()), !is.na(row))
+
+    df <- rv_opskrifter_custom()[[key]]
+    req(nrow(df) >= row)
+
+    rv_recipeEditState$key <- key
+    rv_recipeEditState$row <- row
+
+    enhed_choices <- sort(unique(c("", rv_varer()$enhed, df$enhed)))
+    kat1_choices <- sort(unique(c(kategori_1, rv_varer()$kat_1, df$kat_1)))
+    kat2_choices <- sort(unique(c("", kategori_2, rv_varer()$kat_2, df$kat_2)))
+
+    updateNumericInput(session, "opskrift_edit_maengde", value = df$maengde[row])
+    updateSelectInput(session, "opskrift_edit_enhed", choices = enhed_choices, selected = df$enhed[row])
+    updateSelectInput(session, "opskrift_edit_kat1", choices = kat1_choices, selected = df$kat_1[row])
+    updateSelectInput(session, "opskrift_edit_kat2", choices = kat2_choices, selected = df$kat_2[row])
+
+    output$opskrift_edit_context <- renderText({
+      format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
+    })
+
+    show(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$save_opskrift_row, {
+    key <- rv_recipeEditState$key
+    row <- rv_recipeEditState$row
+    req(!is.null(key), !is.null(row))
+
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df), nrow(df) >= row)
+
+    maengde <- suppressWarnings(as.numeric(input$opskrift_edit_maengde))
+    if (length(maengde) == 0) maengde <- NA_real_
+    enhed <- trimws(as.character(input$opskrift_edit_enhed %||% ""))
+    kat1 <- trimws(as.character(input$opskrift_edit_kat1 %||% ""))
+    kat2 <- trimws(as.character(input$opskrift_edit_kat2 %||% ""))
+
+    if (!is.na(maengde) && maengde <= 0) {
+      showNotification("Mængde skal være tom eller et tal større end 0.", type = "error")
+      return(invisible(NULL))
+    }
+    if (kat1 == "") {
+      showNotification("Kategori 1 må ikke være tom.", type = "error")
+      return(invisible(NULL))
+    }
+
+    df$maengde[row] <- maengde
+    df$enhed[row] <- enhed
+    df$kat_1[row] <- kat1
+    df$kat_2[row] <- kat2
+
+    ops <- rv_opskrifter_custom()
+    ops[[key]] <- df
+    rv_opskrifter_custom(ops)
+
+    persist_recipe(key)
+
+    hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+    showNotification("Ingrediensen er opdateret og gemt.", type = "message")
+  })
+
+  observeEvent(input$cancel_opskrift_row, {
+    hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$opskrift_deletePressed, {
+    info <- input$opskrift_deletePressed
+    req(!is.null(info$key), !is.null(info$row))
+
+    key <- as.character(info$key)
+    row <- suppressWarnings(as.integer(info$row))
+    req(key %in% names(rv_opskrifter_custom()), !is.na(row))
+
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df), nrow(df) >= row)
+
+    rv_recipeDeleteState$key <- key
+    rv_recipeDeleteState$row <- row
+
+    output$opskrift_delete_context <- renderText({
+      format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
+    })
+
+    show(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$confirm_delete_opskrift_row, {
+    key <- rv_recipeDeleteState$key
+    row <- rv_recipeDeleteState$row
+    req(!is.null(key), !is.null(row))
+
+    df <- rv_opskrifter_custom()[[key]]
+    req(!is.null(df), nrow(df) >= row)
+
+    slettet <- format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
+    df <- df[-row, , drop = FALSE]
+
+    ops <- rv_opskrifter_custom()
+    ops[[key]] <- df
+    rv_opskrifter_custom(ops)
+
+    persist_recipe(key)
+
+    hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
+    rv_recipeDeleteState$key <- NULL
+    rv_recipeDeleteState$row <- NULL
+
+    showNotification(sprintf('Linjen "%s" er slettet permanent.', slettet), type = "message")
+  })
+
+  observeEvent(input$cancel_delete_opskrift_row, {
+    hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
+    rv_recipeDeleteState$key <- NULL
+    rv_recipeDeleteState$row <- NULL
+  })
   
-  # dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
+  # dynamisk visning af én valgt opskrift i fanen "Opskrifter" ----
   output$opskrifter_ui <- renderUI({
-    
-    # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
-    ops_sorted <- opskrifter[order(vapply(opskrifter, function(x) names(x)[1], ""))]
-  
+    ops_local <- rv_opskrifter_custom()
+    ops_sorted <- ops_local[order(vapply(ops_local, function(x) names(x)[1], ""))]
+
     keys <- names(ops_sorted)
     titler <- vapply(ops_sorted, function(df) names(df)[1], "")
-    
-    # Indholdsfortegnelse øverst
-    toc_block <- f7Block(
-      inset  = TRUE,
-      strong = TRUE,
-      tags$h3("Indhold"),
-      tags$ul(
-        class = "opskrift-toc",
-        lapply(seq_along(keys), function(i) {
-          target_id <- paste0("opskrift_", keys[i])
-          tags$li(
-            tags$a(
-              href = "#",  # vi bruger onclick i stedet
-              onclick = sprintf(
-                "document.getElementById('%s').scrollIntoView({behavior:'smooth', block:'start'}); return false;",
-                target_id
-              ),
-              titler[i]
-            )
-          )
-        })
-      )
+    req(length(keys) > 0)
+
+    valgt <- input$opskrift_valgt_key
+    if (is.null(valgt) || !valgt %in% keys) valgt <- keys[1]
+
+    tagList(
+      f7Block(
+        inset = TRUE,
+        strong = TRUE,
+        sInput(
+          "opskrift_valgt_key",
+          "Vælg opskrift",
+          choices = stats::setNames(keys, titler),
+          selected = valgt
+        )
+      ),
+      uiOutput("valgt_opskrift_ui")
     )
-    
-    # Selve opskrifts-blokke
-    ui_list <- lapply(seq_along(keys), function(i) {
-      
-      key <- keys[i]
-      df  <- ops_sorted[[i]]
-      
-      # Opskriftnavn = navnet på første kolonne i opskrifts-tabellen
-      ret_navn <- titler[i]
-      
-      # Unikt output-id til DT for denne opskrift
-      output_id <- paste0("opskrift_tbl_", key)
-      
-      # Find evt. link via helperen get_link()
-      link_url <- get_link(ret_navn)
-      
-      # Kombinér mængde, enhed og vare-navn til én tekst, fx "1 stk æg"
-      linjer <- paste(df$maengde, df$enhed, df[[ret_navn]])
-      linjer <- gsub("NA", "", linjer)
-      linjer <- trimws(linjer)
-      
-      df_vis <- data.frame(Ingredienser = linjer)
-      
-      output[[output_id]] <- DT::renderDT({
-        themed_dt(
-          df_vis,
-          options = list(
-            dom       = "t",
-            paging    = FALSE,
-            ordering  = FALSE,
-            searching = FALSE
-          )
-        )
-      })
-      
-      # Byg evt. klikbart link-tag
-      link_tag <- NULL
-      if (!is.null(link_url)) {
-        link_tag <- tags$p(
-          class = "opskrift-link",
-          "Link til opskriften: ",
-          tags$a(
-            href   = link_url,
-            target = "_blank",
-            rel    = "noopener noreferrer",
-            class  = "external opskrift-link-url",
-            "Åbn opskriften"
-          )
-        )
-      }
-      
-      # Wrap i en div med id + klasse, så vi kan styre scroll-offset med CSS
-      tags$div(
-        id    = paste0("opskrift_", key),
-        class = "opskrift-anchor",
-        f7Block(
-          inset = TRUE,
-          strong = TRUE,
-          tags$h3(ret_navn),
-          DT::DTOutput(output_id),
-          link_tag,
-          tags$p(
-            class = "til-toppen-link",
-            tags$a(
-              href = "#",
-              onclick = "
-                  var page = this.closest('.page-content');
-                  if (page) {
-                    page.scrollTo({top: 0, behavior: 'smooth'});
-                  }
-                  return false;
-                ",
-              "Til toppen"
+  })
+
+  output$valgt_opskrift_ui <- renderUI({
+    key <- input$opskrift_valgt_key
+    req(!is.null(key))
+
+    ops_local <- rv_opskrifter_custom()
+    req(key %in% names(ops_local))
+
+    df <- ops_local[[key]]
+    ret_navn <- names(df)[1]
+
+    links_df <- rv_links_custom()
+    link_url <- links_df$link[links_df$ret == ret_navn]
+    link_url <- if (length(link_url) > 0) link_url[1] else ""
+
+    ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[ret_navn]])
+    df_vis <- data.frame(
+      Ingrediens = htmltools::htmlEscape(ingredienslinje),
+      check.names = FALSE
+    )
+
+    edit_col <- vapply(
+      seq_len(nrow(df_vis)),
+      function(r) {
+        as.character(
+          actionButton(
+            inputId = paste0("opskrift_row_btn_", key, "_", r),
+            label = NULL,
+            icon = icon("pen"),
+            class = "edit-btn btn btn-sm",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+              key,
+              r
+            ),
+            type = "button",
+            style = paste(
+              "background:#0ea5e9;",
+              "color:#fff;",
+              "border:1px solid #0284c7;",
+              "border-radius:8px;",
+              "padding:6px 1px;",
+              "line-height:1;",
+              "font-weight:600;",
+              "box-shadow:none;",
+              "background-image:none;"
             )
           )
+        )
+      },
+      ""
+    )
+
+    delete_col <- vapply(
+      seq_len(nrow(df_vis)),
+      function(r) {
+        as.character(
+          actionButton(
+            inputId = paste0("opskrift_row_del_", key, "_", r),
+            label = NULL,
+            icon = icon("trash"),
+            class = "delete-btn btn btn-sm",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+              key,
+              r
+            ),
+            type = "button",
+            style = paste(
+              "background:#ef4444;",
+              "color:#fff;",
+              "border:1px solid #dc2626;",
+              "border-radius:8px;",
+              "padding:6px 1px;",
+              "line-height:1;",
+              "font-weight:600;",
+              "box-shadow:none;",
+              "background-image:none;"
+            )
+          )
+        )
+      },
+      ""
+    )
+
+    df_vis$Rediger <- edit_col
+    df_vis$Slet <- delete_col
+
+    output$opskrift_tbl_valgt <- DT::renderDT({
+      themed_dt(
+        df_vis,
+        escape = c(FALSE, FALSE, FALSE),
+        options = list(
+          dom = "t",
+          paging = FALSE,
+          ordering = FALSE,
+          searching = FALSE
         )
       )
     })
-    
-    # Indholdsfortegnelse + alle opskriftsblokke
-    do.call(tagList, c(list(toc_block), ui_list))
+
+    link_tag <- NULL
+    if (!is.null(link_url) && nzchar(link_url)) {
+      link_tag <- tags$p(
+        class = "opskrift-link",
+        "Link til opskriften: ",
+        tags$a(
+          href = link_url,
+          target = "_blank",
+          rel = "noopener noreferrer",
+          class = "external opskrift-link-url",
+          "Åbn opskriften"
+        )
+      )
+    }
+
+    tags$div(
+      id = paste0("opskrift_", key),
+      class = "opskrift-anchor",
+      f7Block(
+        inset = TRUE,
+        strong = TRUE,
+        tags$h3(ret_navn),
+        DT::DTOutput("opskrift_tbl_valgt"),
+        link_tag
+      )
+    )
   })
   
 
