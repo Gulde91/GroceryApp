@@ -35,9 +35,19 @@ ui <- f7Page(
       "Shiny.addCustomMessageHandler('ga-scroll-to-opskrift', function(msg) {
         setTimeout(function() {
           if (!msg || !msg.key) return;
-          var el = document.getElementById('opskrift_' + msg.key);
+          var rowEl = null;
+          if (msg.row !== null && msg.row !== undefined) {
+            rowEl = document.getElementById('opskrift_' + msg.key + '_row_' + msg.row);
+          }
+          var el = rowEl || document.getElementById('opskrift_' + msg.key);
           if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            var page = el.closest('.page-content');
+            if (page) {
+              var top = el.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 12;
+              page.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+            } else {
+              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
           }
         }, 60);
       });"
@@ -1025,10 +1035,10 @@ server <- function(input, output, session) {
     )
   }
 
-  scroll_to_recipe <- function(key) {
+  scroll_to_recipe <- function(key, row = NULL) {
     if (is.null(key) || !nzchar(key)) return(invisible(NULL))
     session$onFlushed(function() {
-      session$sendCustomMessage("ga-scroll-to-opskrift", list(key = key))
+      session$sendCustomMessage("ga-scroll-to-opskrift", list(key = key, row = row))
     }, once = TRUE)
   }
 
@@ -1095,7 +1105,7 @@ server <- function(input, output, session) {
     rv_opskrifter_custom(ops)
 
     persist_recipe(key)
-    scroll_to_recipe(key)
+    scroll_to_recipe(key, row)
 
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
     showNotification("Ingrediensen er opdateret og gemt.", type = "message")
@@ -1142,7 +1152,8 @@ server <- function(input, output, session) {
     rv_opskrifter_custom(ops)
 
     persist_recipe(key)
-    scroll_to_recipe(key)
+    row_target <- if (nrow(df) == 0) NULL else max(1, min(row, nrow(df)))
+    scroll_to_recipe(key, row_target)
 
     hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeDeleteState$key <- NULL
@@ -1207,8 +1218,17 @@ server <- function(input, output, session) {
       link_url <- if (length(link_url) > 0) link_url[1] else ""
 
       ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[ret_navn]])
+      ingredienslinje_html <- if (length(ingredienslinje) == 0) {
+        character()
+      } else {
+        paste0(
+          "<span id='opskrift_", key, "_row_", seq_along(ingredienslinje), "'>",
+          htmltools::htmlEscape(ingredienslinje),
+          "</span>"
+        )
+      }
       df_vis <- data.frame(
-        Ingrediens = ingredienslinje,
+        Ingrediens = ingredienslinje_html,
         check.names = FALSE
       )
 
@@ -1282,7 +1302,7 @@ server <- function(input, output, session) {
       output[[output_id]] <- DT::renderDT({
         themed_dt(
           df_vis,
-          escape = c(TRUE, FALSE, FALSE),
+          escape = c(FALSE, FALSE, FALSE),
           options = list(
             dom       = "t",
             paging    = FALSE,
