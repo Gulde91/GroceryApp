@@ -50,6 +50,21 @@ ui <- f7Page(
             }
           }
         }, 60);
+      });
+
+      Shiny.addCustomMessageHandler('ga-restore-scroll', function(msg) {
+        setTimeout(function() {
+          var top = (msg && typeof msg.top === 'number') ? msg.top : 0;
+          var page = document.querySelector('.tab.tab-active .page-content') ||
+                     document.querySelector('.tab-active .page-content') ||
+                     document.querySelector('.page-current .page-content') ||
+                     document.querySelector('.page-content');
+          if (page) {
+            page.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+          } else {
+            window.scrollTo(0, Math.max(0, top));
+          }
+        }, 20);
       });"
     ))
   ),
@@ -1042,6 +1057,14 @@ server <- function(input, output, session) {
     }, once = TRUE)
   }
 
+  restore_scroll_position <- function(top) {
+    if (is.null(top) || !is.finite(top)) return(FALSE)
+    session$onFlushed(function() {
+      session$sendCustomMessage("ga-restore-scroll", list(top = as.numeric(top)))
+    }, once = TRUE)
+    TRUE
+  }
+
   observeEvent(input$opskrift_editPressed, {
     info <- input$opskrift_editPressed
     req(!is.null(info$key), !is.null(info$row))
@@ -1105,7 +1128,9 @@ server <- function(input, output, session) {
     rv_opskrifter_custom(ops)
 
     persist_recipe(key)
-    scroll_to_recipe(key, row)
+    if (!restore_scroll_position(input$opskrift_scroll_top)) {
+      scroll_to_recipe(key, row)
+    }
 
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
     showNotification("Ingrediensen er opdateret og gemt.", type = "message")
@@ -1153,7 +1178,9 @@ server <- function(input, output, session) {
 
     persist_recipe(key)
     row_target <- if (nrow(df) == 0) NULL else max(1, min(row, nrow(df)))
-    scroll_to_recipe(key, row_target)
+    if (!restore_scroll_position(input$opskrift_scroll_top)) {
+      scroll_to_recipe(key, row_target)
+    }
 
     hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeDeleteState$key <- NULL
@@ -1242,7 +1269,7 @@ server <- function(input, output, session) {
               icon = icon("pen"),
               class = "edit-btn btn btn-sm",
               onclick = sprintf(
-                "Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+                "var pg=this.closest('.page-content'); Shiny.setInputValue('opskrift_scroll_top', pg ? pg.scrollTop : 0, {priority:'event'}); Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
                 key,
                 r
               ),
@@ -1274,7 +1301,7 @@ server <- function(input, output, session) {
               icon = icon("trash"),
               class = "delete-btn btn btn-sm",
               onclick = sprintf(
-                "Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+                "var pg=this.closest('.page-content'); Shiny.setInputValue('opskrift_scroll_top', pg ? pg.scrollTop : 0, {priority:'event'}); Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
                 key,
                 r
               ),
