@@ -30,7 +30,18 @@ ui <- f7Page(
     htmltools::singleton(tags$script(src = "button-press.js")),
     htmltools::singleton(tags$script(src = "copy-helper.js")),
     htmltools::singleton(tags$script(src = "DT-copy-feedback.js")),
-    htmltools::singleton(tags$script(src = "pwa-viewport-fix.js"))
+    htmltools::singleton(tags$script(src = "pwa-viewport-fix.js")),
+    tags$script(HTML(
+      "Shiny.addCustomMessageHandler('ga-scroll-to-opskrift', function(msg) {
+        setTimeout(function() {
+          if (!msg || !msg.key) return;
+          var el = document.getElementById('opskrift_' + msg.key);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 60);
+      });"
+    ))
   ),
   
   useShinyjs(),
@@ -1014,6 +1025,13 @@ server <- function(input, output, session) {
     )
   }
 
+  scroll_to_recipe <- function(key) {
+    if (is.null(key) || !nzchar(key)) return(invisible(NULL))
+    session$onFlushed(function() {
+      session$sendCustomMessage("ga-scroll-to-opskrift", list(key = key))
+    }, once = TRUE)
+  }
+
   observeEvent(input$opskrift_editPressed, {
     info <- input$opskrift_editPressed
     req(!is.null(info$key), !is.null(info$row))
@@ -1077,6 +1095,7 @@ server <- function(input, output, session) {
     rv_opskrifter_custom(ops)
 
     persist_recipe(key)
+    scroll_to_recipe(key)
 
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
     showNotification("Ingrediensen er opdateret og gemt.", type = "message")
@@ -1123,6 +1142,7 @@ server <- function(input, output, session) {
     rv_opskrifter_custom(ops)
 
     persist_recipe(key)
+    scroll_to_recipe(key)
 
     hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeDeleteState$key <- NULL
