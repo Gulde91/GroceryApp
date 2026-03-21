@@ -1,4 +1,3 @@
 Tomatsuppe;maengde;enhed;kat_1;kat_2
 tomatsuppe;1;dåse;konserves;
 spaghetti;20;gram;konserves;
-bacon i tern;50;gram;kød;pålæg
