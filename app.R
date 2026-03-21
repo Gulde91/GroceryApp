@@ -30,43 +30,7 @@ ui <- f7Page(
     htmltools::singleton(tags$script(src = "button-press.js")),
     htmltools::singleton(tags$script(src = "copy-helper.js")),
     htmltools::singleton(tags$script(src = "DT-copy-feedback.js")),
-    htmltools::singleton(tags$script(src = "pwa-viewport-fix.js")),
-    tags$script(HTML(
-      "Shiny.addCustomMessageHandler('ga-scroll-to-opskrift', function(msg) {
-        setTimeout(function() {
-          if (!msg || !msg.key) return;
-          var rowEl = null;
-          if (msg.row !== null && msg.row !== undefined) {
-            rowEl = document.getElementById('opskrift_' + msg.key + '_row_' + msg.row);
-          }
-          var el = rowEl || document.getElementById('opskrift_' + msg.key);
-          if (el) {
-            var page = el.closest('.page-content');
-            if (page) {
-              var top = el.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop - 12;
-              page.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-            } else {
-              el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }
-        }, 60);
-      });
-
-      Shiny.addCustomMessageHandler('ga-restore-scroll', function(msg) {
-        setTimeout(function() {
-          var top = (msg && typeof msg.top === 'number') ? msg.top : 0;
-          var page = document.querySelector('.tab.tab-active .page-content') ||
-                     document.querySelector('.tab-active .page-content') ||
-                     document.querySelector('.page-current .page-content') ||
-                     document.querySelector('.page-content');
-          if (page) {
-            page.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
-          } else {
-            window.scrollTo(0, Math.max(0, top));
-          }
-        }, 20);
-      });"
-    ))
+    htmltools::singleton(tags$script(src = "pwa-viewport-fix.js"))
   ),
   
   useShinyjs(),
@@ -1050,21 +1014,6 @@ server <- function(input, output, session) {
     )
   }
 
-  scroll_to_recipe <- function(key, row = NULL) {
-    if (is.null(key) || !nzchar(key)) return(invisible(NULL))
-    session$onFlushed(function() {
-      session$sendCustomMessage("ga-scroll-to-opskrift", list(key = key, row = row))
-    }, once = TRUE)
-  }
-
-  restore_scroll_position <- function(top) {
-    if (is.null(top) || !is.finite(top)) return(FALSE)
-    session$onFlushed(function() {
-      session$sendCustomMessage("ga-restore-scroll", list(top = as.numeric(top)))
-    }, once = TRUE)
-    TRUE
-  }
-
   observeEvent(input$opskrift_editPressed, {
     info <- input$opskrift_editPressed
     req(!is.null(info$key), !is.null(info$row))
@@ -1128,9 +1077,6 @@ server <- function(input, output, session) {
     rv_opskrifter_custom(ops)
 
     persist_recipe(key)
-    if (!restore_scroll_position(input$opskrift_scroll_top)) {
-      scroll_to_recipe(key, row)
-    }
 
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
     showNotification("Ingrediensen er opdateret og gemt.", type = "message")
@@ -1177,10 +1123,6 @@ server <- function(input, output, session) {
     rv_opskrifter_custom(ops)
 
     persist_recipe(key)
-    row_target <- if (nrow(df) == 0) NULL else max(1, min(row, nrow(df)))
-    if (!restore_scroll_position(input$opskrift_scroll_top)) {
-      scroll_to_recipe(key, row_target)
-    }
 
     hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeDeleteState$key <- NULL
@@ -1195,195 +1137,159 @@ server <- function(input, output, session) {
     rv_recipeDeleteState$row <- NULL
   })
   
-  # dynamisk visning af alle opskrifter i fanen "Opskrifter" ----
+  # dynamisk visning af én valgt opskrift i fanen "Opskrifter" ----
   output$opskrifter_ui <- renderUI({
-    
-    # Sortér opskrifter alfabetisk efter opskriftsnavnet (første kolonnenavn)
     ops_local <- rv_opskrifter_custom()
     ops_sorted <- ops_local[order(vapply(ops_local, function(x) names(x)[1], ""))]
-  
+
     keys <- names(ops_sorted)
     titler <- vapply(ops_sorted, function(df) names(df)[1], "")
-    
-    # Indholdsfortegnelse øverst
-    toc_block <- f7Block(
-      inset  = TRUE,
-      strong = TRUE,
-      tags$h3("Indhold"),
-      tags$ul(
-        class = "opskrift-toc",
-        lapply(seq_along(keys), function(i) {
-          target_id <- paste0("opskrift_", keys[i])
-          tags$li(
-            tags$a(
-              href = "#",  # vi bruger onclick i stedet
-              onclick = sprintf(
-                "document.getElementById('%s').scrollIntoView({behavior:'smooth', block:'start'}); return false;",
-                target_id
-              ),
-              titler[i]
-            )
-          )
-        })
-      )
+    req(length(keys) > 0)
+
+    valgt <- input$opskrift_valgt_key
+    if (is.null(valgt) || !valgt %in% keys) valgt <- keys[1]
+
+    tagList(
+      f7Block(
+        inset = TRUE,
+        strong = TRUE,
+        sInput(
+          "opskrift_valgt_key",
+          "Vælg opskrift",
+          choices = stats::setNames(keys, titler),
+          selected = valgt
+        )
+      ),
+      uiOutput("valgt_opskrift_ui")
     )
-    
-    # Selve opskrifts-blokke
-    ui_list <- lapply(seq_along(keys), function(i) {
-      
-      key <- keys[i]
-      df  <- ops_sorted[[i]]
-      
-      # Opskriftnavn = navnet på første kolonne i opskrifts-tabellen
-      ret_navn <- titler[i]
-      
-      # Unikt output-id til DT for denne opskrift
-      output_id <- paste0("opskrift_tbl_", key)
-      
-      links_df <- rv_links_custom()
-      link_url <- links_df$link[links_df$ret == ret_navn]
-      link_url <- if (length(link_url) > 0) link_url[1] else ""
+  })
 
-      ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[ret_navn]])
-      ingredienslinje_html <- if (length(ingredienslinje) == 0) {
-        character()
-      } else {
-        paste0(
-          "<span id='opskrift_", key, "_row_", seq_along(ingredienslinje), "'>",
-          htmltools::htmlEscape(ingredienslinje),
-          "</span>"
-        )
-      }
-      df_vis <- data.frame(
-        Ingrediens = ingredienslinje_html,
-        check.names = FALSE
-      )
+  output$valgt_opskrift_ui <- renderUI({
+    key <- input$opskrift_valgt_key
+    req(!is.null(key))
 
-      edit_col <- vapply(
-        seq_len(nrow(df_vis)),
-        function(r) {
-          as.character(
-            actionButton(
-              inputId = paste0("opskrift_row_btn_", key, "_", r),
-              label = NULL,
-              icon = icon("pen"),
-              class = "edit-btn btn btn-sm",
-              onclick = sprintf(
-                "var pg=this.closest('.page-content'); Shiny.setInputValue('opskrift_scroll_top', pg ? pg.scrollTop : 0, {priority:'event'}); Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
-                key,
-                r
-              ),
-              type = "button",
-              style = paste(
-                "background:#0ea5e9;",
-                "color:#fff;",
-                "border:1px solid #0284c7;",
-                "border-radius:8px;",
-                "padding:6px 1px;",
-                "line-height:1;",
-                "font-weight:600;",
-                "box-shadow:none;",
-                "background-image:none;"
-              )
+    ops_local <- rv_opskrifter_custom()
+    req(key %in% names(ops_local))
+
+    df <- ops_local[[key]]
+    ret_navn <- names(df)[1]
+
+    links_df <- rv_links_custom()
+    link_url <- links_df$link[links_df$ret == ret_navn]
+    link_url <- if (length(link_url) > 0) link_url[1] else ""
+
+    ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[ret_navn]])
+    df_vis <- data.frame(
+      Ingrediens = htmltools::htmlEscape(ingredienslinje),
+      check.names = FALSE
+    )
+
+    edit_col <- vapply(
+      seq_len(nrow(df_vis)),
+      function(r) {
+        as.character(
+          actionButton(
+            inputId = paste0("opskrift_row_btn_", key, "_", r),
+            label = NULL,
+            icon = icon("pen"),
+            class = "edit-btn btn btn-sm",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+              key,
+              r
+            ),
+            type = "button",
+            style = paste(
+              "background:#0ea5e9;",
+              "color:#fff;",
+              "border:1px solid #0284c7;",
+              "border-radius:8px;",
+              "padding:6px 1px;",
+              "line-height:1;",
+              "font-weight:600;",
+              "box-shadow:none;",
+              "background-image:none;"
             )
           )
-        },
-        ""
-      )
+        )
+      },
+      ""
+    )
 
-      delete_col <- vapply(
-        seq_len(nrow(df_vis)),
-        function(r) {
-          as.character(
-            actionButton(
-              inputId = paste0("opskrift_row_del_", key, "_", r),
-              label = NULL,
-              icon = icon("trash"),
-              class = "delete-btn btn btn-sm",
-              onclick = sprintf(
-                "var pg=this.closest('.page-content'); Shiny.setInputValue('opskrift_scroll_top', pg ? pg.scrollTop : 0, {priority:'event'}); Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
-                key,
-                r
-              ),
-              type = "button",
-              style = paste(
-                "background:#ef4444;",
-                "color:#fff;",
-                "border:1px solid #dc2626;",
-                "border-radius:8px;",
-                "padding:6px 1px;",
-                "line-height:1;",
-                "font-weight:600;",
-                "box-shadow:none;",
-                "background-image:none;"
-              )
+    delete_col <- vapply(
+      seq_len(nrow(df_vis)),
+      function(r) {
+        as.character(
+          actionButton(
+            inputId = paste0("opskrift_row_del_", key, "_", r),
+            label = NULL,
+            icon = icon("trash"),
+            class = "delete-btn btn btn-sm",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+              key,
+              r
+            ),
+            type = "button",
+            style = paste(
+              "background:#ef4444;",
+              "color:#fff;",
+              "border:1px solid #dc2626;",
+              "border-radius:8px;",
+              "padding:6px 1px;",
+              "line-height:1;",
+              "font-weight:600;",
+              "box-shadow:none;",
+              "background-image:none;"
             )
           )
-        },
-        ""
-      )
+        )
+      },
+      ""
+    )
 
-      df_vis$Rediger <- edit_col
-      df_vis$Slet <- delete_col
-      
-      output[[output_id]] <- DT::renderDT({
-        themed_dt(
-          df_vis,
-          escape = c(FALSE, FALSE, FALSE),
-          options = list(
-            dom       = "t",
-            paging    = FALSE,
-            ordering  = FALSE,
-            searching = FALSE
-          )
-        )
-      })
-      
-      link_tag <- NULL
-      if (!is.null(link_url) && nzchar(link_url)) {
-        link_tag <- tags$p(
-          class = "opskrift-link",
-          "Link til opskriften: ",
-          tags$a(
-            href   = link_url,
-            target = "_blank",
-            rel    = "noopener noreferrer",
-            class  = "external opskrift-link-url",
-            "Åbn opskriften"
-          )
-        )
-      }
-      
-      # Wrap i en div med id + klasse, så vi kan styre scroll-offset med CSS
-      tags$div(
-        id    = paste0("opskrift_", key),
-        class = "opskrift-anchor",
-        f7Block(
-          inset = TRUE,
-          strong = TRUE,
-          tags$h3(ret_navn),
-          DT::DTOutput(output_id),
-          link_tag,
-          tags$p(
-            class = "til-toppen-link",
-            tags$a(
-              href = "#",
-              onclick = "
-                  var page = this.closest('.page-content');
-                  if (page) {
-                    page.scrollTo({top: 0, behavior: 'smooth'});
-                  }
-                  return false;
-                ",
-              "Til toppen"
-            )
-          )
+    df_vis$Rediger <- edit_col
+    df_vis$Slet <- delete_col
+
+    output$opskrift_tbl_valgt <- DT::renderDT({
+      themed_dt(
+        df_vis,
+        escape = c(FALSE, FALSE, FALSE),
+        options = list(
+          dom = "t",
+          paging = FALSE,
+          ordering = FALSE,
+          searching = FALSE
         )
       )
     })
-    
-    # Indholdsfortegnelse + alle opskriftsblokke
-    do.call(tagList, c(list(toc_block), ui_list))
+
+    link_tag <- NULL
+    if (!is.null(link_url) && nzchar(link_url)) {
+      link_tag <- tags$p(
+        class = "opskrift-link",
+        "Link til opskriften: ",
+        tags$a(
+          href = link_url,
+          target = "_blank",
+          rel = "noopener noreferrer",
+          class = "external opskrift-link-url",
+          "Åbn opskriften"
+        )
+      )
+    }
+
+    tags$div(
+      id = paste0("opskrift_", key),
+      class = "opskrift-anchor",
+      f7Block(
+        inset = TRUE,
+        strong = TRUE,
+        tags$h3(ret_navn),
+        DT::DTOutput("opskrift_tbl_valgt"),
+        link_tag
+      )
+    )
   })
   
 
