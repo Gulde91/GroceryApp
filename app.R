@@ -271,6 +271,10 @@ ui <- f7Page(
                  inset = TRUE, strong = TRUE,
                  tInput("ny_opskrift_titel", "Titel"),
                  tInput("ny_opskrift_link", "Link (valgfrit)"),
+                 tags$p(
+                   class = "text-muted",
+                   "OBS: Angiv mængder i ingredienslinjerne for 1 person."
+                 ),
                  textAreaInput(
                    "ny_opskrift_ingredienser",
                    "Ingredienser (én linje pr. ingrediens)",
@@ -281,12 +285,6 @@ ui <- f7Page(
                      "Eksempel: hakket oksekød;0.175;kg;kød;",
                      sep = "\n"
                    )
-                 ),
-                 textAreaInput(
-                   "ny_opskrift_fremgangsmaade",
-                   "Kort fremgangsmåde (valgfri)",
-                   width = "100%",
-                   rows = 4
                  ),
                  br(),
                  f7Button("save_ny_opskrift", "Gem", fill = TRUE, color = "blue"),
@@ -1113,7 +1111,6 @@ server <- function(input, output, session) {
     updateTextInput(session, "ny_opskrift_titel", value = "")
     updateTextInput(session, "ny_opskrift_link", value = "")
     updateTextAreaInput(session, "ny_opskrift_ingredienser", value = "")
-    updateTextAreaInput(session, "ny_opskrift_fremgangsmaade", value = "")
     show(id = "popup_ny_opskrift", anim = TRUE, animType = "fade")
   })
 
@@ -1185,6 +1182,36 @@ server <- function(input, output, session) {
     ops <- rv_opskrifter_custom()
     ops[[key]] <- ny_df
     rv_opskrifter_custom(ops)
+
+    retter_df <- readr::read_delim(
+      "./data/retter.txt",
+      col_types = c("c", "c", "c"),
+      delim = ";",
+      escape_double = FALSE,
+      trim_ws = TRUE
+    )
+    if (!(tolower(titel) %in% tolower(retter_df$retter)) &&
+        !(tolower(key) %in% tolower(retter_df$key))) {
+      retter_df <- bind_rows(
+        retter_df,
+        data.frame(
+          retter = titel,
+          key = key,
+          type = "",
+          stringsAsFactors = FALSE
+        )
+      ) |>
+        arrange(retter)
+
+      write.table(
+        retter_df,
+        file = "./data/retter.txt",
+        sep = ";",
+        row.names = FALSE,
+        quote = FALSE,
+        fileEncoding = "UTF-8"
+      )
+    }
 
     if (nzchar(link)) {
       links_df <- rv_links_custom()
