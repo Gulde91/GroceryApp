@@ -99,6 +99,14 @@ ui <- f7Page(
             tags$b("1 person"), ".")
           ,
           tags$p("Du kan redigere og slette ingredienslinjer direkte. Ændringer gemmes automatisk.")
+          ,
+          f7Button(
+            "open_ny_opskrift",
+            "Ny opskrift",
+            icon = f7Icon("plus"),
+            fill = TRUE,
+            color = "green"
+          )
         ),
         # Dynamisk indhold til alle opskrifter
         uiOutput("opskrifter_ui")
@@ -251,6 +259,39 @@ ui <- f7Page(
                  f7Button("confirm_delete_opskrift_row", "Ja, slet", fill = TRUE, color = "red"),
                  br(),
                  f7Button("cancel_delete_opskrift_row", "Nej", fill = TRUE, color = "gray")
+               )
+      )
+    ),
+    # POPUP: ny opskrift
+    tags$div(
+      id = "popup_ny_opskrift", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Ny opskrift"),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 tInput("ny_opskrift_titel", "Titel"),
+                 tInput("ny_opskrift_link", "Link (valgfrit)"),
+                 textAreaInput(
+                   "ny_opskrift_ingredienser",
+                   "Ingredienser (én linje pr. ingrediens)",
+                   width = "100%",
+                   rows = 8,
+                   placeholder = paste(
+                     "Format pr. linje: ingrediens;maengde;enhed;kat_1;kat_2",
+                     "Eksempel: hakket oksekød;0.175;kg;kød;",
+                     sep = "\n"
+                   )
+                 ),
+                 textAreaInput(
+                   "ny_opskrift_fremgangsmaade",
+                   "Kort fremgangsmåde (valgfri)",
+                   width = "100%",
+                   rows = 4
+                 ),
+                 br(),
+                 f7Button("save_ny_opskrift", "Gem", fill = TRUE, color = "blue"),
+                 br(),
+                 f7Button("close_ny_opskrift", "Annuller", fill = TRUE, color = "gray")
                )
       )
     )
@@ -999,6 +1040,60 @@ server <- function(input, output, session) {
     trimws(gsub("\\s+", " ", linje))
   }
 
+  make_recipe_key <- function(titel) {
+    key <- iconv(titel, from = "UTF-8", to = "ASCII//TRANSLIT")
+    key <- tolower(key)
+    key <- gsub("[^a-z0-9]+", "_", key)
+    key <- gsub("^_+|_+$", "", key)
+    paste0(key, "_opskrift")
+  }
+
+  parse_recipe_lines <- function(txt) {
+    linjer <- unlist(strsplit(txt %||% "", "\n", fixed = TRUE))
+    linjer <- trimws(linjer)
+    linjer <- linjer[nzchar(linjer)]
+
+    if (length(linjer) == 0) {
+      return(list(ok = FALSE, msg = "Tilføj mindst én ingredienslinje.", df = NULL))
+    }
+
+    parsed <- lapply(seq_along(linjer), function(i) {
+      felter <- trimws(strsplit(linjer[[i]], ";", fixed = TRUE)[[1]])
+      if (length(felter) != 5) {
+        return(list(ok = FALSE, msg = sprintf("Linje %d har ikke 5 felter adskilt af ';'.", i)))
+      }
+      if (!nzchar(felter[[1]])) {
+        return(list(ok = FALSE, msg = sprintf("Linje %d mangler ingrediensnavn.", i)))
+      }
+
+      maengde_chr <- gsub(",", ".", felter[[2]], fixed = TRUE)
+      maengde <- suppressWarnings(as.numeric(maengde_chr))
+      if (nzchar(maengde_chr) && is.na(maengde)) {
+        return(list(ok = FALSE, msg = sprintf("Linje %d har ugyldig mængde.", i)))
+      }
+
+      list(
+        ok = TRUE,
+        row = data.frame(
+          Indkobsliste = felter[[1]],
+          maengde = if (nzchar(maengde_chr)) maengde else NA_real_,
+          enhed = felter[[3]],
+          kat_1 = felter[[4]],
+          kat_2 = felter[[5]],
+          stringsAsFactors = FALSE
+        )
+      )
+    })
+
+    fejl <- purrr::keep(parsed, ~ !isTRUE(.x$ok))
+    if (length(fejl) > 0) {
+      return(list(ok = FALSE, msg = fejl[[1]]$msg, df = NULL))
+    }
+
+    out <- bind_rows(purrr::map(parsed, "row"))
+    list(ok = TRUE, msg = NULL, df = out)
+  }
+
   persist_recipe <- function(key) {
     df <- rv_opskrifter_custom()[[key]]
     req(!is.null(df))
@@ -1013,6 +1108,109 @@ server <- function(input, output, session) {
       fileEncoding = "UTF-8"
     )
   }
+
+  observeEvent(input$open_ny_opskrift, {
+    updateTextInput(session, "ny_opskrift_titel", value = "")
+    updateTextInput(session, "ny_opskrift_link", value = "")
+    updateTextAreaInput(session, "ny_opskrift_ingredienser", value = "")
+    updateTextAreaInput(session, "ny_opskrift_fremgangsmaade", value = "")
+    show(id = "popup_ny_opskrift", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$close_ny_opskrift, {
+    hide(id = "popup_ny_opskrift", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$save_ny_opskrift, {
+    titel <- trimws(input$ny_opskrift_titel %||% "")
+    link <- trimws(input$ny_opskrift_link %||% "")
+    ingrediens_txt <- input$ny_opskrift_ingredienser %||% ""
+
+    if (!nzchar(titel)) {
+      showNotification("Titel er påkrævet.", type = "error")
+      return(invisible(NULL))
+    }
+
+    parsed <- parse_recipe_lines(ingrediens_txt)
+    if (!isTRUE(parsed$ok)) {
+      showNotification(parsed$msg, type = "error")
+      return(invisible(NULL))
+    }
+
+    eksisterende_titler <- vapply(rv_opskrifter_custom(), function(x) names(x)[1], "")
+    if (tolower(titel) %in% tolower(eksisterende_titler)) {
+      showNotification("Der findes allerede en opskrift med den titel.", type = "warning")
+      return(invisible(NULL))
+    }
+
+    key <- make_recipe_key(titel)
+    if (!nzchar(key) || key == "_opskrift") {
+      showNotification("Kunne ikke danne gyldigt filnavn fra titlen.", type = "error")
+      return(invisible(NULL))
+    }
+
+    if (key %in% names(rv_opskrifter_custom())) {
+      showNotification("Filnavnet findes allerede. Vælg en anden titel.", type = "warning")
+      return(invisible(NULL))
+    }
+
+    filsti <- file.path("./data/opskrifter", paste0(key, ".txt"))
+    if (file.exists(filsti)) {
+      showNotification("Der findes allerede en opskriftsfil med dette navn.", type = "warning")
+      return(invisible(NULL))
+    }
+
+    ny_df <- parsed$df
+    names(ny_df)[1] <- titel
+
+    # Tjek at slutformat matcher eksisterende tekstfiler
+    format_ok <- is.data.frame(ny_df) &&
+      ncol(ny_df) == 5 &&
+      identical(names(ny_df)[2:5], c("maengde", "enhed", "kat_1", "kat_2"))
+    if (!isTRUE(format_ok)) {
+      showNotification("Opskriften kunne ikke gemmes i korrekt filformat.", type = "error")
+      return(invisible(NULL))
+    }
+
+    write.table(
+      ny_df,
+      file = filsti,
+      sep = ";",
+      row.names = FALSE,
+      quote = FALSE,
+      na = "",
+      fileEncoding = "UTF-8"
+    )
+
+    ops <- rv_opskrifter_custom()
+    ops[[key]] <- ny_df
+    rv_opskrifter_custom(ops)
+
+    if (nzchar(link)) {
+      links_df <- rv_links_custom()
+      if (!(tolower(titel) %in% tolower(links_df$ret))) {
+        links_df <- bind_rows(
+          links_df,
+          data.frame(ret = titel, link = link, stringsAsFactors = FALSE)
+        ) |>
+          arrange(ret)
+        rv_links_custom(links_df)
+
+        write.table(
+          links_df,
+          file = "./data/links.txt",
+          sep = ";",
+          row.names = FALSE,
+          quote = FALSE,
+          fileEncoding = "UTF-8"
+        )
+      }
+    }
+
+    updateSelectInput(session, "opskrift_valgt_key", selected = key)
+    hide(id = "popup_ny_opskrift", anim = TRUE, animType = "fade")
+    showNotification("Ny opskrift er gemt.", type = "message")
+  })
 
   observeEvent(input$opskrift_editPressed, {
     info <- input$opskrift_editPressed
