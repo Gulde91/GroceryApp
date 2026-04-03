@@ -93,12 +93,13 @@ ui <- f7Page(
         icon = f7Icon("book"),
         active = FALSE,
         f7BlockTitle(title = "Opskrifter"),
-        f7Block(inset = TRUE, strong = TRUE,
-          tags$p(
-            "Alle opskrifter nedenfor er angivet med mængder svarende til ",
-            tags$b("1 person"), ".")
-          ,
-          tags$p("Du kan redigere og slette ingredienslinjer direkte. Ændringer gemmes automatisk.")
+      f7Block(inset = TRUE, strong = TRUE,
+        tags$p(
+          "Alle opskrifter nedenfor er angivet med mængder svarende til ",
+          tags$b("1 person"), ".")
+        ,
+          tags$p("Du kan redigere og slette ingredienslinjer direkte. Ændringer gemmes automatisk."),
+          f7Button("open_ny_ret", "Tilføj ny ret", fill = TRUE, color = "green")
         ),
         # Dynamisk indhold til alle opskrifter
         uiOutput("opskrifter_ui")
@@ -253,6 +254,23 @@ ui <- f7Page(
                  f7Button("cancel_delete_opskrift_row", "Nej", fill = TRUE, color = "gray")
                )
       )
+    ),
+    # POPUP: tilføj ny ret
+    tags$div(
+      id = "popup_ny_ret", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Tilføj ny ret"),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 tInput("ny_ret_navn", "Rettens navn"),
+                 sInput("ny_ret_type", "Type", choices = c("vegetar", "kylling", "gris", "okse", "fisk"), selected = "vegetar"),
+                 tInput("ny_ret_link", "Link (valgfrit)"),
+                 br(),
+                 f7Button("save_ny_ret", "Gem ret", fill = TRUE, color = "blue"),
+                 br(),
+                 f7Button("close_ny_ret", "Luk", fill = TRUE, color = "gray")
+               )
+      )
     )
     
   ),
@@ -291,6 +309,7 @@ server <- function(input, output, session) {
   rv_valgte_opskrifter <- reactiveValues(items = list())
   rv_opskrifter_custom <- reactiveVal(opskrifter)
   rv_links_custom <- reactiveVal(links)
+  rv_retter_custom <- reactiveVal(retter)
   rv_recipeEditState <- reactiveValues(key = NULL, row = NULL)
   rv_recipeDeleteState <- reactiveValues(key = NULL, row = NULL)
 
@@ -511,7 +530,7 @@ server <- function(input, output, session) {
     
     # sætter opskrift sammen
     rv_opskrift_tmp$df <- opskrift(
-      opskrifter, retter, salater, salater_opskrifter, tilbehor,
+      rv_opskrifter_custom(), rv_retter_custom(), salater, salater_opskrifter, tilbehor,
       input$ret, input$salat, input$pers, input$tilbehor
     )
     
@@ -596,6 +615,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$open_opskrift, {
+    updateSelectInput(session = session, inputId = "ret", choices = c("", rv_retter_custom()$retter))
     updateSelectInput(session = session, inputId = "ret", selected = "")
     updateNumericInput(session = session, inputId = "pers", value = 2)
     updateSelectInput(session = session, inputId = "salat", selected = salater$retter[[1]])
@@ -1013,6 +1033,111 @@ server <- function(input, output, session) {
       fileEncoding = "UTF-8"
     )
   }
+  
+  slugify_recipe_key <- function(x) {
+    x_ascii <- iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
+    x_ascii <- tolower(x_ascii)
+    x_ascii <- gsub("[^a-z0-9]+", "_", x_ascii)
+    gsub("^_+|_+$", "", x_ascii)
+  }
+
+  persist_retter <- function(df) {
+    write.table(
+      df,
+      file = "./data/retter.txt",
+      sep = ";",
+      row.names = FALSE,
+      col.names = TRUE,
+      quote = FALSE,
+      fileEncoding = "UTF-8"
+    )
+  }
+  
+  persist_links <- function(df) {
+    write.table(
+      df,
+      file = "./data/links.txt",
+      sep = ";",
+      row.names = FALSE,
+      col.names = TRUE,
+      quote = FALSE,
+      fileEncoding = "UTF-8"
+    )
+  }
+
+  observeEvent(input$open_ny_ret, {
+    updateTextInput(session, "ny_ret_navn", value = "")
+    updateSelectInput(session, "ny_ret_type", selected = "vegetar")
+    updateTextInput(session, "ny_ret_link", value = "")
+    show(id = "popup_ny_ret", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$close_ny_ret, {
+    hide(id = "popup_ny_ret", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$save_ny_ret, {
+    ret_navn <- trimws(input$ny_ret_navn %||% "")
+    ret_type <- trimws(input$ny_ret_type %||% "")
+    ret_link <- trimws(input$ny_ret_link %||% "")
+
+    validate(need(ret_navn != "", "Skriv et navn til retten."))
+    validate(need(ret_type != "", "Vælg en type."))
+
+    ops <- rv_opskrifter_custom()
+    eksisterende_navne <- vapply(ops, function(df) names(df)[1], "")
+    if (tolower(ret_navn) %in% tolower(eksisterende_navne)) {
+      showNotification(sprintf('Retten "%s" findes allerede.', ret_navn), type = "warning")
+      return(invisible(NULL))
+    }
+
+    base_key <- paste0(slugify_recipe_key(ret_navn), "_opskr")
+    key <- base_key
+    i <- 1L
+    while (key %in% names(ops)) {
+      i <- i + 1L
+      key <- paste0(base_key, "_", i)
+    }
+
+    ny_opskrift <- data.frame(
+      temp = "Ny ingrediens",
+      maengde = NA_real_,
+      enhed = "",
+      kat_1 = "konserves",
+      kat_2 = "",
+      stringsAsFactors = FALSE
+    )
+    names(ny_opskrift)[1] <- ret_navn
+
+    ops[[key]] <- ny_opskrift
+    rv_opskrifter_custom(ops)
+    persist_recipe(key)
+
+    retter_new <- bind_rows(
+      rv_retter_custom(),
+      data.frame(retter = ret_navn, key = key, type = ret_type, stringsAsFactors = FALSE)
+    ) |>
+      distinct(key, .keep_all = TRUE) |>
+      arrange(retter)
+    rv_retter_custom(retter_new)
+    persist_retter(retter_new)
+
+    links_new <- rv_links_custom()
+    if (nzchar(ret_link)) {
+      links_new <- bind_rows(
+        links_new,
+        data.frame(ret = ret_navn, link = ret_link, stringsAsFactors = FALSE)
+      ) |>
+        distinct(ret, .keep_all = TRUE) |>
+        arrange(ret)
+      persist_links(links_new)
+    }
+    rv_links_custom(links_new)
+
+    hide(id = "popup_ny_ret", anim = TRUE, animType = "fade")
+    updateSelectInput(session, "opskrift_valgt_key", selected = key)
+    showNotification(sprintf('Retten "%s" er oprettet.', ret_navn), type = "message")
+  })
 
   observeEvent(input$opskrift_editPressed, {
     info <- input$opskrift_editPressed
