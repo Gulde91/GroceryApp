@@ -240,6 +240,26 @@ ui <- f7Page(
                )
       )
     ),
+    # POPUP: tilføj ingrediens til valgt opskrift
+    tags$div(
+      id = "popup_opskrift_tilfoej", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Tilføj ingrediens"),
+               tags$p(textOutput("opskrift_add_context")),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 tInput("opskrift_add_navn", "Varenavn"),
+                 nInput("opskrift_add_maengde", "Mængde", value = 1),
+                 sInput("opskrift_add_enhed", "Enhed", choices = c(""), selected = ""),
+                 sInput("opskrift_add_kat1", "Kategori 1", choices = c(""), selected = ""),
+                 sInput("opskrift_add_kat2", "Kategori 2", choices = c(""), selected = ""),
+                 br(),
+                 f7Button("save_opskrift_new_row", "Tilføj vare", fill = TRUE, color = "green"),
+                 br(),
+                 f7Button("cancel_opskrift_new_row", "Luk", fill = TRUE, color = "gray")
+               )
+      )
+    ),
     # POPUP: bekræft sletning af ingredienslinje
     tags$div(
       id = "popup_opskrift_slet_bekraeft", class = "ga-modal",
@@ -312,6 +332,7 @@ server <- function(input, output, session) {
   rv_retter_custom <- reactiveVal(retter)
   rv_recipeEditState <- reactiveValues(key = NULL, row = NULL)
   rv_recipeDeleteState <- reactiveValues(key = NULL, row = NULL)
+  rv_recipeAddState <- reactiveValues(key = NULL)
 
   rv_varer_custom <- reactiveVal(
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
@@ -1211,6 +1232,80 @@ server <- function(input, output, session) {
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
   })
 
+  observeEvent(input$opskrift_addPressed, {
+    info <- input$opskrift_addPressed
+    req(!is.null(info$key))
+
+    key <- as.character(info$key)
+    req(key %in% names(rv_opskrifter_custom()))
+
+    rv_recipeAddState$key <- key
+
+    df <- rv_opskrifter_custom()[[key]]
+    ret_navn <- names(df)[1]
+
+    enhed_choices <- sort(unique(c("", rv_varer()$enhed, df$enhed)))
+    kat1_choices <- sort(unique(c(kategori_1, rv_varer()$kat_1, df$kat_1)))
+    kat2_choices <- sort(unique(c("", kategori_2, rv_varer()$kat_2, df$kat_2)))
+
+    updateTextInput(session, "opskrift_add_navn", value = "")
+    updateNumericInput(session, "opskrift_add_maengde", value = 1)
+    updateSelectInput(session, "opskrift_add_enhed", choices = enhed_choices, selected = "")
+    updateSelectInput(session, "opskrift_add_kat1", choices = kat1_choices, selected = "konserves")
+    updateSelectInput(session, "opskrift_add_kat2", choices = kat2_choices, selected = "")
+
+    output$opskrift_add_context <- renderText({
+      sprintf("Tilføj ny ingrediens til '%s'", ret_navn)
+    })
+
+    show(id = "popup_opskrift_tilfoej", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$save_opskrift_new_row, {
+    key <- rv_recipeAddState$key
+    req(!is.null(key), key %in% names(rv_opskrifter_custom()))
+
+    df <- rv_opskrifter_custom()[[key]]
+    ret_navn <- names(df)[1]
+
+    ingrediens <- trimws(as.character(input$opskrift_add_navn %||% ""))
+    maengde <- suppressWarnings(as.numeric(input$opskrift_add_maengde))
+    enhed <- trimws(as.character(input$opskrift_add_enhed %||% ""))
+    kat1 <- trimws(as.character(input$opskrift_add_kat1 %||% ""))
+    kat2 <- trimws(as.character(input$opskrift_add_kat2 %||% ""))
+
+    validate(need(ingrediens != "", "Skriv et varenavn."))
+    validate(need(!is.na(maengde), "Mængde skal være et tal."))
+    validate(need(kat1 != "", "Vælg en kategori 1."))
+
+    ny_linje <- data.frame(
+      temp = ingrediens,
+      maengde = maengde,
+      enhed = enhed,
+      kat_1 = kat1,
+      kat_2 = kat2,
+      stringsAsFactors = FALSE
+    )
+    names(ny_linje)[1] <- ret_navn
+
+    df <- bind_rows(df, ny_linje)
+    ops <- rv_opskrifter_custom()
+    ops[[key]] <- df
+    rv_opskrifter_custom(ops)
+
+    persist_recipe(key)
+
+    hide(id = "popup_opskrift_tilfoej", anim = TRUE, animType = "fade")
+    rv_recipeAddState$key <- NULL
+
+    showNotification(sprintf('Ingrediensen "%s" er tilføjet.', ingrediens), type = "message")
+  })
+
+  observeEvent(input$cancel_opskrift_new_row, {
+    hide(id = "popup_opskrift_tilfoej", anim = TRUE, animType = "fade")
+    rv_recipeAddState$key <- NULL
+  })
+
   observeEvent(input$opskrift_deletePressed, {
     info <- input$opskrift_deletePressed
     req(!is.null(info$key), !is.null(info$row))
@@ -1411,6 +1506,17 @@ server <- function(input, output, session) {
         inset = TRUE,
         strong = TRUE,
         tags$h3(ret_navn),
+        f7Button(
+          inputId = paste0("opskrift_add_btn_", key),
+          label = "Tilføj vare",
+          fill = TRUE,
+          color = "green",
+          onclick = sprintf(
+            "Shiny.setInputValue('opskrift_addPressed', {key: '%s'}, {priority:'event'}); return false;",
+            key
+          )
+        ),
+        br(),
         DT::DTOutput("opskrift_tbl_valgt"),
         link_tag
       )
