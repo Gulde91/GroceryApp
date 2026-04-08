@@ -583,16 +583,18 @@ server <- function(input, output, session) {
     har_tilh <- !is.null(input$tilbehor) && nzchar(input$tilbehor)
     
     if (har_ret) {
-      df_ret <- get_df(ret = input$ret, pers = input$pers)
+      # Brug reaktive data, så nyoprettede retter virker uden genstart.
+      df_ret <- get_df_custom(ret = input$ret, pers = input$pers)
       if (har_salat) {
-        df_sal <- get_df(salat = input$salat, pers = input$pers)
+        df_sal <- get_df_custom(salat = input$salat, pers = input$pers)
         df_merged <- bind_rows(df_ret, df_sal)
         title <- paste0(input$ret, " m. ", input$salat)
-        link  <- get_link(input$ret) %||% get_link(input$salat)
+        link  <- get_link_custom(rv_links_custom(), input$ret) %||%
+          get_link_custom(rv_links_custom(), input$salat)
       } else {
         df_merged <- df_ret
         title <- input$ret
-        link  <- get_link(input$ret)
+        link  <- get_link_custom(rv_links_custom(), input$ret)
       }
       rv_valgte_opskrifter$items <- c(
         rv_valgte_opskrifter$items,
@@ -606,19 +608,20 @@ server <- function(input, output, session) {
     } else {
       # Ingen ret valgt → salat/tilbehør må gerne stå alene
       if (har_salat) {
-        df_sal <- get_df(salat = input$salat, pers = input$pers)
+        df_sal <- get_df_custom(salat = input$salat, pers = input$pers)
         rv_valgte_opskrifter$items <- c(
           rv_valgte_opskrifter$items,
           list(list(
             title = paste0("Salat: ", input$salat),
             pers  = input$pers,
             df    = df_sal,
-            link  = get_link(input$salat)
+            # Link slås op i de reaktive links (inkl. brugerens tilføjelser).
+            link  = get_link_custom(rv_links_custom(), input$salat)
           ))
         )
       }
       if (har_tilh) {
-        df_til <- get_df(tilbeh = input$tilbehor, pers = input$pers)
+        df_til <- get_df_custom(tilbeh = input$tilbehor, pers = input$pers)
         rv_valgte_opskrifter$items <- c(
           rv_valgte_opskrifter$items,
           list(list(
@@ -1086,6 +1089,17 @@ server <- function(input, output, session) {
     )
   }
 
+  get_df_custom <- function(ret = "", salat = "", pers = 2, tilbeh = "") {
+    out <- opskrift(
+      rv_opskrifter_custom(), rv_retter_custom(), salater, salater_opskrifter, tilbehor,
+      dag_ret = ret, dag_salat = salat, antal = pers, dag_tilbehor = tilbeh
+    )
+    if (!is.null(out)) {
+      colnames(out) <- c("Indkobsliste", "maengde", "enhed", "kat_1", "kat_2")
+    }
+    out
+  }
+
   observeEvent(input$open_ny_ret, {
     updateTextInput(session, "ny_ret_navn", value = "")
     updateSelectInput(session, "ny_ret_type", selected = "vegetar")
@@ -1156,7 +1170,7 @@ server <- function(input, output, session) {
     rv_links_custom(links_new)
 
     hide(id = "popup_ny_ret", anim = TRUE, animType = "fade")
-    updateSelectInput(session, "opskrift_valgt_key", selected = key)
+    updateSelectizeInput(session, "opskrift_valgt_key", selected = key)
     showNotification(sprintf('Retten "%s" er oprettet.', ret_navn), type = "message")
   })
 
@@ -1373,11 +1387,20 @@ server <- function(input, output, session) {
       f7Block(
         inset = TRUE,
         strong = TRUE,
-        sInput(
+        selectizeInput(
           "opskrift_valgt_key",
           "Vælg opskrift",
           choices = stats::setNames(keys, titler),
-          selected = valgt
+          selected = valgt,
+          width = "100%",
+          options = list(
+            openOnFocus = TRUE,
+            closeAfterSelect = TRUE,
+            highlight = TRUE,
+            diacritics = TRUE,
+            create = FALSE,
+            dropdownParent = "body"
+          )
         )
       ),
       uiOutput("valgt_opskrift_ui")
@@ -1506,14 +1529,22 @@ server <- function(input, output, session) {
         inset = TRUE,
         strong = TRUE,
         tags$h3(ret_navn),
-        f7Button(
+        actionButton(
           inputId = paste0("opskrift_add_btn_", key),
           label = "Tilføj vare",
-          fill = TRUE,
-          color = "green",
+          class = "btn btn-success",
           onclick = sprintf(
             "Shiny.setInputValue('opskrift_addPressed', {key: '%s'}, {priority:'event'}); return false;",
             key
+          ),
+          style = paste(
+            "background:#22c55e;",
+            "color:#fff;",
+            "border:1px solid #16a34a;",
+            "border-radius:10px;",
+            "font-weight:600;",
+            "box-shadow:none;",
+            "background-image:none;"
           )
         ),
         br(),
