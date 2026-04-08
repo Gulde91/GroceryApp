@@ -17,13 +17,6 @@ ui <- f7Page(
   
   # opsætning ----
   tags$head(
-    # tags$meta(
-    #   name = "viewport",
-    #   content = "width=device-width, initial-scale=1, viewport-fit=cover"
-    # ),
-    # tags$meta(name = "apple-mobile-web-app-capable", content = "yes"),
-    # tags$meta(name = "apple-mobile-web-app-status-bar-style", content = "black-translucent"),
-    # tags$meta(name = "mobile-web-app-capable", content = "yes"),
     includeCSS("www/styles.css"),
     fa_html_dependency(),
     htmltools::singleton(tags$script(src = "selectize-mobile.js")),
@@ -353,10 +346,10 @@ server <- function(input, output, session) {
   rv_varer <- reactive({
     opskrift_df_custom <- c(rv_opskrifter_custom(), salater_opskrifter) |>
       lapply(function(x) {names(x)[1] <- "Indkobsliste"; x}) |>
-      dplyr::bind_rows() |>
-      dplyr::arrange(Indkobsliste) |>
-      dplyr::mutate(maengde = 1) |>
-      dplyr::distinct()
+      bind_rows() |>
+      arrange(Indkobsliste) |>
+      mutate(maengde = 1) |>
+      distinct()
 
     bind_rows(opskrift_df_custom, rv_varer_custom()) |>
       arrange(Indkobsliste) |>
