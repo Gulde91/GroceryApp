@@ -1506,14 +1506,22 @@ server <- function(input, output, session) {
         inset = TRUE,
         strong = TRUE,
         tags$h3(ret_navn),
-        f7Button(
+        actionButton(
           inputId = paste0("opskrift_add_btn_", key),
           label = "Tilføj vare",
-          fill = TRUE,
-          color = "green",
+          class = "btn btn-success",
           onclick = sprintf(
             "Shiny.setInputValue('opskrift_addPressed', {key: '%s'}, {priority:'event'}); return false;",
             key
+          ),
+          style = paste(
+            "background:#22c55e;",
+            "color:#fff;",
+            "border:1px solid #16a34a;",
+            "border-radius:10px;",
+            "font-weight:600;",
+            "box-shadow:none;",
+            "background-image:none;"
           )
         ),
         br(),
