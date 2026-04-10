@@ -1373,7 +1373,9 @@ server <- function(input, output, session) {
     titler <- vapply(ops_sorted, function(df) names(df)[1], "")
     req(length(keys) > 0)
 
-    valgt <- input$opskrift_valgt_key
+    # isolate() forhindrer at selve skrivning i feltet triggere renderUI-genopbygning
+    # (som ellers nulstiller tekst/søgetilstand i selectize-kontrollen).
+    valgt <- isolate(input$opskrift_valgt_key)
     if (is.null(valgt) || !valgt %in% keys) valgt <- keys[1]
 
     tagList(
