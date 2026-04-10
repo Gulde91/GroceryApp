@@ -9,6 +9,7 @@ Fiskefilet;fiskefilet_opskr;fisk
 Frikadeller;frikadeller_opskr;gris
 Fyldte peberfrugter;fyldtepeberfrugter_opskr;okse
 Gnocchi med kylling og chorizo;gnocchi_med_kylling_og_chorizo_opskr;kylling
+Grillet medister;grillet_medister_opsk;gris
 Gullasch;gullasch_opskr;okse
 Kalkunschnitzel;kalkunschnitzel_opskr;kalkun
 Kartoffel-porre suppe;kartoffel_porre_suppe_opskr;gris
@@ -27,6 +28,7 @@ Pulled chicken;pulledchicken_opskr;kylling
 Ravioli;ravioli_opskr;vegetar
 Risengrød;risengrod_opskr;vegetar
 Spaghetti kødsovs;spaghetti_kodsovs_opskr;okse
-Grillet medister;grillet_medister_opsk;gris
+Test ret;test_ret_opskr;gris
+Test ret 2;test_ret_2_opskr;okse
 Tomatsuppe;tomatsuppe_opskr;gris|vegetar
 Tortellini;tortellini_opskr;vegetar
