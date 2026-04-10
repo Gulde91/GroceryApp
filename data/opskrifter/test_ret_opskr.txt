@@ -1,0 +1,2 @@
+Test ret;maengde;enhed;kat_1;kat_2
+Test vare 1;1;stk;konserves;

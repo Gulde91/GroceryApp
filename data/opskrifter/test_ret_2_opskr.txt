@@ -1,0 +1,3 @@
+Test ret 2;maengde;enhed;kat_1;kat_2
+Test vare 2;1;;konserves;
+bananer;1;;frugt og grønt;

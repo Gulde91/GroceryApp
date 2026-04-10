@@ -62,6 +62,31 @@ parse_delete_event <- function(idstr) {
   if (!is.na(res)) res
 }
 
+#' JavaScript-knap uden afhængighed af actionButton(...)-attributter
+#'
+#' Ældre Shiny-versioner accepterer ikke vilkårlige HTML-attributter som
+#' \code{onclick} i \code{actionButton()}. Denne helper bygger derfor en
+#' almindelig HTML-knap til de steder, hvor klik alligevel håndteres via
+#' \code{Shiny.setInputValue()}.
+ga_js_button <- function(inputId, label = NULL, icon = NULL, class = NULL,
+                         onclick = NULL, type = "button", style = NULL) {
+  children <- Filter(Negate(is.null), list(icon, label))
+
+  do.call(
+    tags$button,
+    c(
+      list(
+        id = inputId,
+        type = type,
+        class = class,
+        onclick = onclick,
+        style = style
+      ),
+      children
+    )
+  )
+}
+
 #' Add Slet Knap (generaliseret)
 #'
 #' @param i Rækkeindeks.
@@ -72,10 +97,11 @@ parse_delete_event <- function(idstr) {
 #' 
 add_slet_knap <- function(i, id_prefix = "delete_button", event_name = "deletePressed") {
   as.character(
-    actionButton(
-      paste(id_prefix, i, sep = "_"),
+    ga_js_button(
+      inputId = paste(id_prefix, i, sep = "_"),
       label = NULL,
       icon  = icon("trash"),
+      class = "delete-btn btn btn-sm",
       onclick = sprintf('Shiny.setInputValue("%s", this.id, {priority: "event"})', event_name),
       style = paste(
         "background:#ef4444;",
@@ -324,7 +350,20 @@ rens_varer <- function(varer, enheder) {
   varer
 }
 
-
+#' Smart select-input (selectInput/selectizeInput)
+#'
+#' Wrapper der vælger mellem \code{selectInput()} og \code{selectizeInput()}
+#' afhængigt af antal valgmuligheder. Ved få valg bruges almindelig select for
+#' enkelhed; ved mange valg bruges selectize med søgning.
+#'
+#' @param inputId Input-id til Shiny-kontrollen.
+#' @param label Label vist over inputfeltet.
+#' @param choices Mulige valg.
+#' @param selected Forvalgt værdi.
+#' @param placeholder Placeholder-tekst (bevares af hensyn til kompatibilitet).
+#' @param ... Øvrige argumenter sendes videre til den underliggende input-funktion.
+#'
+#' @return En Shiny input-kontrol (\code{tag}).
 sInput <- function(inputId, label, choices, selected = NULL,
                    placeholder = "Vælg...", ...) {
   
@@ -358,6 +397,17 @@ sInput <- function(inputId, label, choices, selected = NULL,
   )
 }
 
+#' Numeric input med fuld bredde
+#'
+#' Lille wrapper omkring \code{numericInput()} med \code{width = "100%"} som
+#' standard.
+#'
+#' @param inputId Input-id til Shiny-kontrollen.
+#' @param label Label vist over inputfeltet.
+#' @param value Startværdi.
+#' @param ... Øvrige argumenter sendt videre til \code{numericInput()}.
+#'
+#' @return En Shiny numeric input-kontrol.
 nInput <- function(inputId, label, value, ...) {
   numericInput(
     inputId,
@@ -368,6 +418,15 @@ nInput <- function(inputId, label, value, ...) {
   )
 }
 
+#' Tekstinput med fuld bredde
+#'
+#' Wrapper omkring \code{textInput()} med \code{width = "100%"} som standard.
+#'
+#' @param inputId Input-id til Shiny-kontrollen.
+#' @param label Label vist over inputfeltet.
+#' @param ... Øvrige argumenter sendt videre til \code{textInput()}.
+#'
+#' @return En Shiny text input-kontrol.
 tInput <- function(inputId, label, ...) {
   
   textInput(
@@ -379,7 +438,14 @@ tInput <- function(inputId, label, ...) {
 
 }
 
-
+#' Standardiseret DT-tabel med app-tema
+#'
+#' Opretter en \code{DT::datatable()} med fælles standardvalg for appen.
+#'
+#' @param data Data der skal vises i tabellen.
+#' @param ... Øvrige argumenter sendt videre til \code{DT::datatable()}.
+#'
+#' @return Et DT-widget-objekt.
 themed_dt <- function(data, ...) {
   
   w <- DT::datatable(
@@ -389,7 +455,15 @@ themed_dt <- function(data, ...) {
   
 }
 
-# Helper: lav en "Redigér"-knap pr. række til DT
+#' Lav redigér-knapper til hver række i en DT-tabel
+#'
+#' Bygger HTML-knapper, der sender et \code{<table_id>_editPressed}-event til
+#' Shiny med rækkenummer som payload.
+#'
+#' @param n Antal rækker/knapper der skal oprettes.
+#' @param table_id ID-præfiks for tabellen (default: \code{"indkobsseddel"}).
+#'
+#' @return Character-vektor med HTML for knapperne.
 ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
   
   if (is.na(n) || n <= 0) return(character())
@@ -398,7 +472,7 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
     seq_len(n),
     function(i) {
       as.character(
-        actionButton(
+        ga_js_button(
           inputId = paste0("edit_button_", i),
           label   = NULL,
           icon    = icon("pen"),
@@ -408,7 +482,6 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
             'Shiny.setInputValue("%s_editPressed", %d, {priority:"event"}); return false;',
             table_id, i
           ),
-          type  = "button",
           # lille, robust inline-styling så temaer ikke overstyrer
           style = paste(
             "background:#0ea5e9;",
@@ -429,12 +502,55 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
   )
 }
 
+#' Hent opskriftslink fra globalt links-datasæt
+#'
+#' Slår et link op i det globale \code{links}-datasæt baseret på rettenavn.
+#'
+#' @param navn Navnet på retten/opskriften.
+#'
+#' @return En tegnstreng med URL, eller \code{NULL} hvis der ikke findes
+#'   præcis ét match.
 get_link <- function(navn) {
   L <- links$link[links$ret == navn]
   if (length(L) == 1) return(L)
   NULL
 }
 
+#' Hent opskriftslink fra et link-datasæt
+#'
+#' Slår et link op for en given ret i et links-dataframe.
+#' Funktionen returnerer kun et link, hvis der findes præcis ét match.
+#'
+#' @param links_df Data frame med kolonnerne \code{ret} og \code{link}.
+#' @param navn Navnet på retten/opskriften, der skal slås op.
+#'
+#' @return En tegnstreng med URL, eller \code{NULL} hvis der ikke findes
+#'   præcis ét match.
+#'
+#' @examples
+#' \dontrun{
+#' get_link_custom(links, "Lasagne")
+#' }
+get_link_custom <- function(links_df, navn) {
+  L <- links_df$link[links_df$ret == navn]
+  if (length(L) == 1) return(L)
+  NULL
+}
+
+#' Hent opskrift-data fra globale datasæt
+#'
+#' Wrapper omkring \code{opskrift()} som anvender de globale objekter
+#' \code{opskrifter}, \code{retter}, \code{salater}, \code{salater_opskrifter}
+#' og \code{tilbehor}. Returnerer kolonnenavne i standardformat.
+#'
+#' @param ret Valgt ret (kan være tom streng).
+#' @param salat Valgt salat (kan være tom streng).
+#' @param pers Antal personer.
+#' @param tilbeh Valgt tilbehør (kan være tom streng).
+#'
+#' @return En data.frame med kolonnerne
+#'   \code{Indkobsliste}, \code{maengde}, \code{enhed}, \code{kat_1},
+#'   \code{kat_2}, eller \code{NULL} hvis intet er valgt.
 get_df <- function(ret = "", salat = "", pers = 2, tilbeh = "") {
   out <- opskrift(
     opskrifter, retter, salater, salater_opskrifter, tilbehor,
