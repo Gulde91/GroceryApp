@@ -1,9 +1,18 @@
 
 ## RETTER ----
-retter <- readr::read_delim(
-  "./data/retter.txt", col_types = c("c", "c", "c"),
-  delim = ";", escape_double = FALSE, trim_ws = TRUE
-) %>% arrange()
+read_retter_file <- function(path) {
+  if (!file.exists(path) || file.info(path)$size == 0) {
+    return(data.frame(retter = character(), key = character(), type = character()))
+  }
+
+  readr::read_delim(
+    path, col_types = c("c", "c", "c"),
+    delim = ";", escape_double = FALSE, trim_ws = TRUE
+  ) %>% arrange(retter)
+}
+
+retter <- read_retter_file("./data/retter.txt")
+retter_arkiv <- read_retter_file("./data/retter_arkiv.txt")
 
 
 # alle retter ----
