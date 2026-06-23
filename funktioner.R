@@ -62,6 +62,31 @@ parse_delete_event <- function(idstr) {
   if (!is.na(res)) res
 }
 
+#' JavaScript-knap uden afhængighed af actionButton(...)-attributter
+#'
+#' Ældre Shiny-versioner accepterer ikke vilkårlige HTML-attributter som
+#' \code{onclick} i \code{actionButton()}. Denne helper bygger derfor en
+#' almindelig HTML-knap til de steder, hvor klik alligevel håndteres via
+#' \code{Shiny.setInputValue()}.
+ga_js_button <- function(inputId, label = NULL, icon = NULL, class = NULL,
+                         onclick = NULL, type = "button", style = NULL) {
+  children <- Filter(Negate(is.null), list(icon, label))
+
+  do.call(
+    tags$button,
+    c(
+      list(
+        id = inputId,
+        type = type,
+        class = class,
+        onclick = onclick,
+        style = style
+      ),
+      children
+    )
+  )
+}
+
 #' Add Slet Knap (generaliseret)
 #'
 #' @param i Rækkeindeks.
@@ -72,10 +97,11 @@ parse_delete_event <- function(idstr) {
 #' 
 add_slet_knap <- function(i, id_prefix = "delete_button", event_name = "deletePressed") {
   as.character(
-    actionButton(
-      paste(id_prefix, i, sep = "_"),
+    ga_js_button(
+      inputId = paste(id_prefix, i, sep = "_"),
       label = NULL,
       icon  = icon("trash"),
+      class = "delete-btn btn btn-sm",
       onclick = sprintf('Shiny.setInputValue("%s", this.id, {priority: "event"})', event_name),
       style = paste(
         "background:#ef4444;",
@@ -446,7 +472,7 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
     seq_len(n),
     function(i) {
       as.character(
-        actionButton(
+        ga_js_button(
           inputId = paste0("edit_button_", i),
           label   = NULL,
           icon    = icon("pen"),
@@ -456,7 +482,6 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
             'Shiny.setInputValue("%s_editPressed", %d, {priority:"event"}); return false;',
             table_id, i
           ),
-          type  = "button",
           # lille, robust inline-styling så temaer ikke overstyrer
           style = paste(
             "background:#0ea5e9;",

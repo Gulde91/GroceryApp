@@ -1501,7 +1501,7 @@ server <- function(input, output, session) {
           tags$div(
             class = "archive-recipe-row",
             tags$span(archive$retter[[i]]),
-            actionButton(
+            ga_js_button(
               inputId = paste0("restore_ret_btn_", key),
               label = "Gendan",
               class = "btn btn-sm",
@@ -1591,7 +1591,7 @@ server <- function(input, output, session) {
       seq_len(nrow(df_vis)),
       function(r) {
         as.character(
-          actionButton(
+          ga_js_button(
             inputId = paste0("opskrift_row_btn_", key, "_", r),
             label = NULL,
             icon = icon("pen"),
@@ -1601,7 +1601,6 @@ server <- function(input, output, session) {
               key,
               r
             ),
-            type = "button",
             style = paste(
               "background:#0ea5e9;",
               "color:#fff;",
@@ -1623,7 +1622,7 @@ server <- function(input, output, session) {
       seq_len(nrow(df_vis)),
       function(r) {
         as.character(
-          actionButton(
+          ga_js_button(
             inputId = paste0("opskrift_row_del_", key, "_", r),
             label = NULL,
             icon = icon("trash"),
@@ -1633,7 +1632,6 @@ server <- function(input, output, session) {
               key,
               r
             ),
-            type = "button",
             style = paste(
               "background:#ef4444;",
               "color:#fff;",
@@ -1689,7 +1687,7 @@ server <- function(input, output, session) {
         inset = TRUE,
         strong = TRUE,
         tags$h3(ret_navn),
-        actionButton(
+        ga_js_button(
           inputId = paste0("opskrift_add_btn_", key),
           label = "Tilføj vare",
           class = "btn btn-success",
@@ -1707,7 +1705,7 @@ server <- function(input, output, session) {
             "background-image:none;"
           )
         ),
-        actionButton(
+        ga_js_button(
           inputId = paste0("opskrift_archive_btn_", key),
           label = "Slet ret",
           class = "btn btn-danger",

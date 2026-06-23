@@ -1,3 +1,2 @@
 retter;key;type
-Test ret;test_ret_opskr;gris
 Test ret 2;test_ret_2_opskr;okse

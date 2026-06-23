@@ -28,5 +28,6 @@ Pulled chicken;pulledchicken_opskr;kylling
 Ravioli;ravioli_opskr;vegetar
 Risengrød;risengrod_opskr;vegetar
 Spaghetti kødsovs;spaghetti_kodsovs_opskr;okse
+Test ret;test_ret_opskr;gris
 Tomatsuppe;tomatsuppe_opskr;gris|vegetar
 Tortellini;tortellini_opskr;vegetar
