@@ -1,0 +1,3 @@
+Test ret10;maengde;enhed;kat_1;kat_2
+Mælk;1;kg;konserves;
+Agurk;1;pakke;konserves;
