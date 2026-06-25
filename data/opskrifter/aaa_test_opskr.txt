@@ -1,0 +1,2 @@
+Aaa test;maengde;enhed;kat_1;kat_2
+Ny ingrediens;;;konserves;
