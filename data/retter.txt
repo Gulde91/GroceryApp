@@ -1,5 +1,4 @@
 retter;key;type
-Aaa test;aaa_test_opskr;vegetar
 Aaa test ret;aaa_test_ret_opskr;okse
 Brændende kærlighed;braendende_kaerlighed_opskr;gris
 Burger;burger_opskr;okse|gris
@@ -29,7 +28,7 @@ Pizza surdej;pizza_surdej_opskr;vegetar|gris|okse
 Pulled chicken;pulledchicken_opskr;kylling
 Ravioli;ravioli_opskr;vegetar
 Risengrød;risengrod_opskr;vegetar
-paghetti kødsovs;spaghetti_kodsovs_opskr;okse
 Test ret;test_ret_opskr;gris
 Tomatsuppe;tomatsuppe_opskr;gris|vegetar
 Tortellini;tortellini_opskr;vegetar
+Spaghetti kødsovs;spaghetti_kodsovs_opskr;okse
