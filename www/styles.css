@@ -441,6 +441,13 @@ button#gem_indkobsseddel {
   overflow-wrap: anywhere;
 }
 
+.archive-recipe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* --- iOS PWA (standalone) viewport + safe-area finetuning --- */
 :root {
   --ga-safe-top: env(safe-area-inset-top, 0px);

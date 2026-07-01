@@ -14,4 +14,3 @@ Mørbradgryde;https://www.femina.dk/mad/aftensmad/klassisk-moerbradgryde
 Pizza surdej;https://rigeligtsmor.dk/opskrift-pizzadej-med-surdej/
 Risengrød;https://www.arla.dk/opskrifter/risengrod-med-kanelsukker-og-smorklat/
 Spaghetti kødsovs;https://www.dk-kogebogen.dk/opskrifter/15127/spaghetti-med-koedsovs?personer=1
-Test ret 10;www.bold.dk

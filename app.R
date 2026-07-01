@@ -283,6 +283,21 @@ ui <- f7Page(
                )
       )
     ),
+    # POPUP: bekraeft permanent sletning af arkiveret ret
+    tags$div(
+      id = "popup_ret_slet_permanent_bekraeft", class = "ga-modal",
+      tags$div(class = "ga-dialog",
+               tags$h3("Slet ret permanent"),
+               tags$p(textOutput("ret_permanent_delete_context")),
+               tags$p("Retten, opskriftsfilen og linket slettes permanent og kan ikke gendannes."),
+               f7Block(
+                 inset = TRUE, strong = TRUE,
+                 f7Button("confirm_delete_archived_ret", "Ja, slet permanent", fill = TRUE, color = "red"),
+                 br(),
+                 f7Button("cancel_delete_archived_ret", "Nej", fill = TRUE, color = "gray")
+               )
+      )
+    ),
     # POPUP: tilføj ny ret
     tags$div(
       id = "popup_ny_ret", class = "ga-modal",
@@ -342,6 +357,7 @@ server <- function(input, output, session) {
   rv_recipeEditState <- reactiveValues(key = NULL, row = NULL)
   rv_recipeDeleteState <- reactiveValues(key = NULL, row = NULL)
   rv_recipeArchiveState <- reactiveValues(key = NULL)
+  rv_recipePermanentDeleteState <- reactiveValues(key = NULL)
   rv_recipeAddState <- reactiveValues(key = NULL)
 
   rv_varer_custom <- reactiveVal(
@@ -350,6 +366,23 @@ server <- function(input, output, session) {
     )
   
   # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
+  opskrift_selectize_options <- list(
+    openOnFocus = TRUE,
+    closeAfterSelect = TRUE,
+    highlight = TRUE,
+    diacritics = TRUE,
+    create = FALSE,
+    dropdownParent = "body",
+    sortField = "label"
+  )
+
+  opskrift_choices <- function(retter_df) {
+    retter_df <- retter_df |>
+      arrange(tolower(retter))
+
+    stats::setNames(retter_df$key, retter_df$retter)
+  }
+
   rv_editState <- reactiveValues(table = NULL, row = NULL)
   
   # indlæser basis varer ved genload af appen
@@ -1192,7 +1225,13 @@ server <- function(input, output, session) {
     rv_links_custom(links_new)
 
     hide(id = "popup_ny_ret", anim = TRUE, animType = "fade")
-    updateSelectizeInput(session, "opskrift_valgt_key", selected = key)
+    updateSelectizeInput(
+      session,
+      "opskrift_valgt_key",
+      choices = opskrift_choices(retter_new),
+      selected = key,
+      options = opskrift_selectize_options
+    )
     showNotification(sprintf('Retten "%s" er oprettet.', ret_navn), type = "message")
   })
 
@@ -1436,7 +1475,13 @@ server <- function(input, output, session) {
 
     updateSelectInput(session = session, inputId = "ret", choices = c("", active_new$retter), selected = "")
     if (nrow(active_new) > 0) {
-      updateSelectizeInput(session, "opskrift_valgt_key", selected = active_new$key[[1]])
+      updateSelectizeInput(
+        session,
+        "opskrift_valgt_key",
+        choices = opskrift_choices(active_new),
+        selected = active_new$key[[1]],
+        options = opskrift_selectize_options
+      )
     }
 
     showNotification(sprintf('Retten "%s" er flyttet til arkivet.', archived_row$retter[[1]]), type = "message")
@@ -1473,20 +1518,88 @@ server <- function(input, output, session) {
     persist_retter_arkiv(archive_new)
 
     updateSelectInput(session = session, inputId = "ret", choices = c("", active_new$retter), selected = "")
-    updateSelectizeInput(session, "opskrift_valgt_key", selected = key)
+    updateSelectizeInput(
+      session,
+      "opskrift_valgt_key",
+      choices = opskrift_choices(active_new),
+      selected = key,
+      options = opskrift_selectize_options
+    )
 
     showNotification(sprintf('Retten "%s" er gendannet.', restored_row$retter[[1]]), type = "message")
   })
   
   # dynamisk visning af én valgt opskrift i fanen "Opskrifter" ----
+  observeEvent(input$delete_archived_ret, {
+    key <- as.character(input$delete_archived_ret %||% "")
+    req(nzchar(key))
+
+    archive <- rv_retter_arkiv()
+    row_idx <- match(key, archive$key)
+    req(!is.na(row_idx))
+
+    ret_navn <- archive$retter[[row_idx]]
+    rv_recipePermanentDeleteState$key <- key
+
+    output$ret_permanent_delete_context <- renderText({
+      sprintf('Er du sikker paa, at du vil slette "%s" permanent?', ret_navn)
+    })
+
+    show(id = "popup_ret_slet_permanent_bekraeft", anim = TRUE, animType = "fade")
+  })
+
+  observeEvent(input$confirm_delete_archived_ret, {
+    key <- rv_recipePermanentDeleteState$key
+    req(!is.null(key), nzchar(key))
+
+    archive <- rv_retter_arkiv()
+    row_idx <- match(key, archive$key)
+    req(!is.na(row_idx))
+
+    deleted_row <- archive[row_idx, , drop = FALSE]
+    ret_navn <- deleted_row$retter[[1]]
+    recipe_file <- file.path("./data/opskrifter", paste0(key, ".txt"))
+
+    if (file.exists(recipe_file) && !file.remove(recipe_file)) {
+      showNotification("Opskriftsfilen kunne ikke slettes.", type = "error")
+      return(invisible(NULL))
+    }
+
+    archive_new <- archive[-row_idx, , drop = FALSE] |>
+      arrange(retter)
+
+    ops <- rv_opskrifter_custom()
+    ops[[key]] <- NULL
+
+    links_new <- rv_links_custom() |>
+      filter(ret != ret_navn) |>
+      arrange(ret)
+
+    rv_retter_arkiv(archive_new)
+    rv_opskrifter_custom(ops)
+    rv_links_custom(links_new)
+    persist_retter_arkiv(archive_new)
+    persist_links(links_new)
+
+    hide(id = "popup_ret_slet_permanent_bekraeft", anim = TRUE, animType = "fade")
+    rv_recipePermanentDeleteState$key <- NULL
+
+    showNotification(sprintf('Retten "%s" er slettet permanent.', ret_navn), type = "message")
+  })
+
+  observeEvent(input$cancel_delete_archived_ret, {
+    hide(id = "popup_ret_slet_permanent_bekraeft", anim = TRUE, animType = "fade")
+    rv_recipePermanentDeleteState$key <- NULL
+  })
+
   output$opskrifter_ui <- renderUI({
     ops_local <- rv_opskrifter_custom()
-    active_keys <- rv_retter_custom()$key
-    ops_active <- ops_local[names(ops_local) %in% active_keys]
-    ops_sorted <- ops_active[order(vapply(ops_active, function(x) names(x)[1], ""))]
+    active_retter <- rv_retter_custom() |>
+      filter(key %in% names(ops_local)) |>
+      arrange(tolower(retter))
 
-    keys <- names(ops_sorted)
-    titler <- vapply(ops_sorted, function(df) names(df)[1], "")
+    keys <- active_retter$key
+    titler <- active_retter$retter
     archive <- rv_retter_arkiv()
 
     archive_ui <- NULL
@@ -1501,22 +1614,43 @@ server <- function(input, output, session) {
           tags$div(
             class = "archive-recipe-row",
             tags$span(archive$retter[[i]]),
-            ga_js_button(
-              inputId = paste0("restore_ret_btn_", key),
-              label = "Gendan",
-              class = "btn btn-sm",
-              onclick = sprintf(
-                "Shiny.setInputValue('restore_ret', '%s', {priority:'event'}); return false;",
-                key
+            tags$div(
+              class = "archive-recipe-actions",
+              ga_js_button(
+                inputId = paste0("restore_ret_btn_", key),
+                label = "Gendan",
+                class = "btn btn-sm",
+                onclick = sprintf(
+                  "Shiny.setInputValue('restore_ret', '%s', {priority:'event'}); return false;",
+                  key
+                ),
+                style = paste(
+                  "background:#22c55e;",
+                  "color:#fff;",
+                  "border:1px solid #16a34a;",
+                  "border-radius:8px;",
+                  "font-weight:600;",
+                  "box-shadow:none;",
+                  "background-image:none;"
+                )
               ),
-              style = paste(
-                "background:#22c55e;",
-                "color:#fff;",
-                "border:1px solid #16a34a;",
-                "border-radius:8px;",
-                "font-weight:600;",
-                "box-shadow:none;",
-                "background-image:none;"
+              ga_js_button(
+                inputId = paste0("delete_archived_ret_btn_", key),
+                label = "Slet permanent",
+                class = "btn btn-sm",
+                onclick = sprintf(
+                  "Shiny.setInputValue('delete_archived_ret', '%s', {priority:'event'}); return false;",
+                  key
+                ),
+                style = paste(
+                  "background:#ef4444;",
+                  "color:#fff;",
+                  "border:1px solid #dc2626;",
+                  "border-radius:8px;",
+                  "font-weight:600;",
+                  "box-shadow:none;",
+                  "background-image:none;"
+                )
               )
             )
           )
@@ -1550,14 +1684,7 @@ server <- function(input, output, session) {
           choices = stats::setNames(keys, titler),
           selected = valgt,
           width = "100%",
-          options = list(
-            openOnFocus = TRUE,
-            closeAfterSelect = TRUE,
-            highlight = TRUE,
-            diacritics = TRUE,
-            create = FALSE,
-            dropdownParent = "body"
-          )
+          options = opskrift_selectize_options
         )
       ),
       uiOutput("valgt_opskrift_ui"),
