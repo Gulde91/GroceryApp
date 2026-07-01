@@ -272,12 +272,12 @@ ui <- f7Page(
     tags$div(
       id = "popup_ret_slet_bekraeft", class = "ga-modal",
       tags$div(class = "ga-dialog",
-               tags$h3("Slet ret"),
+               tags$h3("Arkiver ret"),
                tags$p(textOutput("ret_delete_context")),
                tags$p("Retten flyttes til arkivet og kan gendannes igen senere."),
                f7Block(
                  inset = TRUE, strong = TRUE,
-                 f7Button("confirm_delete_ret", "Ja, slet ret", fill = TRUE, color = "red"),
+                 f7Button("confirm_delete_ret", "Ja, arkiver ret", fill = TRUE, color = "red"),
                  br(),
                  f7Button("cancel_delete_ret", "Nej", fill = TRUE, color = "gray")
                )
@@ -1444,7 +1444,7 @@ server <- function(input, output, session) {
     rv_recipeArchiveState$key <- key
 
     output$ret_delete_context <- renderText({
-      sprintf('Er du sikker paa, at du vil slette "%s"?', ret_navn)
+      sprintf('Er du sikker paa, at du vil arkivere "%s"?', ret_navn)
     })
 
     show(id = "popup_ret_slet_bekraeft", anim = TRUE, animType = "fade")
@@ -1619,37 +1619,19 @@ server <- function(input, output, session) {
               ga_js_button(
                 inputId = paste0("restore_ret_btn_", key),
                 label = "Gendan",
-                class = "btn btn-sm",
+                class = "archive-action-btn archive-action-restore",
                 onclick = sprintf(
                   "Shiny.setInputValue('restore_ret', '%s', {priority:'event'}); return false;",
                   key
-                ),
-                style = paste(
-                  "background:#22c55e;",
-                  "color:#fff;",
-                  "border:1px solid #16a34a;",
-                  "border-radius:8px;",
-                  "font-weight:600;",
-                  "box-shadow:none;",
-                  "background-image:none;"
                 )
               ),
               ga_js_button(
                 inputId = paste0("delete_archived_ret_btn_", key),
                 label = "Slet permanent",
-                class = "btn btn-sm",
+                class = "archive-action-btn archive-action-delete",
                 onclick = sprintf(
                   "Shiny.setInputValue('delete_archived_ret', '%s', {priority:'event'}); return false;",
                   key
-                ),
-                style = paste(
-                  "background:#ef4444;",
-                  "color:#fff;",
-                  "border:1px solid #dc2626;",
-                  "border-radius:8px;",
-                  "font-weight:600;",
-                  "box-shadow:none;",
-                  "background-image:none;"
                 )
               )
             )
@@ -1814,41 +1796,25 @@ server <- function(input, output, session) {
         inset = TRUE,
         strong = TRUE,
         tags$h3(ret_navn),
-        ga_js_button(
-          inputId = paste0("opskrift_add_btn_", key),
-          label = "Tilføj vare",
-          class = "btn btn-success",
-          onclick = sprintf(
-            "Shiny.setInputValue('opskrift_addPressed', {key: '%s'}, {priority:'event'}); return false;",
-            key
+        tags$div(
+          class = "recipe-action-bar",
+          ga_js_button(
+            inputId = paste0("opskrift_add_btn_", key),
+            label = "Tilføj vare",
+            class = "recipe-action-btn recipe-action-add",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_addPressed', {key: '%s'}, {priority:'event'}); return false;",
+              key
+            )
           ),
-          style = paste(
-            "background:#22c55e;",
-            "color:#fff;",
-            "border:1px solid #16a34a;",
-            "border-radius:10px;",
-            "font-weight:600;",
-            "box-shadow:none;",
-            "background-image:none;"
-          )
-        ),
-        ga_js_button(
-          inputId = paste0("opskrift_archive_btn_", key),
-          label = "Slet ret",
-          class = "btn btn-danger",
-          onclick = sprintf(
-            "Shiny.setInputValue('opskrift_archivePressed', {key: '%s'}, {priority:'event'}); return false;",
-            key
-          ),
-          style = paste(
-            "background:#ef4444;",
-            "color:#fff;",
-            "border:1px solid #dc2626;",
-            "border-radius:10px;",
-            "font-weight:600;",
-            "box-shadow:none;",
-            "background-image:none;",
-            "margin-left:8px;"
+          ga_js_button(
+            inputId = paste0("opskrift_archive_btn_", key),
+            label = "Arkiver ret",
+            class = "recipe-action-btn recipe-action-archive",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_archivePressed', {key: '%s'}, {priority:'event'}); return false;",
+              key
+            )
           )
         ),
         br(),
