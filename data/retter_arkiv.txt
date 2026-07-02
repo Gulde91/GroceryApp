@@ -1,2 +1,1 @@
 retter;key;type
-aaa ret;aaa_ret_opskr;vegetar

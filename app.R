@@ -1190,11 +1190,11 @@ server <- function(input, output, session) {
     }
 
     ny_opskrift <- data.frame(
-      temp = "Ny ingrediens",
-      maengde = NA_real_,
-      enhed = "",
-      kat_1 = "konserves",
-      kat_2 = "",
+      temp = character(),
+      maengde = numeric(),
+      enhed = character(),
+      kat_1 = character(),
+      kat_2 = character(),
       stringsAsFactors = FALSE
     )
     names(ny_opskrift)[1] <- ret_navn
