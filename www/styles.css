@@ -98,6 +98,15 @@ input[type=text].form-control:focus {
   min-height: 58px;                    /* ens højde ser pænt ud */
   padding: 8px 10px;
   text-align: center;                  /* centrer label */
+  background: transparent !important;
+  color: #4cd964 !important;
+  background-image: none !important;
+}
+
+.block .ga-actions-grid .button *,
+.block .ga-actions-grid .button .icon,
+.block .ga-actions-grid .button i.f7-icons {
+  color: inherit !important;
 }
 
 /* F7 kan have .icon eller <i class="f7-icons"> – dæk begge */
@@ -298,6 +307,24 @@ table.dataTable tbody tr:hover {
 
 
 /* --- Knap-feedback: tryk + ripple --- */
+button,
+.button,
+.btn,
+.dt-button,
+.recipe-action-btn,
+.archive-action-btn {
+  color: #ffffff !important;
+}
+
+button *,
+.button *,
+.btn *,
+.dt-button *,
+.recipe-action-btn *,
+.archive-action-btn * {
+  color: inherit !important;
+}
+
 .button {
   position: relative;
   overflow: hidden; /* så ripple klippes inde i knappen */
@@ -423,10 +450,61 @@ button#gem_indkobsseddel {
   scroll-margin-top: 80px; /* justér evt. til 70/90 afhængigt af navbar-højde */
 }
 
-.archive-recipe-row {
-  display: flex;
+.recipe-action-bar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+
+.recipe-action-btn,
+.archive-action-btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  box-sizing: border-box;
+  box-shadow: none;
+  background-image: none;
+  cursor: pointer;
+}
+
+.recipe-action-add,
+.archive-action-restore {
+  background: #22c55e;
+  color: #ffffff;
+  border: 1px solid #16a34a;
+}
+
+.recipe-action-archive {
+  background: #ef4444;
+  color: #ffffff;
+  border: 1px solid #ef4444;
+}
+
+.archive-action-delete {
+  background: #ef4444;
+  color: #ffffff;
+  border: 1px solid #dc2626;
+}
+
+@media (min-width: 560px) {
+  .recipe-action-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.archive-recipe-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
@@ -439,6 +517,26 @@ button#gem_indkobsseddel {
 .archive-recipe-row span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.archive-recipe-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(132px, 1fr));
+  gap: 8px;
+  min-width: min(100%, 290px);
+}
+
+@media (max-width: 640px) {
+  .archive-recipe-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .archive-recipe-actions {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
 }
 
 /* --- iOS PWA (standalone) viewport + safe-area finetuning --- */

@@ -1,3 +1,2 @@
 retter;key;type
-Aaa test ret;aaa_test_ret_opskr;okse
-Test ret 2;test_ret_2_opskr;okse
+aaa ret;aaa_ret_opskr;vegetar
