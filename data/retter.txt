@@ -9,11 +9,9 @@ Fiskefilet;fiskefilet_opskr;fisk
 Frikadeller;frikadeller_opskr;gris
 Fyldte peberfrugter;fyldtepeberfrugter_opskr;okse
 Gnocchi med kylling og chorizo;gnocchi_med_kylling_og_chorizo_opskr;kylling
-Grillet medister;grillet_medister_opsk;gris
 Gullasch;gullasch_opskr;okse
 Kalkunschnitzel;kalkunschnitzel_opskr;kalkun
 Kartoffel-porre suppe;kartoffel_porre_suppe_opskr;gris
-Kylling kiev;kylling_kiev_opskr;kylling
 Kyllingebowl;kyllingebowl_opskr;kylling
 Kyllingespyd;kyllingespyd_opsk;kylling
 Lasagne;lasagne_opskr;kylling
