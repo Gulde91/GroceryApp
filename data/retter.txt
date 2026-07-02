@@ -1,5 +1,4 @@
 retter;key;type
-Aaa test ret;aaa_test_ret_opskr;okse
 Brændende kærlighed;braendende_kaerlighed_opskr;gris
 Burger;burger_opskr;okse|gris
 Carbonara;carbonara_opskr;gris
