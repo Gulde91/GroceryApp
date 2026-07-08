@@ -1108,6 +1108,17 @@ server <- function(input, output, session) {
     gsub("^_+|_+$", "", x_ascii)
   }
 
+  normalize_recipe_link <- function(x) {
+    if (is.null(x) || length(x) == 0 || is.na(x[[1]])) return("")
+
+    x <- trimws(as.character(x[[1]]))
+    if (!nzchar(x)) return("")
+    if (grepl("^https?://", x, ignore.case = TRUE)) return(x)
+    if (grepl("^//", x)) return(paste0("https:", x))
+
+    paste0("https://", x)
+  }
+
   persist_retter <- function(df) {
     write.table(
       df,
@@ -1169,7 +1180,7 @@ server <- function(input, output, session) {
   observeEvent(input$save_ny_ret, {
     ret_navn <- trimws(input$ny_ret_navn %||% "")
     ret_type <- trimws(input$ny_ret_type %||% "")
-    ret_link <- trimws(input$ny_ret_link %||% "")
+    ret_link <- normalize_recipe_link(input$ny_ret_link)
 
     validate(need(ret_navn != "", "Skriv et navn til retten."))
     validate(need(ret_type != "", "Vælg en type."))
@@ -1689,6 +1700,7 @@ server <- function(input, output, session) {
     links_df <- rv_links_custom()
     link_url <- links_df$link[links_df$ret == ret_navn]
     link_url <- if (length(link_url) > 0) link_url[1] else ""
+    link_url <- normalize_recipe_link(link_url)
 
     ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[ret_navn]])
     df_vis <- data.frame(
