@@ -184,7 +184,7 @@ ui <- f7Page(
       tags$div(class="ga-dialog",
                tags$h3("Tilføj fra opskrift"),
                f7Block(inset=TRUE, strong=TRUE,
-                 sInput("ret", "Vælg ret", c("", retter$retter)),
+                 sInput("ret", "Vælg ret", c("", retter$retter[retter$key %in% names(opskrifter)])),
                  br(), nInput("pers", "Vælg antal personer", value=2),
                  br(), sInput("salat", "Vælg salat", salater$retter),
                  br(), sInput("tilbehor", "Vælg tilbehør", c("", tilbehor$Indkobsliste)),
@@ -376,9 +376,16 @@ server <- function(input, output, session) {
     sortField = "label"
   )
 
-  opskrift_choices <- function(retter_df) {
+  active_recipe_rows <- function(retter_df, ops_keys = names(rv_opskrifter_custom())) {
     retter_df <- retter_df |>
+      filter(key %in% ops_keys) |>
       arrange(tolower(retter))
+
+    retter_df
+  }
+
+  opskrift_choices <- function(retter_df, ops_keys = names(rv_opskrifter_custom())) {
+    retter_df <- active_recipe_rows(retter_df, ops_keys)
 
     stats::setNames(retter_df$key, retter_df$retter)
   }
@@ -682,7 +689,9 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$open_opskrift, {
-    updateSelectInput(session = session, inputId = "ret", choices = c("", rv_retter_custom()$retter))
+    valid_retter <- active_recipe_rows(rv_retter_custom())
+
+    updateSelectInput(session = session, inputId = "ret", choices = c("", valid_retter$retter))
     updateSelectInput(session = session, inputId = "ret", selected = "")
     updateNumericInput(session = session, inputId = "pers", value = 2)
     updateSelectInput(session = session, inputId = "salat", selected = salater$retter[[1]])
@@ -1484,16 +1493,17 @@ server <- function(input, output, session) {
     hide(id = "popup_ret_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeArchiveState$key <- NULL
 
-    updateSelectInput(session = session, inputId = "ret", choices = c("", active_new$retter), selected = "")
-    if (nrow(active_new) > 0) {
-      updateSelectizeInput(
-        session,
-        "opskrift_valgt_key",
-        choices = opskrift_choices(active_new),
-        selected = active_new$key[[1]],
-        options = opskrift_selectize_options
-      )
-    }
+    valid_active_new <- active_recipe_rows(active_new)
+    valid_choices <- opskrift_choices(valid_active_new)
+
+    updateSelectInput(session = session, inputId = "ret", choices = c("", valid_active_new$retter), selected = "")
+    updateSelectizeInput(
+      session,
+      "opskrift_valgt_key",
+      choices = valid_choices,
+      selected = if (length(valid_choices) > 0) unname(valid_choices[[1]]) else character(0),
+      options = opskrift_selectize_options
+    )
 
     showNotification(sprintf('Retten "%s" er flyttet til arkivet.', archived_row$retter[[1]]), type = "message")
   })
@@ -1528,11 +1538,13 @@ server <- function(input, output, session) {
     persist_retter(active_new)
     persist_retter_arkiv(archive_new)
 
-    updateSelectInput(session = session, inputId = "ret", choices = c("", active_new$retter), selected = "")
+    valid_active_new <- active_recipe_rows(active_new)
+
+    updateSelectInput(session = session, inputId = "ret", choices = c("", valid_active_new$retter), selected = "")
     updateSelectizeInput(
       session,
       "opskrift_valgt_key",
-      choices = opskrift_choices(active_new),
+      choices = opskrift_choices(valid_active_new),
       selected = key,
       options = opskrift_selectize_options
     )
@@ -1605,9 +1617,7 @@ server <- function(input, output, session) {
 
   output$opskrifter_ui <- renderUI({
     ops_local <- rv_opskrifter_custom()
-    active_retter <- rv_retter_custom() |>
-      filter(key %in% names(ops_local)) |>
-      arrange(tolower(retter))
+    active_retter <- active_recipe_rows(rv_retter_custom(), names(ops_local))
 
     keys <- active_retter$key
     titler <- active_retter$retter
@@ -1689,7 +1699,7 @@ server <- function(input, output, session) {
     key <- input$opskrift_valgt_key
     req(!is.null(key))
 
-    req(key %in% rv_retter_custom()$key)
+    req(key %in% active_recipe_rows(rv_retter_custom())$key)
 
     ops_local <- rv_opskrifter_custom()
     req(key %in% names(ops_local))
