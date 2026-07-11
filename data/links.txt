@@ -1,5 +1,4 @@
 ret;link
-Ab ret;www.bold.dk
 Brændende kærlighed;https://www.valdemarsro.dk/braendende-kaerlighed/
 Carbonara;https://www.valdemarsro.dk/carbonara_opskrift/
 Chili con carne;https://www.valdemarsro.dk/chili-con-carne/
