@@ -1,5 +1,4 @@
 retter;key;type
-Ab ret;ab_ret_opskr;vegetar
 Brændende kærlighed;braendende_kaerlighed_opskr;gris
 Burger;burger_opskr;okse|gris
 Carbonara;carbonara_opskr;gris
