@@ -12,7 +12,6 @@ Gnocchi med kylling og chorizo;gnocchi_med_kylling_og_chorizo_opskr;kylling
 Gullasch;gullasch_opskr;okse
 Kalkunschnitzel;kalkunschnitzel_opskr;kalkun
 Kartoffel-porre suppe;kartoffel_porre_suppe_opskr;gris
-Kylling kiev;kylling_kiev_opskr;kylling
 Kyllingebowl;kyllingebowl_opskr;kylling
 Kyllingespyd;kyllingespyd_opsk;kylling
 Lasagne;lasagne_opskr;kylling
@@ -27,6 +26,5 @@ Pulled chicken;pulledchicken_opskr;kylling
 Ravioli;ravioli_opskr;vegetar
 Risengrød;risengrod_opskr;vegetar
 Spaghetti kødsovs;spaghetti_kodsovs_opskr;okse
-Grillet medister;grillet_medister_opsk;gris
 Tomatsuppe;tomatsuppe_opskr;gris|vegetar
 Tortellini;tortellini_opskr;vegetar
