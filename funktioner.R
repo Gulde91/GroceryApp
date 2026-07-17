@@ -502,6 +502,88 @@ ga_make_edit_buttons <- function(n, table_id = "indkobsseddel") {
   )
 }
 
+#' Lav cart-knapper med stabile linje-id'er
+#'
+#' Indkøbssedlen kan skifte rækkefølge, når nye varer tilføjes. Disse helpers
+#' sender derfor cartens stabile \code{line_id} i stedet for et rækkenummer.
+#'
+#' @param line_ids Character-vektor med id'er fra \code{cart_visible()}.
+#' @return Character-vektor med HTML for knapperne.
+ga_make_cart_edit_buttons <- function(line_ids) {
+  line_ids <- as.character(line_ids)
+  if (length(line_ids) == 0) return(character())
+  stopifnot(all(grepl("^cart_[0-9]+$", line_ids)))
+
+  vapply(
+    line_ids,
+    function(line_id) {
+      as.character(
+        ga_js_button(
+          inputId = paste0("cart_edit_", line_id),
+          label = NULL,
+          icon = icon("pen"),
+          class = "edit-btn btn btn-sm",
+          onclick = sprintf(
+            'Shiny.setInputValue("indkobsseddel_editPressed", "%s", {priority:"event"}); return false;',
+            line_id
+          ),
+          style = paste(
+            "background:#0ea5e9;",
+            "color:#fff;",
+            "border:1px solid #0284c7;",
+            "border-radius:8px;",
+            "padding:6px 1px;",
+            "line-height:1;",
+            "font-weight:600;",
+            "box-shadow:none;",
+            "background-image:none;"
+          )
+        )
+      )
+    },
+    FUN.VALUE = "",
+    USE.NAMES = FALSE
+  )
+}
+
+#' @rdname ga_make_cart_edit_buttons
+ga_make_cart_delete_buttons <- function(line_ids) {
+  line_ids <- as.character(line_ids)
+  if (length(line_ids) == 0) return(character())
+  stopifnot(all(grepl("^cart_[0-9]+$", line_ids)))
+
+  vapply(
+    line_ids,
+    function(line_id) {
+      as.character(
+        ga_js_button(
+          inputId = paste0("cart_delete_", line_id),
+          label = NULL,
+          icon = icon("trash"),
+          class = "delete-btn btn btn-sm",
+          onclick = sprintf(
+            'Shiny.setInputValue("deletePressed", "%s", {priority:"event"}); return false;',
+            line_id
+          ),
+          style = paste(
+            "background:#ef4444;",
+            "color:#fff;",
+            "border:1px solid #dc2626;",
+            "border-radius:100px;",
+            "font-weight:600;",
+            "padding:6px 1px;",
+            "line-height:1;",
+            "box-shadow:none;",
+            "background-image:none;"
+          )
+        )
+      )
+    },
+    FUN.VALUE = "",
+    USE.NAMES = FALSE
+  )
+}
+
 #' Hent opskriftslink fra globalt links-datasæt
 #'
 #' Slår et link op i det globale \code{links}-datasæt baseret på rettenavn.

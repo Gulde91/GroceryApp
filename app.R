@@ -11,6 +11,7 @@ library(wordcloud2)
 
 source("./data.R")
 source("./funktioner.R")
+source("./cart_state.R")
 
 
 ui <- f7Page(
@@ -344,12 +345,9 @@ ui <- f7Page(
 server <- function(input, output, session) {
 
   # Sætter reaktive værdier ----
-  rv_indk_liste <- reactiveValues(df = NULL)
   rv_opskrift_tmp <- reactiveValues(df = NULL)
-  rv_opskrift_all <- reactiveValues(df = NULL)
-  rv_indkobsseddel_samlet <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
-  rv_valgte_opskrifter <- reactiveValues(items = list())
+  rv_cart <- reactiveVal(new_cart_state())
   rv_opskrifter_custom <- reactiveVal(opskrifter)
   rv_links_custom <- reactiveVal(links)
   rv_retter_custom <- reactiveVal(retter)
@@ -390,7 +388,7 @@ server <- function(input, output, session) {
     stats::setNames(retter_df$key, retter_df$retter)
   }
 
-  rv_editState <- reactiveValues(table = NULL, row = NULL)
+  rv_editState <- reactiveValues(table = NULL, row = NULL, line_id = NULL)
   
   # indlæser basis varer ved genload af appen
   session$onFlushed(function() {
@@ -496,6 +494,7 @@ server <- function(input, output, session) {
     # --- WHY: Fortæl fælles "Gem", at det er VARER tabel + hvilken række ---
     rv_editState$table <- "varer"
     rv_editState$row <- r
+    rv_editState$line_id <- NULL
     
     updateTextInput(session, "table_edit_value", value = df$Indkobsliste[r])
     show(id = "edit-overlay", anim = TRUE, animType = "fade")
@@ -620,14 +619,14 @@ server <- function(input, output, session) {
   
   # tilføjer opskrift og rbinder de andre opskrifter
   observeEvent(input$add_opskrift, {
-    
-    col_names <- c("Indkobsliste", "maengde", "enhed", "kat_1", "kat_2")
-    names(rv_opskrift_tmp$df) <- col_names
-    
-    rv_opskrift_all$df <- bind_rows(rv_opskrift_all$df, rv_opskrift_tmp$df)
-    rv_opskrift_tmp$df <- NULL
+    recipe_rows <- rv_opskrift_tmp$df
+    req(!is.null(recipe_rows))
 
-    # byg rv_valgte_opskrifter (ret + evt. salat; ignorér tilbehør hvis der er ret)
+    col_names <- c("Indkobsliste", "maengde", "enhed", "kat_1", "kat_2")
+    names(recipe_rows) <- col_names
+
+    # Copy-afsnit og synlige varelinjer gemmes i samme cart-state.
+    recipe_sections <- list()
     har_ret <- !is.null(input$ret) && nzchar(input$ret)
     har_salat <- !is.null(input$salat) && nzchar(input$salat)
     har_tilh <- !is.null(input$tilbehor) && nzchar(input$tilbehor)
@@ -646,8 +645,8 @@ server <- function(input, output, session) {
         title <- input$ret
         link  <- get_link_custom(rv_links_custom(), input$ret)
       }
-      rv_valgte_opskrifter$items <- c(
-        rv_valgte_opskrifter$items,
+      recipe_sections <- c(
+        recipe_sections,
         list(list(
           title = title,
           pers  = input$pers,
@@ -659,8 +658,8 @@ server <- function(input, output, session) {
       # Ingen ret valgt → salat/tilbehør må gerne stå alene
       if (har_salat) {
         df_sal <- get_df_custom(salat = input$salat, pers = input$pers)
-        rv_valgte_opskrifter$items <- c(
-          rv_valgte_opskrifter$items,
+        recipe_sections <- c(
+          recipe_sections,
           list(list(
             title = paste0("Salat: ", input$salat),
             pers  = input$pers,
@@ -672,8 +671,8 @@ server <- function(input, output, session) {
       }
       if (har_tilh) {
         df_til <- get_df_custom(tilbeh = input$tilbehor, pers = input$pers)
-        rv_valgte_opskrifter$items <- c(
-          rv_valgte_opskrifter$items,
+        recipe_sections <- c(
+          recipe_sections,
           list(list(
             title = paste0("Tilbehør: ", input$tilbehor),
             pers  = input$pers,
@@ -683,6 +682,9 @@ server <- function(input, output, session) {
         )
       }
     }
+
+    rv_cart(cart_add_recipe(rv_cart(), recipe_rows, recipe_sections))
+    rv_opskrift_tmp$df <- NULL
     
     hide(id = "popup_opskrift", anim = TRUE, animType = "fade")
     
@@ -725,7 +727,7 @@ server <- function(input, output, session) {
       varer_tmp$enhed <- input$enhed_alle_varer
       
       cat(input$basis_varer, "er tilføjet!\n")
-      rv_indk_liste$df <- bind_rows(rv_indk_liste$df, varer_tmp)
+      rv_cart(cart_add_rows(rv_cart(), varer_tmp))
       
       hide(id = "popup_varer", anim = TRUE, animType = "fade")
       
@@ -762,7 +764,7 @@ server <- function(input, output, session) {
       kat_2 = input$add_kat_2
     )
     
-    rv_indk_liste$df <- bind_rows(rv_indk_liste$df, varer_manuel_tmp)
+    rv_cart(cart_add_rows(rv_cart(), varer_manuel_tmp))
     
     hide(id = "popup_manuel", anim = TRUE, animType = "fade")
   })
@@ -795,130 +797,56 @@ server <- function(input, output, session) {
   observeEvent(input$close_manuel, {hide(id = "popup_manuel", anim = TRUE, animType = "fade")})
   
   
-  # binder hele indkøbslisten ----
-  # sætter indkøbslisten
-  observe({
-  
-    if (!is.null(rv_indk_liste$df) | !is.null(rv_opskrift_all$df)) {
-      
-      indkob <- bind_rows(rv_indk_liste$df, rv_opskrift_all$df)
-      
-      # summerer indkøb
-      indkob <- indkob %>%
-        group_by(Indkobsliste, enhed, kat_1, kat_2) %>%
-        summarise(maengde = sum(maengde, na.rm = TRUE), .groups = "drop") %>%
-        sort_by_cat(first = c("frugt og grønt", "konserves"),
-                    last = c("husholdning"))
+  # Én kanonisk state; tabel og copy-payload er rene afledninger.
+  cart_lines <- reactive(cart_visible(rv_cart()))
+  combined_lines <- reactive(cart_copy_payload(rv_cart()))
 
-      # runder op
-      rund_op <- c("stk ", "d\u00E5se(r)", "pakke(r)", "rulle(r)")
-      indkob$maengde <- ifelse(indkob$enhed %in% rund_op,
-                               ceiling(indkob$maengde), indkob$maengde)
-
-      indkob$Indkobsliste <- paste(indkob$maengde, indkob$enhed, indkob$Indkobsliste)
-      indkob$Indkobsliste <- gsub("NA", "", indkob$Indkobsliste) %>% trimws()
-      indkob <- indkob[, "Indkobsliste"]
-
-      names(indkob) <- "Indk\u00F8bsliste"
-      
-      rv_indkobsseddel_samlet$df <- indkob
-
-    }
-  })
-  
-  # tilføjer opskrift + link 
-  combined_lines <- reactive({
-    # Synlige linjer = kun indkøbsvarer (før evt. tom-separator)
-    vis_df <- rv_indkobsseddel_samlet$df
-    vis <- character()
-    
-    if (!is.null(vis_df) && nrow(vis_df) > 0) {
-      v <- vis_df[[1]]
-      v <- v[nzchar(v)]
-      vis <- v
-    }
-    
-    n_visible <- length(vis)
-    
-    secs <- character()
-    if (!is.null(rv_valgte_opskrifter) && length(rv_valgte_opskrifter$items) > 0) {
-      for (it in rv_valgte_opskrifter$items) {
-        secs <- c(secs, "", sprintf("%s (til %s pers.)", it$title, it$pers))
-        if (!is.null(it$df) && nrow(it$df) > 0) {
-          ing <- apply(it$df, 1, function(r){
-            m <- r[["maengde"]]
-            e <- r[["enhed"]]
-            n <- r[["Indkobsliste"]]
-            if (!is.na(m) && nzchar(as.character(m))) {
-              paste0(m, if (nzchar(e)) paste0(" ", e) else "", " ", n)
-            } else n
-          })
-          secs <- c(secs, ing)
-        }
-        if (!is.null(it$link) && nzchar(it$link)) {
-          secs <- c(secs, paste0("Link: ", it$link))
-        }
-      }
-    }
-    
-    list(
-      visible = vis, # det, der vises
-      hidden = secs, # kun til copy
-      n_visible = n_visible
-    )
-  })
-
-  # konstruerer "slet-knap" kolonne til indkøbsseddel ----
-  deleteCol <- reactive({
-    if (!is.null(rv_indkobsseddel_samlet$df)) {
-      unlist(lapply(seq_len(nrow(rv_indkobsseddel_samlet$df)), add_slet_knap))
-    }
-  })
-  
   # mulighed for at slette række
   observeEvent(input$deletePressed, {
-    res <- safe_delete_by_click(input$deletePressed, rv_indkobsseddel_samlet$df, label_col = 1)
-    rv_indkobsseddel_samlet$df <- res$df
-  })
-  
-  # konstruerer "rediger-knap" til indkøbsseddel ----
-  editCol <- reactive({
-    df <- rv_indkobsseddel_samlet$df
-    if (is.null(df) || nrow(df) == 0) return(character())
-    ga_make_edit_buttons(n = nrow(df), table_id = "indkobsseddel")
+    line_id <- as.character(input$deletePressed %||% "")
+    req(nzchar(line_id))
+    rv_cart(cart_delete_line(rv_cart(), line_id))
   })
   
   # Åbn overlay når der klikkes på Redigér-knap i tabellen
   observeEvent(input$indkobsseddel_editPressed, ignoreInit = TRUE, {
-    r <- suppressWarnings(as.integer(input$indkobsseddel_editPressed))
-    req(!is.na(r))
+    line_id <- as.character(input$indkobsseddel_editPressed %||% "")
+    req(nzchar(line_id))
+
+    view <- cart_lines()
+    row_index <- match(line_id, view$line_id)
+    req(!is.na(row_index))
     
-    df <- rv_indkobsseddel_samlet$df
-    req(!is.null(df), nrow(df) >= r)
-    
-    # --- WHY: Fortæl fælles "Gem", at det er INDKØBSSEDDEL + hvilken række ---
+    # Et stabilt line_id bruges i stedet for den aktuelle tabelposition.
     rv_editState$table <- "indkobsseddel"
-    rv_editState$row <- r
+    rv_editState$row <- NULL
+    rv_editState$line_id <- line_id
     
-    updateTextInput(session, "table_edit_value", value = df[r, 1, drop = TRUE])
+    updateTextInput(session, "table_edit_value", value = view$display[[row_index]])
     show(id = "edit-overlay", anim = TRUE, animType = "fade")
   })
   
   # Gem ændringen og luk overlay
   observeEvent(input$confirm_edit, {
-    r   <- rv_editState$row
     tbl <- rv_editState$table
-    req(!is.null(r), !is.null(tbl))
+    req(!is.null(tbl))
     
     val <- input$table_edit_value
     
     if (tbl == "indkobsseddel") {
-      df <- rv_indkobsseddel_samlet$df
-      req(nrow(df) >= r)
-      df[r, 1] <- val
-      rv_indkobsseddel_samlet$df <- df
+      line_id <- rv_editState$line_id
+      req(!is.null(line_id))
+
+      if (!nzchar(trimws(val %||% ""))) {
+        showNotification("Teksten på indkøbssedlen må ikke være tom.", type = "warning")
+        return(invisible(NULL))
+      }
+
+      rv_cart(cart_edit_line(rv_cart(), line_id, val))
       
     } else if (tbl == "varer") {
+      r <- rv_editState$row
+      req(!is.null(r))
       df <- rv_varer_custom()
       req(nrow(df) >= r)
       df$Indkobsliste[r] <- val
@@ -934,11 +862,15 @@ server <- function(input, output, session) {
     # Ryd state og luk overlay (så næste redigering starter rent)
     rv_editState$table <- NULL
     rv_editState$row <- NULL
+    rv_editState$line_id <- NULL
     hide(id = "edit-overlay", anim = TRUE, animType = "fade")
   })
   
   # Luk uden at gemme
   observeEvent(input$cancel_edit, {
+    rv_editState$table <- NULL
+    rv_editState$row <- NULL
+    rv_editState$line_id <- NULL
     hide(id = "edit-overlay", anim = TRUE, animType = "fade")
   })
 
@@ -949,6 +881,7 @@ server <- function(input, output, session) {
     payload <- combined_lines()
     lines_visible <- payload$visible
     lines_hidden  <- payload$hidden
+    line_ids      <- payload$line_ids
     n_visible     <- payload$n_visible
     
     # Vis KUN varer i tabellen, hvis der ikke er nogen varer → vis tom tabel.
@@ -962,8 +895,8 @@ server <- function(input, output, session) {
       df_tbl <- data.frame(`Indkøbsliste` = all_lines, check.names = FALSE)
       
       # Knapper kun på de synlige (vare) rækker
-      edit_btn <- ga_make_edit_buttons(n_visible, table_id = "indkobsseddel")
-      del_btn  <- vapply(seq_len(n_visible), function(i) add_slet_knap(i), "")
+      edit_btn <- ga_make_cart_edit_buttons(line_ids)
+      del_btn  <- ga_make_cart_delete_buttons(line_ids)
       edit_col   <- c(edit_btn, rep("", length(all_lines) - n_visible))
       delete_col <- c(del_btn,  rep("", length(all_lines) - n_visible))
       page_len <- n_visible
@@ -1031,24 +964,19 @@ server <- function(input, output, session) {
   })
   
   
-  observe({
+  output$tidl_kob <- renderTable({
+    current_cart <- cart_display_data(rv_cart())
+    req(nrow(current_cart) > 0)
 
-    if (!is.null(rv_indkobsseddel_samlet$df)) {
-      paa_listen <- medtag_kun_varer(rv_indkobsseddel_samlet$df)
-      paa_listen <- rens_varer(
-        paa_listen$Indkøbsliste,
-        c(rv_varer()$enhed, rv_varer_custom()$enhed)
-      )
+    paa_listen <- medtag_kun_varer(current_cart)
+    paa_listen <- rens_varer(
+      paa_listen$Indkøbsliste,
+      c(rv_varer()$enhed, rv_varer_custom()$enhed)
+    )
 
-      tidl_kob_out <- tidl_kob()[!tidl_kob()$Indkøbsliste %in% paa_listen, ] |> slice(1:10)
-
-      output$tidl_kob <- renderTable(
-        tidl_kob_out,
-        colnames = FALSE
-      )
-    }
-
-  })
+    tidl_kob()[!tidl_kob()$Indkøbsliste %in% paa_listen, ] |>
+      slice_head(n = 10)
+  }, colnames = FALSE)
   
   ## Inspiration og statistik
   
