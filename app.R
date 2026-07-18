@@ -1112,6 +1112,70 @@ server <- function(input, output, session) {
     out
   }
 
+  recipe_row_context <- function(key, row) {
+    req(!is.null(key), !is.null(row))
+
+    ops <- rv_opskrifter_custom()
+    req(key %in% names(ops))
+
+    df <- ops[[key]]
+    req(length(row) == 1, !is.na(row), row >= 1, row <= nrow(df))
+
+    format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
+  }
+
+  # Outputs registreres én gang. Event-handlers ændrer kun den state, som
+  # disse render-funktioner læser.
+  output$opskrift_edit_context <- renderText({
+    recipe_row_context(rv_recipeEditState$key, rv_recipeEditState$row)
+  })
+
+  output$opskrift_add_context <- renderText({
+    key <- rv_recipeAddState$key
+    req(!is.null(key))
+
+    ops <- rv_opskrifter_custom()
+    req(key %in% names(ops))
+
+    sprintf("Tilføj ny ingrediens til '%s'", names(ops[[key]])[1])
+  })
+
+  output$opskrift_delete_context <- renderText({
+    recipe_row_context(rv_recipeDeleteState$key, rv_recipeDeleteState$row)
+  })
+
+  output$ret_delete_context <- renderText({
+    key <- rv_recipeArchiveState$key
+    req(!is.null(key))
+
+    active <- rv_retter_custom()
+    row <- match(key, active$key)
+    req(!is.na(row))
+
+    sprintf('Er du sikker paa, at du vil arkivere "%s"?', active$retter[[row]])
+  })
+
+  output$ret_permanent_delete_context <- renderText({
+    key <- rv_recipePermanentDeleteState$key
+    req(!is.null(key))
+
+    archive <- rv_retter_arkiv()
+    row <- match(key, archive$key)
+    req(!is.na(row))
+
+    sprintf('Er du sikker paa, at du vil slette "%s" permanent?', archive$retter[[row]])
+  })
+
+  for (output_id in c(
+    "opskrift_edit_context",
+    "opskrift_add_context",
+    "opskrift_delete_context",
+    "ret_delete_context",
+    "ret_permanent_delete_context"
+  )) {
+    outputOptions(output, output_id, suspendWhenHidden = FALSE)
+  }
+
   observeEvent(input$open_ny_ret, {
     updateTextInput(session, "ny_ret_navn", value = "")
     updateSelectInput(session, "ny_ret_type", selected = "vegetar")
@@ -1215,10 +1279,6 @@ server <- function(input, output, session) {
     updateSelectInput(session, "opskrift_edit_kat1", choices = kat1_choices, selected = df$kat_1[row])
     updateSelectInput(session, "opskrift_edit_kat2", choices = kat2_choices, selected = df$kat_2[row])
 
-    output$opskrift_edit_context <- renderText({
-      format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
-    })
-
     show(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
   })
 
@@ -1257,11 +1317,15 @@ server <- function(input, output, session) {
     persist_recipe(key)
 
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+    rv_recipeEditState$key <- NULL
+    rv_recipeEditState$row <- NULL
     showNotification("Ingrediensen er opdateret og gemt.", type = "message")
   })
 
   observeEvent(input$cancel_opskrift_row, {
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
+    rv_recipeEditState$key <- NULL
+    rv_recipeEditState$row <- NULL
   })
 
   observeEvent(input$opskrift_addPressed, {
@@ -1274,7 +1338,6 @@ server <- function(input, output, session) {
     rv_recipeAddState$key <- key
 
     df <- rv_opskrifter_custom()[[key]]
-    ret_navn <- names(df)[1]
 
     enhed_choices <- sort(unique(c("", rv_varer()$enhed, df$enhed)))
     kat1_choices <- sort(unique(c(kategori_1, rv_varer()$kat_1, df$kat_1)))
@@ -1285,10 +1348,6 @@ server <- function(input, output, session) {
     updateSelectInput(session, "opskrift_add_enhed", choices = enhed_choices, selected = "")
     updateSelectInput(session, "opskrift_add_kat1", choices = kat1_choices, selected = "konserves")
     updateSelectInput(session, "opskrift_add_kat2", choices = kat2_choices, selected = "")
-
-    output$opskrift_add_context <- renderText({
-      sprintf("Tilføj ny ingrediens til '%s'", ret_navn)
-    })
 
     show(id = "popup_opskrift_tilfoej", anim = TRUE, animType = "fade")
   })
@@ -1352,10 +1411,6 @@ server <- function(input, output, session) {
     rv_recipeDeleteState$key <- key
     rv_recipeDeleteState$row <- row
 
-    output$opskrift_delete_context <- renderText({
-      format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
-    })
-
     show(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
   })
 
@@ -1397,12 +1452,7 @@ server <- function(input, output, session) {
     active <- rv_retter_custom()
     req(key %in% active$key)
 
-    ret_navn <- active$retter[match(key, active$key)]
     rv_recipeArchiveState$key <- key
-
-    output$ret_delete_context <- renderText({
-      sprintf('Er du sikker paa, at du vil arkivere "%s"?', ret_navn)
-    })
 
     show(id = "popup_ret_slet_bekraeft", anim = TRUE, animType = "fade")
   })
@@ -1498,12 +1548,7 @@ server <- function(input, output, session) {
     row_idx <- match(key, archive$key)
     req(!is.na(row_idx))
 
-    ret_navn <- archive$retter[[row_idx]]
     rv_recipePermanentDeleteState$key <- key
-
-    output$ret_permanent_delete_context <- renderText({
-      sprintf('Er du sikker paa, at du vil slette "%s" permanent?', ret_navn)
-    })
 
     show(id = "popup_ret_slet_permanent_bekraeft", anim = TRUE, animType = "fade")
   })
@@ -1550,6 +1595,120 @@ server <- function(input, output, session) {
   observeEvent(input$cancel_delete_archived_ret, {
     hide(id = "popup_ret_slet_permanent_bekraeft", anim = TRUE, animType = "fade")
     rv_recipePermanentDeleteState$key <- NULL
+  })
+
+  selected_recipe_model <- reactive({
+    key <- input$opskrift_valgt_key
+    req(!is.null(key), nzchar(key))
+
+    ops_local <- rv_opskrifter_custom()
+    active_retter <- active_recipe_rows(rv_retter_custom(), names(ops_local))
+    req(key %in% active_retter$key, key %in% names(ops_local))
+
+    df <- ops_local[[key]]
+    ret_navn <- names(df)[1]
+
+    links_df <- rv_links_custom()
+    link_url <- links_df$link[links_df$ret == ret_navn]
+    link_url <- if (length(link_url) > 0) link_url[1] else ""
+
+    list(
+      key = key,
+      df = df,
+      ret_navn = ret_navn,
+      link_url = normalize_recipe_link(link_url)
+    )
+  })
+
+  selected_recipe_table_model <- reactive({
+    model <- selected_recipe_model()
+    key <- model$key
+    df <- model$df
+
+    ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[1]])
+    df_vis <- data.frame(
+      Ingrediens = htmltools::htmlEscape(ingredienslinje),
+      check.names = FALSE
+    )
+
+    df_vis$Rediger <- vapply(
+      seq_len(nrow(df_vis)),
+      function(r) {
+        as.character(
+          ga_js_button(
+            inputId = paste0("opskrift_row_btn_", key, "_", r),
+            label = NULL,
+            icon = icon("pen"),
+            class = "edit-btn btn btn-sm",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+              key,
+              r
+            ),
+            style = paste(
+              "background:#0ea5e9;",
+              "color:#fff;",
+              "border:1px solid #0284c7;",
+              "border-radius:8px;",
+              "padding:6px 1px;",
+              "line-height:1;",
+              "font-weight:600;",
+              "box-shadow:none;",
+              "background-image:none;"
+            )
+          )
+        )
+      },
+      ""
+    )
+
+    df_vis$Slet <- vapply(
+      seq_len(nrow(df_vis)),
+      function(r) {
+        as.character(
+          ga_js_button(
+            inputId = paste0("opskrift_row_del_", key, "_", r),
+            label = NULL,
+            icon = icon("trash"),
+            class = "delete-btn btn btn-sm",
+            onclick = sprintf(
+              "Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
+              key,
+              r
+            ),
+            style = paste(
+              "background:#ef4444;",
+              "color:#fff;",
+              "border:1px solid #dc2626;",
+              "border-radius:8px;",
+              "padding:6px 1px;",
+              "line-height:1;",
+              "font-weight:600;",
+              "box-shadow:none;",
+              "background-image:none;"
+            )
+          )
+        )
+      },
+      ""
+    )
+
+    list(key = key, rows = df_vis)
+  })
+
+  output$opskrift_tbl_valgt <- DT::renderDT({
+    table_model <- selected_recipe_table_model()
+
+    themed_dt(
+      table_model$rows,
+      escape = c(FALSE, FALSE, FALSE),
+      options = list(
+        dom = "t",
+        paging = FALSE,
+        ordering = FALSE,
+        searching = FALSE
+      )
+    )
   })
 
   output$opskrifter_ui <- renderUI({
@@ -1633,105 +1792,10 @@ server <- function(input, output, session) {
   })
 
   output$valgt_opskrift_ui <- renderUI({
-    key <- input$opskrift_valgt_key
-    req(!is.null(key))
-
-    req(key %in% active_recipe_rows(rv_retter_custom())$key)
-
-    ops_local <- rv_opskrifter_custom()
-    req(key %in% names(ops_local))
-
-    df <- ops_local[[key]]
-    ret_navn <- names(df)[1]
-
-    links_df <- rv_links_custom()
-    link_url <- links_df$link[links_df$ret == ret_navn]
-    link_url <- if (length(link_url) > 0) link_url[1] else ""
-    link_url <- normalize_recipe_link(link_url)
-
-    ingredienslinje <- format_recipe_line(df$maengde, df$enhed, df[[ret_navn]])
-    df_vis <- data.frame(
-      Ingrediens = htmltools::htmlEscape(ingredienslinje),
-      check.names = FALSE
-    )
-
-    edit_col <- vapply(
-      seq_len(nrow(df_vis)),
-      function(r) {
-        as.character(
-          ga_js_button(
-            inputId = paste0("opskrift_row_btn_", key, "_", r),
-            label = NULL,
-            icon = icon("pen"),
-            class = "edit-btn btn btn-sm",
-            onclick = sprintf(
-              "Shiny.setInputValue('opskrift_editPressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
-              key,
-              r
-            ),
-            style = paste(
-              "background:#0ea5e9;",
-              "color:#fff;",
-              "border:1px solid #0284c7;",
-              "border-radius:8px;",
-              "padding:6px 1px;",
-              "line-height:1;",
-              "font-weight:600;",
-              "box-shadow:none;",
-              "background-image:none;"
-            )
-          )
-        )
-      },
-      ""
-    )
-
-    delete_col <- vapply(
-      seq_len(nrow(df_vis)),
-      function(r) {
-        as.character(
-          ga_js_button(
-            inputId = paste0("opskrift_row_del_", key, "_", r),
-            label = NULL,
-            icon = icon("trash"),
-            class = "delete-btn btn btn-sm",
-            onclick = sprintf(
-              "Shiny.setInputValue('opskrift_deletePressed', {key: '%s', row: %d}, {priority:'event'}); return false;",
-              key,
-              r
-            ),
-            style = paste(
-              "background:#ef4444;",
-              "color:#fff;",
-              "border:1px solid #dc2626;",
-              "border-radius:8px;",
-              "padding:6px 1px;",
-              "line-height:1;",
-              "font-weight:600;",
-              "box-shadow:none;",
-              "background-image:none;"
-            )
-          )
-        )
-      },
-      ""
-    )
-
-    df_vis$Rediger <- edit_col
-    df_vis$Slet <- delete_col
-
-    output$opskrift_tbl_valgt <- DT::renderDT({
-      themed_dt(
-        df_vis,
-        escape = c(FALSE, FALSE, FALSE),
-        options = list(
-          dom = "t",
-          paging = FALSE,
-          ordering = FALSE,
-          searching = FALSE
-        )
-      )
-    })
+    model <- selected_recipe_model()
+    key <- model$key
+    ret_navn <- model$ret_navn
+    link_url <- model$link_url
 
     link_tag <- NULL
     if (!is.null(link_url) && nzchar(link_url)) {
