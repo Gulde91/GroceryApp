@@ -345,7 +345,6 @@ ui <- f7Page(
 server <- function(input, output, session) {
 
   # Sætter reaktive værdier ----
-  rv_opskrift_tmp <- reactiveValues(df = NULL)
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
   rv_cart <- reactiveVal(new_cart_state())
   rv_opskrifter_custom <- reactiveVal(opskrifter)
@@ -596,60 +595,71 @@ server <- function(input, output, session) {
 
   
   # Tilføj opskrift ----
-  observe({
-    
-    # sætter opskrift sammen
-    rv_opskrift_tmp$df <- opskrift(
+  # Preview og tilføjelse beregnes fra de samme aktuelle inputs. Dermed kan
+  # add-handleren ikke nå at læse et gammelt/tomt preview fra en anden observer.
+  recipe_preview <- reactive({
+    opskrift(
       rv_opskrifter_custom(), rv_retter_custom(), salater, salater_opskrifter, tilbehor,
-      input$ret, input$salat, input$pers, input$tilbehor
+      input$ret %||% "",
+      input$salat %||% "",
+      input$pers %||% 2,
+      input$tilbehor %||% ""
     )
-    
-    # viser opskrift
-    output$opskrift <- DT::renderDT({
-      themed_dt(
-        rv_opskrift_tmp$df[, 1:3],
-        options = list(
-          dom = "t", 
-          ordering = FALSE, 
-          pageLength = nrow(rv_opskrift_tmp$df)
-          )
+  })
+
+  # viser opskrift
+  output$opskrift <- DT::renderDT({
+    recipe_rows <- recipe_preview()
+    req(NROW(recipe_rows) > 0)
+
+    themed_dt(
+      recipe_rows[, 1:3],
+      options = list(
+        dom = "t",
+        ordering = FALSE,
+        pageLength = nrow(recipe_rows)
       )
-    }) 
+    )
   })
   
   # tilføjer opskrift og rbinder de andre opskrifter
   observeEvent(input$add_opskrift, {
-    recipe_rows <- rv_opskrift_tmp$df
-    req(!is.null(recipe_rows))
+    recipe_rows <- recipe_preview()
+    req(NROW(recipe_rows) > 0)
+
+    selected_ret <- input$ret %||% ""
+    selected_salat <- input$salat %||% ""
+    selected_pers <- input$pers %||% 2
+    selected_tilbehor <- input$tilbehor %||% ""
 
     col_names <- c("Indkobsliste", "maengde", "enhed", "kat_1", "kat_2")
     names(recipe_rows) <- col_names
 
     # Copy-afsnit og synlige varelinjer gemmes i samme cart-state.
     recipe_sections <- list()
-    har_ret <- !is.null(input$ret) && nzchar(input$ret)
-    har_salat <- !is.null(input$salat) && nzchar(input$salat)
-    har_tilh <- !is.null(input$tilbehor) && nzchar(input$tilbehor)
+    har_ret <- nzchar(selected_ret)
+    har_salat <- nzchar(selected_salat)
+    har_tilh <- nzchar(selected_tilbehor)
     
     if (har_ret) {
       # Brug reaktive data, så nyoprettede retter virker uden genstart.
-      df_ret <- get_df_custom(ret = input$ret, pers = input$pers)
+      df_ret <- get_df_custom(ret = selected_ret, pers = selected_pers)
       if (har_salat) {
-        df_sal <- get_df_custom(salat = input$salat, pers = input$pers)
+        df_sal <- get_df_custom(salat = selected_salat, pers = selected_pers)
         df_merged <- bind_rows(df_ret, df_sal)
-        title <- paste0(input$ret, " m. ", input$salat)
-        link  <- get_link_custom(rv_links_custom(), input$ret) %||%
-          get_link_custom(rv_links_custom(), input$salat)
+        title <- paste0(selected_ret, " m. ", selected_salat)
+        link  <- get_link_custom(rv_links_custom(), selected_ret) %||%
+          get_link_custom(rv_links_custom(), selected_salat)
       } else {
         df_merged <- df_ret
-        title <- input$ret
-        link  <- get_link_custom(rv_links_custom(), input$ret)
+        title <- selected_ret
+        link  <- get_link_custom(rv_links_custom(), selected_ret)
       }
       recipe_sections <- c(
         recipe_sections,
         list(list(
           title = title,
-          pers  = input$pers,
+          pers  = selected_pers,
           df    = df_merged,
           link  = link
         ))
@@ -657,25 +667,25 @@ server <- function(input, output, session) {
     } else {
       # Ingen ret valgt → salat/tilbehør må gerne stå alene
       if (har_salat) {
-        df_sal <- get_df_custom(salat = input$salat, pers = input$pers)
+        df_sal <- get_df_custom(salat = selected_salat, pers = selected_pers)
         recipe_sections <- c(
           recipe_sections,
           list(list(
-            title = paste0("Salat: ", input$salat),
-            pers  = input$pers,
+            title = paste0("Salat: ", selected_salat),
+            pers  = selected_pers,
             df    = df_sal,
             # Link slås op i de reaktive links (inkl. brugerens tilføjelser).
-            link  = get_link_custom(rv_links_custom(), input$salat)
+            link  = get_link_custom(rv_links_custom(), selected_salat)
           ))
         )
       }
       if (har_tilh) {
-        df_til <- get_df_custom(tilbeh = input$tilbehor, pers = input$pers)
+        df_til <- get_df_custom(tilbeh = selected_tilbehor, pers = selected_pers)
         recipe_sections <- c(
           recipe_sections,
           list(list(
-            title = paste0("Tilbehør: ", input$tilbehor),
-            pers  = input$pers,
+            title = paste0("Tilbehør: ", selected_tilbehor),
+            pers  = selected_pers,
             df    = df_til,
             link  = NA_character_
           ))
@@ -684,7 +694,6 @@ server <- function(input, output, session) {
     }
 
     rv_cart(cart_add_recipe(rv_cart(), recipe_rows, recipe_sections))
-    rv_opskrift_tmp$df <- NULL
     
     hide(id = "popup_opskrift", anim = TRUE, animType = "fade")
     
