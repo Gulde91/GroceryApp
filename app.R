@@ -349,13 +349,24 @@ server <- function(input, output, session) {
   initial_recipe_store <- recipe_store_read("./data")
   rv_manuel_tilfoj <- reactiveValues(df = NULL)
   rv_cart <- reactiveVal(new_cart_state())
-  rv_opskrifter_custom <- reactiveVal(initial_recipe_store$recipes)
-  rv_links_custom <- reactiveVal(initial_recipe_store$links)
-  rv_retter_custom <- reactiveVal(initial_recipe_store$active_retter)
-  rv_retter_arkiv <- reactiveVal(initial_recipe_store$archived_retter)
-  rv_recipeStoreRevision <- reactiveVal(initial_recipe_store$revision)
-  rv_recipeEditState <- reactiveValues(key = NULL, row = NULL)
-  rv_recipeDeleteState <- reactiveValues(key = NULL, row = NULL)
+  rv_recipeCatalog <- reactiveVal(initial_recipe_store)
+  rv_recipeCatalogSignals <- reactiveValues(
+    recipes = 0L,
+    links = 0L,
+    active_retter = 0L,
+    archived_retter = 0L,
+    revision = 0L
+  )
+  rv_recipeEditState <- reactiveValues(
+    key = NULL,
+    row = NULL,
+    revision = NULL
+  )
+  rv_recipeDeleteState <- reactiveValues(
+    key = NULL,
+    row = NULL,
+    revision = NULL
+  )
   rv_recipeArchiveState <- reactiveValues(key = NULL)
   rv_recipePermanentDeleteState <- reactiveValues(key = NULL)
   rv_recipeAddState <- reactiveValues(key = NULL)
@@ -364,7 +375,66 @@ server <- function(input, output, session) {
     read.csv("./data/basis_varer.txt", fileEncoding = "UTF-8") |> 
       arrange(Indkobsliste)
     )
-  
+
+  # Hele opskriftskataloget har én reaktiv datakilde. Signalerne indeholder
+  # ingen kopier af data; de sørger blot for, at fx en ingrediensændring ikke
+  # genberegner statistik, som kun afhænger af aktive retter.
+  recipe_catalog_current <- reactive({
+    rv_recipeCatalog()
+  })
+
+  recipes_current <- reactive({
+    rv_recipeCatalogSignals$recipes
+    isolate(rv_recipeCatalog()$recipes)
+  })
+
+  recipe_links_current <- reactive({
+    rv_recipeCatalogSignals$links
+    isolate(rv_recipeCatalog()$links)
+  })
+
+  active_recipes_current <- reactive({
+    rv_recipeCatalogSignals$active_retter
+    isolate(rv_recipeCatalog()$active_retter)
+  })
+
+  archived_recipes_current <- reactive({
+    rv_recipeCatalogSignals$archived_retter
+    isolate(rv_recipeCatalog()$archived_retter)
+  })
+
+  recipe_revision_current <- reactive({
+    rv_recipeCatalogSignals$revision
+    isolate(rv_recipeCatalog()$revision)
+  })
+
+  publish_recipe_catalog <- function(next_catalog) {
+    current_catalog <- isolate(rv_recipeCatalog())
+
+    changed_fields <- c(
+      "recipes",
+      "links",
+      "active_retter",
+      "archived_retter",
+      "revision"
+    )
+    changed_fields <- changed_fields[vapply(
+      changed_fields,
+      function(field) {
+        !identical(current_catalog[[field]], next_catalog[[field]])
+      },
+      logical(1)
+    )]
+
+    rv_recipeCatalog(next_catalog)
+    for (field in changed_fields) {
+      rv_recipeCatalogSignals[[field]] <-
+        isolate(rv_recipeCatalogSignals[[field]]) + 1L
+    }
+
+    invisible(next_catalog)
+  }
+
   # Én sandhed om hvad der redigeres (tabel + række) til brug for "Gem" i fælles overlay
   opskrift_selectize_options <- list(
     openOnFocus = TRUE,
@@ -376,7 +446,7 @@ server <- function(input, output, session) {
     sortField = "label"
   )
 
-  active_recipe_rows <- function(retter_df, ops_keys = names(rv_opskrifter_custom())) {
+  active_recipe_rows <- function(retter_df, ops_keys = names(recipes_current())) {
     retter_df <- retter_df |>
       filter(key %in% ops_keys) |>
       arrange(tolower(retter))
@@ -384,7 +454,7 @@ server <- function(input, output, session) {
     retter_df
   }
 
-  opskrift_choices <- function(retter_df, ops_keys = names(rv_opskrifter_custom())) {
+  opskrift_choices <- function(retter_df, ops_keys = names(recipes_current())) {
     retter_df <- active_recipe_rows(retter_df, ops_keys)
 
     stats::setNames(retter_df$key, retter_df$retter)
@@ -402,7 +472,7 @@ server <- function(input, output, session) {
       recipe_store_revision("./data"),
       error = function(error) NULL
     )
-    known_revision <- isolate(rv_recipeStoreRevision())
+    known_revision <- isolate(recipe_revision_current())
 
     if (
       is.null(disk_revision) ||
@@ -417,11 +487,7 @@ server <- function(input, output, session) {
     )
     if (is.null(snapshot)) return(invisible(NULL))
 
-    rv_opskrifter_custom(snapshot$recipes)
-    rv_links_custom(snapshot$links)
-    rv_retter_custom(snapshot$active_retter)
-    rv_retter_arkiv(snapshot$archived_retter)
-    rv_recipeStoreRevision(snapshot$revision)
+    publish_recipe_catalog(snapshot)
   })
   
   # indlæser basis varer ved genload af appen
@@ -433,7 +499,7 @@ server <- function(input, output, session) {
   # laves som reactive (og ikke reactiveVal) fordi der ikke kan indgå
   # reactive elementer i en reactiveVal
   rv_varer <- reactive({
-    opskrift_df_custom <- c(rv_opskrifter_custom(), salater_opskrifter) |>
+    opskrift_df_custom <- c(recipes_current(), salater_opskrifter) |>
       lapply(function(x) {names(x)[1] <- "Indkobsliste"; x}) |>
       bind_rows() |>
       arrange(Indkobsliste) |>
@@ -634,7 +700,7 @@ server <- function(input, output, session) {
   # add-handleren ikke nå at læse et gammelt/tomt preview fra en anden observer.
   recipe_preview <- reactive({
     opskrift(
-      rv_opskrifter_custom(), rv_retter_custom(), salater, salater_opskrifter, tilbehor,
+      recipes_current(), active_recipes_current(), salater, salater_opskrifter, tilbehor,
       input$ret %||% "",
       input$salat %||% "",
       input$pers %||% 2,
@@ -683,12 +749,12 @@ server <- function(input, output, session) {
         df_sal <- get_df_custom(salat = selected_salat, pers = selected_pers)
         df_merged <- bind_rows(df_ret, df_sal)
         title <- paste0(selected_ret, " m. ", selected_salat)
-        link  <- get_link_custom(rv_links_custom(), selected_ret) %||%
-          get_link_custom(rv_links_custom(), selected_salat)
+        link  <- get_link_custom(recipe_links_current(), selected_ret) %||%
+          get_link_custom(recipe_links_current(), selected_salat)
       } else {
         df_merged <- df_ret
         title <- selected_ret
-        link  <- get_link_custom(rv_links_custom(), selected_ret)
+        link  <- get_link_custom(recipe_links_current(), selected_ret)
       }
       recipe_sections <- c(
         recipe_sections,
@@ -710,7 +776,7 @@ server <- function(input, output, session) {
             pers  = selected_pers,
             df    = df_sal,
             # Link slås op i de reaktive links (inkl. brugerens tilføjelser).
-            link  = get_link_custom(rv_links_custom(), selected_salat)
+            link  = get_link_custom(recipe_links_current(), selected_salat)
           ))
         )
       }
@@ -735,7 +801,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$open_opskrift, {
-    valid_retter <- active_recipe_rows(rv_retter_custom())
+    valid_retter <- active_recipe_rows(active_recipes_current())
 
     updateSelectInput(session = session, inputId = "ret", choices = c("", valid_retter$retter))
     updateSelectInput(session = session, inputId = "ret", selected = "")
@@ -1027,7 +1093,7 @@ server <- function(input, output, session) {
   # wordcloud plot ----
   output$wordcloud_retter <- renderWordcloud2({
     
-    retter_tmp <- rv_retter_custom()
+    retter_tmp <- active_recipes_current()
     
     if (input$menu_type != "Alle") {
       retter_tmp <- filter(retter_tmp, grepl(tolower(input$menu_type), type))
@@ -1050,7 +1116,7 @@ server <- function(input, output, session) {
 
   # statistik over brugte opskrifter ----
   opskrifter_statistik <- reactive({
-    brugte_opskrifter(rv_retter_custom()$retter)
+    brugte_opskrifter(active_recipes_current()$retter)
   })
   
   output$opskrifter_statistik_plot <- renderPlot({
@@ -1069,18 +1135,101 @@ server <- function(input, output, session) {
     trimws(gsub("\\s+", " ", linje))
   }
 
+  recipe_row_action_is_current <- function(opened_revision) {
+    if (
+      !is.null(opened_revision) &&
+        identical(opened_revision, recipe_revision_current())
+    ) {
+      return(TRUE)
+    }
+
+    showNotification(
+      paste(
+        "Opskriften er ændret, siden dialogen blev åbnet.",
+        "Luk dialogen og prøv igen."
+      ),
+      type = "warning"
+    )
+    FALSE
+  }
+
   commit_recipe_store_change <- function(
-    ...,
+    next_catalog,
+    delete_recipe_keys = character(),
     error_message = "Ændringen kunne ikke gemmes."
   ) {
     tryCatch(
       {
+        required_fields <- c(
+          "active_retter",
+          "archived_retter",
+          "recipes",
+          "links",
+          "revision"
+        )
+        if (
+          !is.list(next_catalog) ||
+            !all(required_fields %in% names(next_catalog))
+        ) {
+          stop("Det nye opskriftskatalog er ufuldstændigt.", call. = FALSE)
+        }
+
+        current_catalog <- isolate(recipe_catalog_current())
+        if (!identical(next_catalog$revision, current_catalog$revision)) {
+          stop(
+            "Opskriftskataloget er ændret, siden handlingen begyndte.",
+            call. = FALSE
+          )
+        }
+
+        current_keys <- names(current_catalog$recipes)
+        next_keys <- names(next_catalog$recipes)
+        if (is.null(current_keys)) current_keys <- character()
+        if (is.null(next_keys)) next_keys <- character()
+
+        changed_recipe_keys <- next_keys[vapply(
+          next_keys,
+          function(key) {
+            !key %in% current_keys ||
+              !identical(
+                next_catalog$recipes[[key]],
+                current_catalog$recipes[[key]]
+              )
+          },
+          logical(1)
+        )]
+        removed_recipe_keys <- setdiff(current_keys, next_keys)
+        delete_recipe_keys <- as.character(delete_recipe_keys)
+        if (
+          !all(removed_recipe_keys %in% delete_recipe_keys) ||
+            any(delete_recipe_keys %in% next_keys)
+        ) {
+          stop(
+            "Sletning af en opskriftsfil kræver en udtrykkelig opskriftsnøgle.",
+            call. = FALSE
+          )
+        }
+
+        changed_or_null <- function(field) {
+          if (identical(next_catalog[[field]], current_catalog[[field]])) {
+            NULL
+          } else {
+            next_catalog[[field]]
+          }
+        }
+
         next_revision <- recipe_store_commit(
           data_dir = "./data",
-          ...,
-          expected_revision = rv_recipeStoreRevision()
+          active_retter = changed_or_null("active_retter"),
+          archived_retter = changed_or_null("archived_retter"),
+          links = changed_or_null("links"),
+          recipes = next_catalog$recipes[changed_recipe_keys],
+          delete_recipe_keys = delete_recipe_keys,
+          expected_revision = current_catalog$revision
         )
-        rv_recipeStoreRevision(next_revision)
+
+        next_catalog$revision <- next_revision
+        publish_recipe_catalog(next_catalog)
         TRUE
       },
       error = function(error) {
@@ -1114,7 +1263,7 @@ server <- function(input, output, session) {
 
   get_df_custom <- function(ret = "", salat = "", pers = 2, tilbeh = "") {
     out <- opskrift(
-      rv_opskrifter_custom(), rv_retter_custom(), salater, salater_opskrifter, tilbehor,
+      recipes_current(), active_recipes_current(), salater, salater_opskrifter, tilbehor,
       dag_ret = ret, dag_salat = salat, antal = pers, dag_tilbehor = tilbeh
     )
     if (!is.null(out)) {
@@ -1126,7 +1275,7 @@ server <- function(input, output, session) {
   recipe_row_context <- function(key, row) {
     req(!is.null(key), !is.null(row))
 
-    ops <- rv_opskrifter_custom()
+    ops <- recipes_current()
     req(key %in% names(ops))
 
     df <- ops[[key]]
@@ -1145,7 +1294,7 @@ server <- function(input, output, session) {
     key <- rv_recipeAddState$key
     req(!is.null(key))
 
-    ops <- rv_opskrifter_custom()
+    ops <- recipes_current()
     req(key %in% names(ops))
 
     sprintf("Tilføj ny ingrediens til '%s'", names(ops[[key]])[1])
@@ -1159,7 +1308,7 @@ server <- function(input, output, session) {
     key <- rv_recipeArchiveState$key
     req(!is.null(key))
 
-    active <- rv_retter_custom()
+    active <- active_recipes_current()
     row <- match(key, active$key)
     req(!is.na(row))
 
@@ -1170,7 +1319,7 @@ server <- function(input, output, session) {
     key <- rv_recipePermanentDeleteState$key
     req(!is.null(key))
 
-    archive <- rv_retter_arkiv()
+    archive <- archived_recipes_current()
     row <- match(key, archive$key)
     req(!is.na(row))
 
@@ -1206,7 +1355,8 @@ server <- function(input, output, session) {
     validate(need(ret_navn != "", "Skriv et navn til retten."))
     validate(need(ret_type != "", "Vælg en type."))
 
-    ops <- rv_opskrifter_custom()
+    next_catalog <- recipe_catalog_current()
+    ops <- next_catalog$recipes
     eksisterende_navne <- vapply(ops, function(df) names(df)[1], "")
     if (tolower(ret_navn) %in% tolower(eksisterende_navne)) {
       showNotification(sprintf('Retten "%s" findes allerede.', ret_navn), type = "warning")
@@ -1234,13 +1384,13 @@ server <- function(input, output, session) {
     ops[[key]] <- ny_opskrift
 
     retter_new <- bind_rows(
-      rv_retter_custom(),
+      next_catalog$active_retter,
       data.frame(retter = ret_navn, key = key, type = ret_type, stringsAsFactors = FALSE)
     ) |>
       distinct(key, .keep_all = TRUE) |>
       arrange(retter)
 
-    links_new <- rv_links_custom()
+    links_new <- next_catalog$links
     if (nzchar(ret_link)) {
       links_new <- bind_rows(
         links_new,
@@ -1250,17 +1400,15 @@ server <- function(input, output, session) {
         arrange(ret)
     }
 
+    next_catalog$recipes <- ops
+    next_catalog$active_retter <- retter_new
+    next_catalog$links <- links_new
+
     saved <- commit_recipe_store_change(
-      active_retter = retter_new,
-      links = links_new,
-      recipes = stats::setNames(list(ny_opskrift), key),
+      next_catalog,
       error_message = "Retten kunne ikke oprettes."
     )
     if (!saved) return(invisible(NULL))
-
-    rv_opskrifter_custom(ops)
-    rv_retter_custom(retter_new)
-    rv_links_custom(links_new)
 
     hide(id = "popup_ny_ret", anim = TRUE, animType = "fade")
     updateSelectizeInput(
@@ -1279,13 +1427,14 @@ server <- function(input, output, session) {
 
     key <- as.character(info$key)
     row <- suppressWarnings(as.integer(info$row))
-    req(key %in% names(rv_opskrifter_custom()), !is.na(row))
+    req(key %in% names(recipes_current()), !is.na(row))
 
-    df <- rv_opskrifter_custom()[[key]]
+    df <- recipes_current()[[key]]
     req(nrow(df) >= row)
 
     rv_recipeEditState$key <- key
     rv_recipeEditState$row <- row
+    rv_recipeEditState$revision <- recipe_revision_current()
 
     enhed_choices <- sort(unique(c("", rv_varer()$enhed, df$enhed)))
     kat1_choices <- sort(unique(c(kategori_1, rv_varer()$kat_1, df$kat_1)))
@@ -1303,8 +1452,13 @@ server <- function(input, output, session) {
     key <- rv_recipeEditState$key
     row <- rv_recipeEditState$row
     req(!is.null(key), !is.null(row))
+    if (!recipe_row_action_is_current(rv_recipeEditState$revision)) {
+      return(invisible(NULL))
+    }
 
-    df <- rv_opskrifter_custom()[[key]]
+    next_catalog <- recipe_catalog_current()
+    ops <- next_catalog$recipes
+    df <- ops[[key]]
     req(!is.null(df), nrow(df) >= row)
 
     maengde <- suppressWarnings(as.numeric(input$opskrift_edit_maengde))
@@ -1327,20 +1481,19 @@ server <- function(input, output, session) {
     df$kat_1[row] <- kat1
     df$kat_2[row] <- kat2
 
-    ops <- rv_opskrifter_custom()
     ops[[key]] <- df
+    next_catalog$recipes <- ops
 
     saved <- commit_recipe_store_change(
-      recipes = stats::setNames(list(df), key),
+      next_catalog,
       error_message = "Ingrediensen kunne ikke opdateres."
     )
     if (!saved) return(invisible(NULL))
 
-    rv_opskrifter_custom(ops)
-
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
     rv_recipeEditState$key <- NULL
     rv_recipeEditState$row <- NULL
+    rv_recipeEditState$revision <- NULL
     showNotification("Ingrediensen er opdateret og gemt.", type = "message")
   })
 
@@ -1348,6 +1501,7 @@ server <- function(input, output, session) {
     hide(id = "popup_opskrift_rediger", anim = TRUE, animType = "fade")
     rv_recipeEditState$key <- NULL
     rv_recipeEditState$row <- NULL
+    rv_recipeEditState$revision <- NULL
   })
 
   observeEvent(input$opskrift_addPressed, {
@@ -1355,11 +1509,11 @@ server <- function(input, output, session) {
     req(!is.null(info$key))
 
     key <- as.character(info$key)
-    req(key %in% names(rv_opskrifter_custom()))
+    req(key %in% names(recipes_current()))
 
     rv_recipeAddState$key <- key
 
-    df <- rv_opskrifter_custom()[[key]]
+    df <- recipes_current()[[key]]
 
     enhed_choices <- sort(unique(c("", rv_varer()$enhed, df$enhed)))
     kat1_choices <- sort(unique(c(kategori_1, rv_varer()$kat_1, df$kat_1)))
@@ -1376,9 +1530,11 @@ server <- function(input, output, session) {
 
   observeEvent(input$save_opskrift_new_row, {
     key <- rv_recipeAddState$key
-    req(!is.null(key), key %in% names(rv_opskrifter_custom()))
+    next_catalog <- recipe_catalog_current()
+    ops <- next_catalog$recipes
+    req(!is.null(key), key %in% names(ops))
 
-    df <- rv_opskrifter_custom()[[key]]
+    df <- ops[[key]]
     ret_navn <- names(df)[1]
 
     ingrediens <- trimws(as.character(input$opskrift_add_navn %||% ""))
@@ -1402,16 +1558,14 @@ server <- function(input, output, session) {
     names(ny_linje)[1] <- ret_navn
 
     df <- bind_rows(df, ny_linje)
-    ops <- rv_opskrifter_custom()
     ops[[key]] <- df
+    next_catalog$recipes <- ops
 
     saved <- commit_recipe_store_change(
-      recipes = stats::setNames(list(df), key),
+      next_catalog,
       error_message = "Ingrediensen kunne ikke tilføjes."
     )
     if (!saved) return(invisible(NULL))
-
-    rv_opskrifter_custom(ops)
 
     hide(id = "popup_opskrift_tilfoej", anim = TRUE, animType = "fade")
     rv_recipeAddState$key <- NULL
@@ -1430,13 +1584,14 @@ server <- function(input, output, session) {
 
     key <- as.character(info$key)
     row <- suppressWarnings(as.integer(info$row))
-    req(key %in% names(rv_opskrifter_custom()), !is.na(row))
+    req(key %in% names(recipes_current()), !is.na(row))
 
-    df <- rv_opskrifter_custom()[[key]]
+    df <- recipes_current()[[key]]
     req(!is.null(df), nrow(df) >= row)
 
     rv_recipeDeleteState$key <- key
     rv_recipeDeleteState$row <- row
+    rv_recipeDeleteState$revision <- recipe_revision_current()
 
     show(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
   })
@@ -1445,27 +1600,31 @@ server <- function(input, output, session) {
     key <- rv_recipeDeleteState$key
     row <- rv_recipeDeleteState$row
     req(!is.null(key), !is.null(row))
+    if (!recipe_row_action_is_current(rv_recipeDeleteState$revision)) {
+      return(invisible(NULL))
+    }
 
-    df <- rv_opskrifter_custom()[[key]]
+    next_catalog <- recipe_catalog_current()
+    ops <- next_catalog$recipes
+    df <- ops[[key]]
     req(!is.null(df), nrow(df) >= row)
 
     slettet <- format_recipe_line(df$maengde[row], df$enhed[row], df[[1]][row])
     df <- df[-row, , drop = FALSE]
 
-    ops <- rv_opskrifter_custom()
     ops[[key]] <- df
+    next_catalog$recipes <- ops
 
     saved <- commit_recipe_store_change(
-      recipes = stats::setNames(list(df), key),
+      next_catalog,
       error_message = "Ingrediensen kunne ikke slettes."
     )
     if (!saved) return(invisible(NULL))
 
-    rv_opskrifter_custom(ops)
-
     hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeDeleteState$key <- NULL
     rv_recipeDeleteState$row <- NULL
+    rv_recipeDeleteState$revision <- NULL
 
     showNotification(sprintf('Linjen "%s" er slettet permanent.', slettet), type = "message")
   })
@@ -1474,6 +1633,7 @@ server <- function(input, output, session) {
     hide(id = "popup_opskrift_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeDeleteState$key <- NULL
     rv_recipeDeleteState$row <- NULL
+    rv_recipeDeleteState$revision <- NULL
   })
 
   observeEvent(input$opskrift_archivePressed, {
@@ -1481,7 +1641,7 @@ server <- function(input, output, session) {
     req(!is.null(info$key))
 
     key <- as.character(info$key)
-    active <- rv_retter_custom()
+    active <- active_recipes_current()
     req(key %in% active$key)
 
     rv_recipeArchiveState$key <- key
@@ -1493,26 +1653,26 @@ server <- function(input, output, session) {
     key <- rv_recipeArchiveState$key
     req(!is.null(key))
 
-    active <- rv_retter_custom()
+    next_catalog <- recipe_catalog_current()
+    active <- next_catalog$active_retter
     row_idx <- match(key, active$key)
     req(!is.na(row_idx))
 
     archived_row <- active[row_idx, , drop = FALSE]
     active_new <- active[-row_idx, , drop = FALSE] |>
       arrange(retter)
-    archive_new <- bind_rows(rv_retter_arkiv(), archived_row) |>
+    archive_new <- bind_rows(next_catalog$archived_retter, archived_row) |>
       distinct(key, .keep_all = TRUE) |>
       arrange(retter)
 
+    next_catalog$active_retter <- active_new
+    next_catalog$archived_retter <- archive_new
+
     saved <- commit_recipe_store_change(
-      active_retter = active_new,
-      archived_retter = archive_new,
+      next_catalog,
       error_message = "Retten kunne ikke arkiveres."
     )
     if (!saved) return(invisible(NULL))
-
-    rv_retter_custom(active_new)
-    rv_retter_arkiv(archive_new)
 
     hide(id = "popup_ret_slet_bekraeft", anim = TRUE, animType = "fade")
     rv_recipeArchiveState$key <- NULL
@@ -1541,31 +1701,31 @@ server <- function(input, output, session) {
     key <- as.character(input$restore_ret %||% "")
     req(nzchar(key))
 
-    archive <- rv_retter_arkiv()
+    next_catalog <- recipe_catalog_current()
+    archive <- next_catalog$archived_retter
     row_idx <- match(key, archive$key)
     req(!is.na(row_idx))
 
-    if (!key %in% names(rv_opskrifter_custom())) {
+    if (!key %in% names(next_catalog$recipes)) {
       showNotification("Opskriftsfilen mangler, saa retten kan ikke gendannes.", type = "error")
       return(invisible(NULL))
     }
 
     restored_row <- archive[row_idx, , drop = FALSE]
-    active_new <- bind_rows(rv_retter_custom(), restored_row) |>
+    active_new <- bind_rows(next_catalog$active_retter, restored_row) |>
       distinct(key, .keep_all = TRUE) |>
       arrange(retter)
     archive_new <- archive[-row_idx, , drop = FALSE] |>
       arrange(retter)
 
+    next_catalog$active_retter <- active_new
+    next_catalog$archived_retter <- archive_new
+
     saved <- commit_recipe_store_change(
-      active_retter = active_new,
-      archived_retter = archive_new,
+      next_catalog,
       error_message = "Retten kunne ikke gendannes."
     )
     if (!saved) return(invisible(NULL))
-
-    rv_retter_custom(active_new)
-    rv_retter_arkiv(archive_new)
 
     valid_active_new <- active_recipe_rows(active_new)
 
@@ -1586,7 +1746,7 @@ server <- function(input, output, session) {
     key <- as.character(input$delete_archived_ret %||% "")
     req(nzchar(key))
 
-    archive <- rv_retter_arkiv()
+    archive <- archived_recipes_current()
     row_idx <- match(key, archive$key)
     req(!is.na(row_idx))
 
@@ -1599,7 +1759,8 @@ server <- function(input, output, session) {
     key <- rv_recipePermanentDeleteState$key
     req(!is.null(key), nzchar(key))
 
-    archive <- rv_retter_arkiv()
+    next_catalog <- recipe_catalog_current()
+    archive <- next_catalog$archived_retter
     row_idx <- match(key, archive$key)
     req(!is.na(row_idx))
 
@@ -1609,24 +1770,23 @@ server <- function(input, output, session) {
     archive_new <- archive[-row_idx, , drop = FALSE] |>
       arrange(retter)
 
-    ops <- rv_opskrifter_custom()
+    ops <- next_catalog$recipes
     ops[[key]] <- NULL
 
-    links_new <- rv_links_custom() |>
+    links_new <- next_catalog$links |>
       filter(ret != ret_navn) |>
       arrange(ret)
 
+    next_catalog$archived_retter <- archive_new
+    next_catalog$recipes <- ops
+    next_catalog$links <- links_new
+
     saved <- commit_recipe_store_change(
-      archived_retter = archive_new,
-      links = links_new,
+      next_catalog,
       delete_recipe_keys = key,
       error_message = "Retten kunne ikke slettes permanent."
     )
     if (!saved) return(invisible(NULL))
-
-    rv_retter_arkiv(archive_new)
-    rv_opskrifter_custom(ops)
-    rv_links_custom(links_new)
 
     hide(id = "popup_ret_slet_permanent_bekraeft", anim = TRUE, animType = "fade")
     rv_recipePermanentDeleteState$key <- NULL
@@ -1643,14 +1803,14 @@ server <- function(input, output, session) {
     key <- input$opskrift_valgt_key
     req(!is.null(key), nzchar(key))
 
-    ops_local <- rv_opskrifter_custom()
-    active_retter <- active_recipe_rows(rv_retter_custom(), names(ops_local))
+    ops_local <- recipes_current()
+    active_retter <- active_recipe_rows(active_recipes_current(), names(ops_local))
     req(key %in% active_retter$key, key %in% names(ops_local))
 
     df <- ops_local[[key]]
     ret_navn <- names(df)[1]
 
-    links_df <- rv_links_custom()
+    links_df <- recipe_links_current()
     link_url <- links_df$link[links_df$ret == ret_navn]
     link_url <- if (length(link_url) > 0) link_url[1] else ""
 
@@ -1754,12 +1914,12 @@ server <- function(input, output, session) {
   })
 
   output$opskrifter_ui <- renderUI({
-    ops_local <- rv_opskrifter_custom()
-    active_retter <- active_recipe_rows(rv_retter_custom(), names(ops_local))
+    ops_local <- recipes_current()
+    active_retter <- active_recipe_rows(active_recipes_current(), names(ops_local))
 
     keys <- active_retter$key
     titler <- active_retter$retter
-    archive <- rv_retter_arkiv()
+    archive <- archived_recipes_current()
 
     archive_ui <- NULL
     if (nrow(archive) > 0) {

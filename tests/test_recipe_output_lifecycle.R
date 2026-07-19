@@ -47,7 +47,8 @@ shiny::testServer(server, {
   session$setInputs(cancel_opskrift_row = 1)
   stopifnot(
     is.null(rv_recipeEditState$key),
-    is.null(rv_recipeEditState$row)
+    is.null(rv_recipeEditState$row),
+    is.null(rv_recipeEditState$revision)
   )
 
   session$setInputs(
@@ -106,17 +107,44 @@ shiny::testServer(server, {
     'Er du sikker paa, at du vil arkivere "Carbonara"?'
   ))
 
-  rv_retter_arkiv(data.frame(
+  catalog_with_archive <- recipe_catalog_current()
+  catalog_with_archive$archived_retter <- data.frame(
     retter = "Arkivtest",
     key = "arkivtest_opskr",
     type = "vegetar",
     stringsAsFactors = FALSE
-  ))
+  )
+  publish_recipe_catalog(catalog_with_archive)
   session$setInputs(delete_archived_ret = "arkivtest_opskr")
   stopifnot(identical(
     output$ret_permanent_delete_context,
     'Er du sikker paa, at du vil slette "Arkivtest" permanent?'
   ))
+
+  replacement_catalog <- recipe_catalog_current()
+  replacement_catalog$recipes[["burger_opskr"]][[1]][[1]] <-
+    "opdateret oksekød"
+  replacement_catalog$recipes[["burger_opskr"]]$maengde[[1]] <- 0.2
+  replacement_catalog$links <- dplyr::bind_rows(
+    dplyr::filter(replacement_catalog$links, ret != "Burger"),
+    data.frame(
+      ret = "Burger",
+      link = "https://example.com/opdateret-burger",
+      stringsAsFactors = FALSE
+    )
+  )
+  replacement_catalog$revision <- "replacement-revision"
+  publish_recipe_catalog(replacement_catalog)
+
+  updated_burger_model <- selected_recipe_model()
+  updated_burger_table <- selected_recipe_table_model()
+  stopifnot(
+    updated_burger_model$df[[1]][[1]] == "opdateret oksekød",
+    updated_burger_model$link_url ==
+      "https://example.com/opdateret-burger",
+    updated_burger_table$rows$Ingrediens[[1]] ==
+      "0.2 kg opdateret oksekød"
+  )
 
   session$setInputs(opskrift_valgt_key = "tortellini_opskr")
   tortellini_model <- selected_recipe_model()
@@ -139,6 +167,30 @@ shiny::testServer(server, {
   tortellini_table <- output$opskrift_tbl_valgt
   stopifnot(is.character(tortellini_table), length(tortellini_table) == 1)
   stopifnot(grepl("<th>Ingrediens", tortellini_table, fixed = TRUE))
+
+  catalog_without_burger <- recipe_catalog_current()
+  catalog_without_burger$active_retter <- dplyr::filter(
+    catalog_without_burger$active_retter,
+    key != "burger_opskr"
+  )
+  catalog_without_burger$revision <- "inactive-burger-revision"
+  publish_recipe_catalog(catalog_without_burger)
+  session$flushReact()
+
+  recipes_ui <- output$opskrifter_ui
+  recipes_ui_html <- if (
+    is.list(recipes_ui) &&
+      !is.null(recipes_ui$html)
+  ) {
+    recipes_ui$html
+  } else {
+    paste(as.character(recipes_ui), collapse = "")
+  }
+  stopifnot(
+    !"burger_opskr" %in% active_recipes_current()$key,
+    !grepl("Burger", recipes_ui_html, fixed = TRUE),
+    grepl("Tortellini", recipes_ui_html, fixed = TRUE)
+  )
 })
 
 message("Opskriftsoutputs følger den aktuelle state uden genregistrering.")
