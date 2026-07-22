@@ -1,17 +1,16 @@
 suppressPackageStartupMessages(source("app.R", encoding = "UTF-8"))
 
+recipe_ns <- shiny::NS("opskrifter")
+
+set_recipe_inputs <- function(session, ...) {
+  values <- list(...)
+  names(values) <- recipe_ns(names(values))
+  do.call(session$setInputs, values)
+}
+
 initialize_recipe_test_inputs <- function(session) {
-  session$setInputs(
-    ret = "",
-    pers = 2,
-    salat = "",
-    tilbehor = "",
-    basis_varer = "agurk",
-    basis_varer_manuel = "agurk",
-    menu_type = "Alle",
-    date_from = Sys.Date() - 30,
-    date_to = Sys.Date(),
-    top_n = 5,
+  set_recipe_inputs(
+    session,
     opskrift_valgt_key = "burger_opskr"
   )
 }
@@ -58,10 +57,11 @@ run_recipe_store_integration_tests <- function() {
       "burger_opskr" %in% names(catalog_before$recipes)
     )
 
-    session$setInputs(
+    set_recipe_inputs(
+      session,
       opskrift_archivePressed = list(key = "burger_opskr", nonce = 1L)
     )
-    session$setInputs(confirm_delete_ret = 1L)
+    set_recipe_inputs(session, confirm_delete_ret = 1L)
 
     catalog_archived <- recipe_catalog_current()
     stopifnot(
@@ -81,7 +81,7 @@ run_recipe_store_integration_tests <- function() {
       length(commit_calls[[1]]$delete_recipe_keys) == 0L
     )
 
-    session$setInputs(restore_ret = "burger_opskr")
+    set_recipe_inputs(session, restore_ret = "burger_opskr")
     catalog_restored <- recipe_catalog_current()
     stopifnot(
       "burger_opskr" %in% catalog_restored$active_retter$key,
@@ -101,12 +101,13 @@ run_recipe_store_integration_tests <- function() {
     )
     publish_recipe_catalog(catalog_with_link)
 
-    session$setInputs(
+    set_recipe_inputs(
+      session,
       opskrift_archivePressed = list(key = "burger_opskr", nonce = 2L)
     )
-    session$setInputs(confirm_delete_ret = 2L)
-    session$setInputs(delete_archived_ret = "burger_opskr")
-    session$setInputs(confirm_delete_archived_ret = 1L)
+    set_recipe_inputs(session, confirm_delete_ret = 2L)
+    set_recipe_inputs(session, delete_archived_ret = "burger_opskr")
+    set_recipe_inputs(session, confirm_delete_archived_ret = 1L)
 
     purge_call <- commit_calls[[length(commit_calls)]]
     catalog_purged <- recipe_catalog_current()
@@ -136,16 +137,25 @@ run_recipe_store_integration_tests <- function() {
 
     catalog_before <- recipe_catalog_current()
 
-    session$setInputs(
+    set_recipe_inputs(
+      session,
       opskrift_archivePressed = list(key = "burger_opskr", nonce = 3L)
     )
     fail_next_commit <<- TRUE
-    session$setInputs(confirm_delete_ret = 1L)
+    set_recipe_inputs(session, confirm_delete_ret = 1L)
 
     stopifnot(
       identical(recipe_catalog_current(), catalog_before),
-      identical(rv_recipeArchiveState$key, "burger_opskr"),
       length(commit_calls) == calls_before_failure
+    )
+
+    set_recipe_inputs(session, confirm_delete_ret = 2L)
+
+    catalog_after_retry <- recipe_catalog_current()
+    stopifnot(
+      !"burger_opskr" %in% catalog_after_retry$active_retter$key,
+      "burger_opskr" %in% catalog_after_retry$archived_retter$key,
+      length(commit_calls) == calls_before_failure + 1L
     )
   })
 
@@ -153,10 +163,11 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    session$setInputs(
+    set_recipe_inputs(
+      session,
       opskrift_editPressed = list(key = "burger_opskr", row = 1L)
     )
-    opened_edit_revision <- rv_recipeEditState$revision
+    opened_edit_revision <- recipe_revision_current()
 
     refreshed_catalog <- recipe_catalog_current()
     refreshed_catalog$recipes[["burger_opskr"]] <-
@@ -170,13 +181,14 @@ run_recipe_store_integration_tests <- function() {
     refreshed_catalog$revision <- "external-edit-revision"
     publish_recipe_catalog(refreshed_catalog)
 
-    session$setInputs(
+    set_recipe_inputs(
+      session,
       opskrift_edit_maengde = 1,
       opskrift_edit_enhed = "kg",
       opskrift_edit_kat1 = "kød",
       opskrift_edit_kat2 = ""
     )
-    session$setInputs(save_opskrift_row = 1L)
+    set_recipe_inputs(session, save_opskrift_row = 1L)
 
     stopifnot(
       !identical(opened_edit_revision, recipe_revision_current()),
@@ -184,10 +196,11 @@ run_recipe_store_integration_tests <- function() {
       length(commit_calls) == calls_before_stale_modal
     )
 
-    session$setInputs(
+    set_recipe_inputs(
+      session,
       opskrift_deletePressed = list(key = "burger_opskr", row = 1L)
     )
-    opened_delete_revision <- rv_recipeDeleteState$revision
+    opened_delete_revision <- recipe_revision_current()
 
     refreshed_again <- recipe_catalog_current()
     refreshed_again$recipes[["burger_opskr"]] <-
@@ -198,7 +211,7 @@ run_recipe_store_integration_tests <- function() {
       ]
     refreshed_again$revision <- "external-delete-revision"
     publish_recipe_catalog(refreshed_again)
-    session$setInputs(confirm_delete_opskrift_row = 1L)
+    set_recipe_inputs(session, confirm_delete_opskrift_row = 1L)
 
     stopifnot(
       !identical(opened_delete_revision, recipe_revision_current()),
@@ -290,12 +303,13 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    session$setInputs(
+    set_recipe_inputs(
+      session,
       ny_ret_navn = "Kanonisk testret",
       ny_ret_type = "vegetar",
       ny_ret_link = "www.example.com"
     )
-    session$setInputs(save_ny_ret = 1L)
+    set_recipe_inputs(session, save_ny_ret = 1L)
 
     created_catalog <- recipe_catalog_current()
     create_call <- commit_calls[[length(commit_calls)]]
@@ -331,8 +345,8 @@ run_recipe_store_integration_tests <- function() {
     )
     publish_recipe_catalog(catalog_with_ghost)
 
-    session$setInputs(delete_archived_ret = "manglende_opskr")
-    session$setInputs(confirm_delete_archived_ret = 1L)
+    set_recipe_inputs(session, delete_archived_ret = "manglende_opskr")
+    set_recipe_inputs(session, confirm_delete_archived_ret = 1L)
 
     purged_catalog <- recipe_catalog_current()
     purge_call <- commit_calls[[length(commit_calls)]]

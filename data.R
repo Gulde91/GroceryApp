@@ -1,11 +1,3 @@
-
-## OPSKRIFTSLAGER ----
-recipe_store_data <- recipe_store_read("./data")
-retter <- recipe_store_data$active_retter
-retter_arkiv <- recipe_store_data$archived_retter
-opskrifter <- recipe_store_data$recipes
-links <- recipe_store_data$links
-
 # TILBEHØR ----
 tilbehor <- tibble::tribble(
   ~"Indkobsliste", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
@@ -102,15 +94,3 @@ salater_opskrifter <- list(
   boenne_salat_opskr = boenne_salat_opskr,
   groenne_boenner_opskr = groenne_boenner_opskr
 )
-
-# opskrifter ----
-opskrift_df <- c(opskrifter, salater_opskrifter) |> 
-  lapply(function(x) {names(x)[1] <- "Indkobsliste"; return(x)}) |> 
-  dplyr::bind_rows() |> 
-  dplyr::arrange(Indkobsliste) |> 
-  dplyr::mutate(maengde = 1) |> 
-  dplyr::distinct()
-
-# kategorier ----
-kategori_1 <- map_df(opskrifter, ~select(.x, kat_1))$kat_1 |> unique() |> sort()
-kategori_2 <- map_df(opskrifter, ~select(.x, kat_2))$kat_2 |> unique() |> sort()

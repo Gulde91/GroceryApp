@@ -1,4 +1,18 @@
-app_expressions <- parse("app.R", encoding = "UTF-8")
+server_source_files <- c(
+  app = "app.R",
+  opskrifter = "recipe_module.R",
+  varer = "varer_module.R",
+  indkobsseddel = "indkobsseddel_module.R",
+  inspiration = "inspiration_module.R"
+)
+
+server_function_names <- c(
+  app = "server",
+  opskrifter = "mod_opskrifter_server",
+  varer = "mod_varer_server",
+  indkobsseddel = "mod_indkobsseddel_server",
+  inspiration = "mod_inspiration_server"
+)
 
 is_assignment <- function(node) {
   is.call(node) &&
@@ -6,18 +20,31 @@ is_assignment <- function(node) {
     as.character(node[[1]]) %in% c("<-", "=")
 }
 
-server_assignments <- Filter(
-  function(node) {
-    is_assignment(node) &&
-      is.symbol(node[[2]]) &&
-      identical(as.character(node[[2]]), "server")
-  },
-  as.list(app_expressions)
-)
+find_server_function <- function(source_file, function_name) {
+  expressions <- parse(source_file, encoding = "UTF-8")
+  assignments <- Filter(
+    function(node) {
+      is_assignment(node) &&
+        is.symbol(node[[2]]) &&
+        identical(as.character(node[[2]]), function_name)
+    },
+    as.list(expressions)
+  )
 
-stopifnot(length(server_assignments) == 1)
-server_function <- server_assignments[[1]][[3]]
-stopifnot(is.call(server_function), identical(as.character(server_function[[1]]), "function"))
+  stopifnot(length(assignments) == 1)
+  server_function <- assignments[[1]][[3]]
+  stopifnot(
+    is.call(server_function),
+    identical(as.character(server_function[[1]]), "function")
+  )
+  server_function
+}
+
+server_functions <- Map(
+  find_server_function,
+  unname(server_source_files),
+  unname(server_function_names)
+)
 
 call_name <- function(node) {
   if (!is.call(node)) return("")
@@ -94,7 +121,244 @@ walk_server_ast <- function(node, inside_reactive_registration = FALSE) {
   invisible(NULL)
 }
 
-walk_server_ast(server_function[[3]])
+for (server_function in server_functions) {
+  walk_server_ast(server_function[[3]])
+}
+
+count_function_definitions <- function(node) {
+  if (!is.call(node)) return(0L)
+
+  own_count <- as.integer(identical(call_name(node), "function"))
+  if (length(node) == 1) return(own_count)
+
+  own_count + sum(vapply(
+    as.list(node)[-1],
+    count_function_definitions,
+    integer(1)
+  ))
+}
+
+nested_module_functions <- vapply(
+  server_functions[-1L],
+  function(module_server_function) {
+    count_function_definitions(module_server_function[[3]])
+  },
+  integer(1)
+)
+
+module_lines <- readLines("recipe_module.R", encoding = "UTF-8")
+module_expressions <- parse("recipe_module.R", encoding = "UTF-8")
+top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  module_lines
+)
+all_module_function_definitions <- sum(vapply(
+  as.list(module_expressions),
+  count_function_definitions,
+  integer(1)
+))
+
+has_roxygen_documentation <- vapply(
+  top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", module_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+
+required_module_libraries <- c(
+  "shiny",
+  "shinyMobile",
+  "shinyjs",
+  "dplyr",
+  "purrr",
+  "DT",
+  "htmltools",
+  "stats"
+)
+module_library_lines <- trimws(grep(
+  "^library\\(",
+  module_lines,
+  value = TRUE
+))
+loaded_module_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  module_library_lines
+)
+
+varer_module_lines <- readLines("varer_module.R", encoding = "UTF-8")
+varer_module_expressions <- parse(
+  "varer_module.R",
+  encoding = "UTF-8"
+)
+varer_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  varer_module_lines
+)
+all_varer_module_function_definitions <- sum(vapply(
+  as.list(varer_module_expressions),
+  count_function_definitions,
+  integer(1)
+))
+
+varer_has_roxygen_documentation <- vapply(
+  varer_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", varer_module_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+
+required_varer_module_libraries <- c(
+  "shiny",
+  "shinyMobile",
+  "shinyjs",
+  "dplyr",
+  "DT",
+  "htmltools",
+  "stats"
+)
+varer_module_library_lines <- trimws(grep(
+  "^library\\(",
+  varer_module_lines,
+  value = TRUE
+))
+loaded_varer_module_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  varer_module_library_lines
+)
+
+indkobsseddel_module_lines <- readLines(
+  "indkobsseddel_module.R",
+  encoding = "UTF-8"
+)
+indkobsseddel_module_expressions <- parse(
+  "indkobsseddel_module.R",
+  encoding = "UTF-8"
+)
+indkobsseddel_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  indkobsseddel_module_lines
+)
+all_indkobsseddel_module_function_definitions <- sum(vapply(
+  as.list(indkobsseddel_module_expressions),
+  count_function_definitions,
+  integer(1)
+))
+
+indkobsseddel_has_roxygen_documentation <- vapply(
+  indkobsseddel_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl(
+        "^#'",
+        indkobsseddel_module_lines[[line_number - 1L]]
+      )
+  },
+  logical(1)
+)
+
+required_indkobsseddel_module_libraries <- c(
+  "htmltools",
+  "DT",
+  "shiny",
+  "shinyMobile",
+  "dplyr",
+  "shinyjs"
+)
+indkobsseddel_module_library_lines <- trimws(grep(
+  "^library\\(",
+  indkobsseddel_module_lines,
+  value = TRUE
+))
+loaded_indkobsseddel_module_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  indkobsseddel_module_library_lines
+)
+
+inspiration_module_lines <- readLines(
+  "inspiration_module.R",
+  encoding = "UTF-8"
+)
+inspiration_module_expressions <- parse(
+  "inspiration_module.R",
+  encoding = "UTF-8"
+)
+inspiration_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  inspiration_module_lines
+)
+all_inspiration_module_function_definitions <- sum(vapply(
+  as.list(inspiration_module_expressions),
+  count_function_definitions,
+  integer(1)
+))
+inspiration_has_roxygen_documentation <- vapply(
+  inspiration_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", inspiration_module_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+required_inspiration_module_libraries <- c(
+  "shiny",
+  "shinyMobile",
+  "dplyr",
+  "ggplot2",
+  "forcats",
+  "wordcloud2"
+)
+inspiration_module_library_lines <- trimws(grep(
+  "^library\\(",
+  inspiration_module_lines,
+  value = TRUE
+))
+loaded_inspiration_module_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  inspiration_module_library_lines
+)
+
+app_lines <- readLines("app.R", encoding = "UTF-8")
+reference_data_lines <- readLines("data.R", encoding = "UTF-8")
+legacy_reference_data_patterns <- c(
+  "recipe_store_read[[:space:]]*\\(",
+  "^[[:space:]]*recipe_store_data[[:space:]]*<-",
+  "^[[:space:]]*retter[[:space:]]*<-",
+  "^[[:space:]]*retter_arkiv[[:space:]]*<-",
+  "^[[:space:]]*opskrifter[[:space:]]*<-",
+  "^[[:space:]]*links[[:space:]]*<-",
+  "^[[:space:]]*opskrift_df[[:space:]]*<-",
+  "^[[:space:]]*kategori_1[[:space:]]*<-",
+  "^[[:space:]]*kategori_2[[:space:]]*<-"
+)
+old_indkobsseddel_root_patterns <- c(
+  "reactiveVal\\(new_cart_state\\(",
+  "output\\$opskrift[[:space:]]*<-",
+  "output\\$indkobsseddel[[:space:]]*<-",
+  "output\\$tidl_kob[[:space:]]*<-",
+  "input\\$add_opskrift",
+  "input\\$add_varer",
+  "input\\$add_varer_manuel",
+  "input\\$deletePressed",
+  "input\\$gem_indkobsseddel",
+  "rv_cart"
+)
+old_inspiration_root_patterns <- c(
+  "output\\$wordcloud_retter[[:space:]]*<-",
+  "output\\$opskrifter_statistik_plot[[:space:]]*<-",
+  "input\\$menu_type",
+  "input\\$date_from",
+  "input\\$date_to",
+  "input\\$top_n",
+  "opskrifter_statistik[[:space:]]*<-[[:space:]]*reactive"
+)
 
 expected_top_level_outputs <- c(
   "opskrift_edit_context",
@@ -102,10 +366,140 @@ expected_top_level_outputs <- c(
   "opskrift_delete_context",
   "ret_delete_context",
   "ret_permanent_delete_context",
-  "opskrift_tbl_valgt"
+  "opskrift_tbl_valgt",
+  "opskrifter_ui",
+  "valgt_opskrift_ui",
+  "varer_tbl",
+  "recipe_preview",
+  "cart_table",
+  "history_suggestions",
+  "wordcloud_retter",
+  "opskrifter_statistik_plot"
 )
 
 stopifnot(length(nested_output_assignments) == 0)
 stopifnot(all(expected_top_level_outputs %in% all_output_assignments))
+stopifnot(all(nested_module_functions == 0L))
+stopifnot(
+  !any(vapply(
+    legacy_reference_data_patterns,
+    function(pattern) any(grepl(pattern, reference_data_lines)),
+    logical(1)
+  )),
+  !any(grepl("kategori_[12]", app_lines))
+)
+stopifnot(
+  any(grepl(
+    'source\\("\\./indkobsseddel_module\\.R"\\)',
+    app_lines
+  )),
+  any(grepl("mod_indkobsseddel_ui", app_lines, fixed = TRUE)),
+  any(grepl("mod_indkobsseddel_dialogs_ui", app_lines, fixed = TRUE)),
+  any(grepl("mod_indkobsseddel_server", app_lines, fixed = TRUE)),
+  !any(vapply(
+    old_indkobsseddel_root_patterns,
+    function(pattern) any(grepl(pattern, app_lines)),
+    logical(1)
+  ))
+)
+stopifnot(
+  any(grepl(
+    'source\\("\\./inspiration_module\\.R"\\)',
+    app_lines
+  )),
+  any(grepl("mod_inspiration_ui", app_lines, fixed = TRUE)),
+  any(grepl("mod_inspiration_filters_ui", app_lines, fixed = TRUE)),
+  any(grepl("mod_inspiration_server", app_lines, fixed = TRUE)),
+  !any(vapply(
+    old_inspiration_root_patterns,
+    function(pattern) any(grepl(pattern, app_lines)),
+    logical(1)
+  ))
+)
+stopifnot(length(top_level_function_lines) > 0L)
+stopifnot(all_module_function_definitions == length(top_level_function_lines))
+stopifnot(all(has_roxygen_documentation))
+stopifnot(!any(grepl("::", module_lines, fixed = TRUE)))
+stopifnot(all(required_module_libraries %in% loaded_module_libraries))
+stopifnot(
+  match("stats", loaded_module_libraries) <
+    match("dplyr", loaded_module_libraries),
+  match("htmltools", loaded_module_libraries) <
+    match("shiny", loaded_module_libraries),
+  match("DT", loaded_module_libraries) <
+    match("shiny", loaded_module_libraries),
+  match("shiny", loaded_module_libraries) <
+    match("shinyjs", loaded_module_libraries)
+)
+stopifnot(length(varer_top_level_function_lines) > 0L)
+stopifnot(
+  all_varer_module_function_definitions ==
+    length(varer_top_level_function_lines)
+)
+stopifnot(all(varer_has_roxygen_documentation))
+stopifnot(!any(grepl("::", varer_module_lines, fixed = TRUE)))
+stopifnot(
+  all(
+    required_varer_module_libraries %in%
+      loaded_varer_module_libraries
+  )
+)
+stopifnot(
+  match("stats", loaded_varer_module_libraries) <
+    match("dplyr", loaded_varer_module_libraries),
+  match("htmltools", loaded_varer_module_libraries) <
+    match("shiny", loaded_varer_module_libraries),
+  match("DT", loaded_varer_module_libraries) <
+    match("shiny", loaded_varer_module_libraries),
+  match("shiny", loaded_varer_module_libraries) <
+    match("shinyjs", loaded_varer_module_libraries)
+)
+stopifnot(length(indkobsseddel_top_level_function_lines) > 0L)
+stopifnot(
+  all_indkobsseddel_module_function_definitions ==
+    length(indkobsseddel_top_level_function_lines)
+)
+stopifnot(all(indkobsseddel_has_roxygen_documentation))
+stopifnot(
+  !any(
+    grepl(
+      "::",
+      indkobsseddel_module_lines,
+      fixed = TRUE
+    )
+  )
+)
+stopifnot(
+  all(
+    required_indkobsseddel_module_libraries %in%
+      loaded_indkobsseddel_module_libraries
+  )
+)
+stopifnot(
+  match("htmltools", loaded_indkobsseddel_module_libraries) <
+    match("shiny", loaded_indkobsseddel_module_libraries),
+  match("DT", loaded_indkobsseddel_module_libraries) <
+    match("shiny", loaded_indkobsseddel_module_libraries),
+  match("shiny", loaded_indkobsseddel_module_libraries) <
+    match("shinyjs", loaded_indkobsseddel_module_libraries)
+)
+stopifnot(length(inspiration_top_level_function_lines) > 0L)
+stopifnot(
+  all_inspiration_module_function_definitions ==
+    length(inspiration_top_level_function_lines)
+)
+stopifnot(all(inspiration_has_roxygen_documentation))
+stopifnot(!any(grepl("::", inspiration_module_lines, fixed = TRUE)))
+stopifnot(
+  all(
+    required_inspiration_module_libraries %in%
+      loaded_inspiration_module_libraries
+  )
+)
 
-message("Alle Shiny-outputs registreres uden for observers, reactives og render-funktioner.")
+message(paste(
+  "Opskrifts-, vare-, indkøbsseddel- og inspirationsmodulerne har",
+  "dokumenterede",
+  "topniveau-funktioner,",
+  "ingen nested funktioner, ingen ::-kald og ingen nested outputs."
+))
