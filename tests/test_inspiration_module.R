@@ -1,12 +1,12 @@
 suppressPackageStartupMessages({
+  source("shopping_history_store.R", encoding = "UTF-8")
   source("inspiration_module.R", encoding = "UTF-8")
 })
 
 inspiration_test_server <- function(
   id,
   active_recipes_current,
-  history_reader,
-  history_dir,
+  history_current,
   today
 ) {
   moduleServer(id, function(input, output, session) {
@@ -15,19 +15,10 @@ inspiration_test_server <- function(
       output = output,
       session = session,
       active_recipes_current = active_recipes_current,
-      history_reader = history_reader,
-      history_dir = history_dir,
+      history_current = history_current,
       today = today
     )
   })
-}
-
-inspiration_test_history_reader <- function(alle_retter, history_dir) {
-  data.frame(
-    retter = alle_retter,
-    dato = rep(as.Date("2026-06-01"), length(alle_retter)),
-    stringsAsFactors = FALSE
-  )
 }
 
 inspiration_expect_error <- function(expression, pattern) {
@@ -133,104 +124,26 @@ run_inspiration_module_tests <- function() {
     "kolonnerne 'retter' og 'type'"
   )
 
-  # Historiklæsningen bruger udelukkende en frisk temp-mappe. Fixtures dækker
-  # både persontekst, kolon, m.-tekst, flere filer og specialtegn i retten.
-  history_dir <- tempfile("inspiration-history-")
-  dir.create(history_dir)
-  on.exit(unlink(history_dir, recursive = TRUE, force = TRUE), add = TRUE)
-
-  df <- data.frame(
+  # Modulet modtager allerede validerede historikrækker fra det fælles store.
+  # Filindlæsning og fortolkning af opskriftsoverskrifter testes derfor dér.
+  history_entries <- data.frame(
+    filename = c(
+      "indkobsseddel_20260601.rda",
+      "indkobsseddel_20260601.rda",
+      "indkobsseddel_20260608.rda1"
+    ),
+    date = as.Date(c("2026-06-01", "2026-06-01", "2026-06-08")),
+    line_number = c(1L, 2L, 1L),
     Indkøbsliste = c(
       "Burger (til 2 pers.):",
       "500 gram oksekød",
-      "Pasta (special) (til 4 pers.): m. pesto",
-      "Pizza surdej (til 2 pers.):",
-      "C++ gryde (til 2 pers.):",
-      "Burgerboller (til 2 pers.):",
-      "Ukendt ret (til 2 pers.):"
+      "Burger (til 3 pers.):"
     ),
     stringsAsFactors = FALSE
   )
-  save(df, file = file.path(history_dir, "indkobsseddel_20260601.rda"))
-
-  df <- data.frame(
-    Indkøbsliste = c(
-      "Burger (til 3 pers.):",
-      "3 stk boller"
-    ),
-    stringsAsFactors = FALSE
-  )
-  save(df, file = file.path(history_dir, "indkobsseddel_20260608.rda1"))
-
-  # En uvedkommende fil skal ignoreres.
-  df <- data.frame(Indkøbsliste = "Tortellini (til 2 pers.):")
-  save(df, file = file.path(history_dir, "anden_fil.rda"))
-
-  # Matchende, men defekte filer skal kun springes over. De må ikke blokere
-  # statistik fra de gyldige historikfiler.
-  not_df <- "mangler historikobjektet"
-  save(
-    not_df,
-    file = file.path(history_dir, "indkobsseddel_20260615.rda")
-  )
-  df <- data.frame(Indkøbsliste = "Burger (til 2 pers.):")
-  save(df, file = file.path(history_dir, "indkobsseddel_20261399.rda"))
-
-  extracted <- find_retter(
-    "indkobsseddel_20260601.rda",
-    c(
-      "Burger",
-      "Pasta (special)",
-      "Pizza",
-      "Pizza surdej",
-      "C++ gryde",
-      "Tortellini"
-    ),
-    history_dir
-  )
-  stopifnot(identical(
-    extracted,
-    c("Burger", "Pasta (special)", "Pizza surdej", "C++ gryde")
-  ))
-
-  history <- brugte_opskrifter(
-    c(
-      "Burger",
-      "Pasta (special)",
-      "Pizza",
-      "Pizza surdej",
-      "C++ gryde",
-      "Tortellini"
-    ),
-    history_dir
-  )
-  expected_history <- data.frame(
-    retter = c(
-      "Burger",
-      "Burger",
-      "C++ gryde",
-      "Pasta (special)",
-      "Pizza surdej"
-    ),
-    dato = as.Date(c(
-      "2026-06-01",
-      "2026-06-08",
-      "2026-06-01",
-      "2026-06-01",
-      "2026-06-01"
-    )),
-    stringsAsFactors = FALSE
-  )
-  stopifnot(identical(history, expected_history))
-  stopifnot(
-    identical(
-      brugte_opskrifter(character(), history_dir),
-      inspiration_empty_history()
-    ),
-    identical(
-      brugte_opskrifter("Burger", file.path(history_dir, "findes-ikke")),
-      inspiration_empty_history()
-    )
+  history <- shopping_history_recipe_usage(
+    history_entries,
+    active_fixture$retter
   )
 
   # Statistikplottet viser de hyppigste retter og giver en tydelig besked for
@@ -267,15 +180,15 @@ run_inspiration_module_tests <- function() {
     "top_n skal være ét positivt heltal."
   )
 
-  # Serveren modtager kataloget gennem en getter. Når getterens state ændres,
-  # afspejler de read-only getters straks de nye data uden en lokal kopi.
+  # Serveren modtager både katalog og historik gennem getters. Når historikken
+  # ændres, skal statistikken genberegnes straks uden genstart af modulet.
   active_state <- reactiveVal(active_fixture)
+  history_state <- reactiveVal(history_entries)
   testServer(
     inspiration_test_server,
     args = list(
       active_recipes_current = active_state,
-      history_reader = inspiration_test_history_reader,
-      history_dir = history_dir,
+      history_current = history_state,
       today = function() as.Date("2026-07-21")
     ),
     {
@@ -291,10 +204,33 @@ run_inspiration_module_tests <- function() {
           "Tortellini"
         ),
         identical(
-          module_api$recipe_statistics()$retter,
-          active_fixture$retter
+          module_api$recipe_statistics(),
+          shopping_history_recipe_usage(
+            history_entries,
+            active_fixture$retter
+          )
         )
       )
+
+      next_history <- rbind(
+        history_entries,
+        data.frame(
+          filename = "indkobsseddel_20260615.rda",
+          date = as.Date("2026-06-15"),
+          line_number = 1L,
+          Indkøbsliste = "Tortellini (til 2 pers.):",
+          stringsAsFactors = FALSE
+        )
+      )
+      history_state(next_history)
+      session$flushReact()
+      stopifnot(identical(
+        module_api$recipe_statistics(),
+        shopping_history_recipe_usage(
+          next_history,
+          active_fixture$retter
+        )
+      ))
 
       next_fixture <- rbind(
         active_fixture,
@@ -313,8 +249,11 @@ run_inspiration_module_tests <- function() {
           c("Tortellini", "Bønnesalat")
         ),
         identical(
-          module_api$recipe_statistics()$retter,
-          next_fixture$retter
+          module_api$recipe_statistics(),
+          shopping_history_recipe_usage(
+            next_history,
+            next_fixture$retter
+          )
         ),
         identical(
           names(module_api),

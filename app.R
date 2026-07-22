@@ -8,6 +8,7 @@ library(shinyjs)
 
 source("./recipe_store.R")
 source("./basis_varer_store.R")
+source("./shopping_history_store.R")
 source("./data.R")
 source("./funktioner.R")
 source("./varer_module.R")
@@ -91,10 +92,13 @@ ui <- f7Page(
 server <- function(input, output, session) {
 
   # Sætter reaktive værdier ----
+  history_dir <- "./data/indkobssedler"
   initial_recipe_store <- recipe_store_read("./data")
   initial_basis_varer_store <- basis_varer_store_read("./data")
+  initial_history_store <- shopping_history_store_read(history_dir)
   rv_recipeCatalog <- reactiveVal(initial_recipe_store)
   rv_basisVarerStore <- reactiveVal(initial_basis_varer_store)
+  rv_historyStore <- reactiveVal(initial_history_store)
   rv_recipeCatalogSignals <- reactiveValues(
     recipes = 0L,
     links = 0L,
@@ -104,6 +108,10 @@ server <- function(input, output, session) {
   )
   rv_varer_custom <- reactive({
     rv_basisVarerStore()$varer
+  })
+
+  history_current <- reactive({
+    rv_historyStore()$entries
   })
 
   # Hele opskriftskataloget har én reaktiv datakilde. Signalerne indeholder
@@ -330,6 +338,17 @@ server <- function(input, output, session) {
     varer_all_current = rv_varer,
     commit_varer = commit_basis_varer_change
   )
+
+  # Historiklageret returnerer først et nyt komplet snapshot, når filen er
+  # gemt. Begge historikforbrugere ser derfor samme opdatering på én gang.
+  commit_shopping_history <- function(history_df) {
+    next_snapshot <- shopping_history_store_save(
+      history_df,
+      history_dir = history_dir
+    )
+    rv_historyStore(next_snapshot)
+    TRUE
+  }
   
   # Opskriftsmodulet gemmer gennem root, så katalogets kanoniske state
   # og persistens fortsat har ét ansvarligt sted.
@@ -435,13 +454,17 @@ server <- function(input, output, session) {
   )
 
   popular_items_current <- reactive({
-    mest_brugte_varer(rv_varer()$enhed)
+    shopping_history_popular_items(
+      history_current(),
+      rv_varer()$enhed
+    )
   })
 
-  callModule(
+  inspiration_api <- callModule(
     mod_inspiration_server,
     "inspiration",
-    active_recipes_current = active_recipes_current
+    active_recipes_current = active_recipes_current,
+    history_current = history_current
   )
 
   indkobsseddel_api <- callModule(
@@ -449,7 +472,7 @@ server <- function(input, output, session) {
     "indkobsseddel",
     recipe_read = recipe_catalog_read,
     varer_current = rv_varer,
-    save_cart = indkobsseddel_save_history,
+    save_cart = commit_shopping_history,
     popular_items = popular_items_current
   )
 

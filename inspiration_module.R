@@ -98,19 +98,18 @@ mod_inspiration_filters_ui <- function(id) {
 
 #' Kør serverlogikken til fanen Inspiration
 #'
-#' Modulet læser de aktive opskrifter gennem en read-only getter. Det ejer
-#' dermed ingen kopi af opskriftskataloget og kan ikke ændre katalogets state.
-#' Historiklæseren og historikmappen kan udskiftes i tests, så serveren ikke
-#' behøver adgang til appens rigtige datafiler.
+#' Modulet læser både aktive opskrifter og indkøbshistorik gennem read-only
+#' getters. Det ejer dermed ingen lokal kopi af data og behøver ikke kende
+#' placeringen eller formatet på historikfilerne.
 #'
 #' @param input Modulets namespacede Shiny-input.
 #' @param output Modulets namespacede Shiny-output.
 #' @param session Modulets Shiny-session.
 #' @param active_recipes_current Read-only getter, der returnerer de aktuelle
 #'   aktive retter som en data frame med kolonnerne `retter` og `type`.
-#' @param history_reader Funktion, der modtager `alle_retter` og `history_dir`
-#'   og returnerer historikken som kolonnerne `retter` og `dato`.
-#' @param history_dir Mappe med de gemte indkøbssedler.
+#' @param history_current Read-only getter, der returnerer den kanoniske
+#'   indkøbshistorik. Hver række beskriver én linje fra en gemt
+#'   indkøbsseddel.
 #' @param today Dagens dato. Kan injiceres i tests for at gøre
 #'   datoinitialiseringen deterministisk.
 #'
@@ -122,15 +121,14 @@ mod_inspiration_server <- function(
   output,
   session,
   active_recipes_current,
-  history_reader = brugte_opskrifter,
-  history_dir = "./data/indkobssedler",
+  history_current,
   today = Sys.Date
 ) {
   if (!is.function(active_recipes_current)) {
     stop("active_recipes_current skal være en read-only getter.", call. = FALSE)
   }
-  if (!is.function(history_reader)) {
-    stop("history_reader skal være en funktion.", call. = FALSE)
+  if (!is.function(history_current)) {
+    stop("history_current skal være en read-only getter.", call. = FALSE)
   }
   if (!is.function(today)) {
     stop("today skal være en funktion.", call. = FALSE)
@@ -161,9 +159,9 @@ mod_inspiration_server <- function(
   })
 
   recipe_statistics <- reactive({
-    history_reader(
-      alle_retter = active_recipes()$retter,
-      history_dir = history_dir
+    shopping_history_recipe_usage(
+      history_current(),
+      active_recipes()$retter
     )
   })
 
@@ -325,262 +323,6 @@ inspiration_wordcloud <- function(recipes) {
     shape = "circle",
     rotateRatio = 0
   )
-}
-
-#' Opret et tomt datasæt til opskriftshistorik
-#'
-#' Den faste kolonnetype gør, at statistikplottet også virker, når der endnu
-#' ikke er gemt nogen indkøbssedler.
-#'
-#' @return En tom data frame med kolonnerne `retter` og `dato`.
-#' @keywords internal
-inspiration_empty_history <- function() {
-  data.frame(
-    retter = character(),
-    dato = as.Date(character()),
-    stringsAsFactors = FALSE
-  )
-}
-
-#' Udtræk brugte opskrifter fra gemte indkøbssedler
-#'
-#' Funktionen gennemgår historikmappen, finder opskriftsoverskrifter i hver
-#' indkøbsseddel og kobler dem til datoen i filnavnet. Mappen er et argument,
-#' så funktionen kan testes sikkert med midlertidige filer.
-#'
-#' @param alle_retter Tegnvektor med navnene på alle aktive retter.
-#' @param history_dir Mappe med filer navngivet som
-#'   `indkobsseddel_YYYYMMDD.rda` eventuelt efterfulgt af et tal.
-#'
-#' @return En data frame med kolonnerne `retter` og `dato`.
-#' @keywords internal
-brugte_opskrifter <- function(
-  alle_retter,
-  history_dir = "./data/indkobssedler"
-) {
-  alle_retter <- unique(trimws(as.character(alle_retter)))
-  alle_retter <- alle_retter[
-    !is.na(alle_retter) & nzchar(alle_retter)
-  ]
-  if (!dir.exists(history_dir)) {
-    return(inspiration_empty_history())
-  }
-
-  files <- list.files(
-    history_dir,
-    pattern = "^indkobsseddel_[0-9]{8}\\.rda[0-9]*$",
-    full.names = FALSE
-  )
-  if (length(files) == 0L || length(alle_retter) == 0L) {
-    return(inspiration_empty_history())
-  }
-
-  rows <- lapply(
-    files,
-    inspiration_history_file_rows_safe,
-    alle_retter = alle_retter,
-    history_dir = history_dir
-  )
-  rows <- Filter(inspiration_has_rows, rows)
-  if (length(rows) == 0L) {
-    return(inspiration_empty_history())
-  }
-
-  result <- bind_rows(rows)
-  result <- result[order(result$retter, result$dato), , drop = FALSE]
-  row.names(result) <- NULL
-  result
-}
-
-#' Læs én historikfil uden at blokere hele inspirationsfanen
-#'
-#' En enkelt gammel eller beskadiget fil skal ikke forhindre statistik fra de
-#' øvrige filer i at blive vist. Fejl i filformat, objektindhold eller dato
-#' omsættes derfor til et tomt udtræk for netop den fil.
-#'
-#' @param filename Filnavnet uden mappesti.
-#' @param alle_retter Tegnvektor med aktive opskriftsnavne.
-#' @param history_dir Mappen som filen ligger i.
-#'
-#' @return Statistikrækker fra filen eller et tomt historikdatasæt.
-#' @keywords internal
-inspiration_history_file_rows_safe <- function(
-  filename,
-  alle_retter,
-  history_dir
-) {
-  tryCatch(
-    inspiration_history_file_rows(
-      filename,
-      alle_retter,
-      history_dir
-    ),
-    error = inspiration_history_file_error
-  )
-}
-
-#' Omsæt en fejl i én historikfil til et tomt udtræk
-#'
-#' Funktionen er en navngivet fejl-callback for den sikre historiklæser.
-#'
-#' @param error Den fangede fejl. Argumentet indgår i callback-kontrakten.
-#'
-#' @return En tom data frame med historikkens faste kolonner.
-#' @keywords internal
-inspiration_history_file_error <- function(error) {
-  inspiration_empty_history()
-}
-
-#' Afgør om et historikudtræk indeholder rækker
-#'
-#' Funktionen bruges som navngivet callback til `Filter`, så
-#' historiklæsningen ikke behøver anonyme hjælpefunktioner.
-#'
-#' @param value Et data frame fra én historikfil.
-#'
-#' @return `TRUE`, når data framen har mindst én række.
-#' @keywords internal
-inspiration_has_rows <- function(value) {
-  is.data.frame(value) && nrow(value) > 0L
-}
-
-#' Udtræk statistik-rækker fra én historikfil
-#'
-#' Opskriftsnavnene findes med `find_retter()`, mens datoen udledes af
-#' filnavnet og gentages for hver fundet ret.
-#'
-#' @param filename Filnavnet uden mappesti.
-#' @param alle_retter Tegnvektor med aktive opskriftsnavne.
-#' @param history_dir Mappen som filen ligger i.
-#'
-#' @return En data frame med fundne retter og filens dato.
-#' @keywords internal
-inspiration_history_file_rows <- function(
-  filename,
-  alle_retter,
-  history_dir
-) {
-  recipes <- find_retter(filename, alle_retter, history_dir)
-  if (length(recipes) == 0L) {
-    return(inspiration_empty_history())
-  }
-
-  data.frame(
-    retter = recipes,
-    dato = rep(inspiration_history_date(filename), length(recipes)),
-    stringsAsFactors = FALSE
-  )
-}
-
-#' Læs datoen fra navnet på en historikfil
-#'
-#' @param filename Et filnavn efter mønsteret
-#'   `indkobsseddel_YYYYMMDD.rda` med et eventuelt løbenummer.
-#'
-#' @return Filens dato som `Date`.
-#' @keywords internal
-inspiration_history_date <- function(filename) {
-  date_text <- sub(
-    "^indkobsseddel_([0-9]{8})\\.rda[0-9]*$",
-    "\\1",
-    basename(filename)
-  )
-  parsed <- as.Date(date_text, format = "%Y%m%d")
-  if (is.na(parsed)) {
-    stop("Historikfilens navn indeholder ikke en gyldig dato.", call. = FALSE)
-  }
-
-  parsed
-}
-
-#' Indlæs indkøbssedlen fra en historikfil
-#'
-#' Filen indlæses i et isoleret miljø, så objektet `df` ikke overskriver
-#' variabler i appens globale miljø.
-#'
-#' @param path Fuld sti til en gemt `.rda`-fil.
-#'
-#' @return En data frame med mindst kolonnen `Indkøbsliste`.
-#' @keywords internal
-inspiration_load_history_frame <- function(path) {
-  loaded <- new.env(parent = emptyenv())
-  load(path, envir = loaded)
-  if (!exists("df", envir = loaded, inherits = FALSE)) {
-    stop("Historikfilen indeholder ikke objektet 'df'.", call. = FALSE)
-  }
-
-  history <- get("df", envir = loaded, inherits = FALSE)
-  if (!is.data.frame(history) || !"Indkøbsliste" %in% names(history)) {
-    stop(
-      "Historikfilens 'df' skal have kolonnen 'Indkøbsliste'.",
-      call. = FALSE
-    )
-  }
-
-  history
-}
-
-#' Find det kanoniske opskriftsnavn i en historiklinje
-#'
-#' `startsWith()` bruges i stedet for et dynamisk regulært udtryk. Dermed
-#' virker opskriftsnavne også, når de indeholder parenteser eller andre tegn,
-#' der ellers har en særlig betydning i regulære udtryk. Ved navne som
-#' `Pizza` og `Pizza surdej` vælges det længste match. Et match accepteres kun
-#' ved en naturlig ordgrænse, så fx `Burgerboller` ikke tælles som `Burger`.
-#'
-#' @param line En tekstlinje fra indkøbssedlen.
-#' @param recipe_names Tegnvektor med kendte opskriftsnavne.
-#'
-#' @return Det matchede opskriftsnavn eller `NA_character_`.
-#' @keywords internal
-inspiration_recipe_name_for_line <- function(line, recipe_names) {
-  if (length(line) != 1L || is.na(line)) return(NA_character_)
-
-  line <- trimws(as.character(line))
-  candidates <- recipe_names[startsWith(line, recipe_names)]
-  if (length(candidates) == 0L) return(NA_character_)
-
-  suffixes <- substring(line, nchar(candidates) + 1L)
-  has_boundary <- !nzchar(suffixes) |
-    grepl("^[[:space:]:\\(]", suffixes)
-  candidates <- candidates[has_boundary]
-  if (length(candidates) == 0L) return(NA_character_)
-
-  candidates[[which.max(nchar(candidates))]]
-}
-
-#' Udtræk retter fra én gemt indkøbsseddel
-#'
-#' Funktionen finder de linjer, der starter med en aktiv ret, og fjerner den
-#' tilføjede persontekst, kolon og eventuel `m.`-beskrivelse. Resultatet er de
-#' rene opskriftsnavne, som kan optælles i statistikplottet.
-#'
-#' @param x Filnavnet på en gemt indkøbsseddel.
-#' @param alle_retter Tegnvektor med alle aktive opskriftsnavne.
-#' @param history_dir Mappen som filen ligger i.
-#'
-#' @return En tegnvektor med de fundne opskriftsnavne.
-#' @keywords internal
-find_retter <- function(
-  x,
-  alle_retter,
-  history_dir = "./data/indkobssedler"
-) {
-  path <- file.path(history_dir, x)
-  history <- inspiration_load_history_frame(path)
-  recipe_names <- unique(trimws(as.character(alle_retter)))
-  recipe_names <- recipe_names[nzchar(recipe_names) & !is.na(recipe_names)]
-  if (length(recipe_names) == 0L || nrow(history) == 0L) {
-    return(character())
-  }
-
-  matches <- vapply(
-    as.character(history$Indkøbsliste),
-    inspiration_recipe_name_for_line,
-    character(1),
-    recipe_names = recipe_names
-  )
-  unname(matches[!is.na(matches)])
 }
 
 #' Tegn et søjlediagram over de mest brugte opskrifter

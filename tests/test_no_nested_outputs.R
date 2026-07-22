@@ -285,6 +285,7 @@ inspiration_module_lines <- readLines(
   "inspiration_module.R",
   encoding = "UTF-8"
 )
+funktioner_lines <- readLines("funktioner.R", encoding = "UTF-8")
 inspiration_module_expressions <- parse(
   "inspiration_module.R",
   encoding = "UTF-8"
@@ -327,6 +328,38 @@ loaded_inspiration_module_libraries <- sub(
 
 app_lines <- readLines("app.R", encoding = "UTF-8")
 reference_data_lines <- readLines("data.R", encoding = "UTF-8")
+history_consumer_lines <- list(
+  funktioner = funktioner_lines,
+  indkobsseddel = indkobsseddel_module_lines,
+  inspiration = inspiration_module_lines
+)
+runtime_files <- c(
+  "app.R",
+  "data.R",
+  "funktioner.R",
+  "cart_state.R",
+  "recipe_store.R",
+  "basis_varer_store.R",
+  "shopping_history_store.R",
+  "recipe_module.R",
+  "varer_module.R",
+  "indkobsseddel_module.R",
+  "inspiration_module.R"
+)
+runtime_lines <- unlist(
+  lapply(runtime_files, readLines, encoding = "UTF-8"),
+  use.names = FALSE
+)
+legacy_history_function_patterns <- c(
+  "mest_brugte_varer",
+  "find_varer",
+  "medtag_kun_varer",
+  "indkobsseddel_save_history"
+)
+direct_history_io_pattern <- paste0(
+  "(^|[^[:alnum:]_.])",
+  "(list\\.files|load|save)[[:space:]]*\\("
+)
 legacy_reference_data_patterns <- c(
   "recipe_store_read[[:space:]]*\\(",
   "^[[:space:]]*recipe_store_data[[:space:]]*<-",
@@ -413,6 +446,22 @@ stopifnot(
   !any(vapply(
     old_inspiration_root_patterns,
     function(pattern) any(grepl(pattern, app_lines)),
+    logical(1)
+  ))
+)
+stopifnot(
+  any(grepl(
+    'source\\("\\./shopping_history_store\\.R"\\)',
+    app_lines
+  )),
+  !any(vapply(
+    legacy_history_function_patterns,
+    function(pattern) any(grepl(pattern, runtime_lines)),
+    logical(1)
+  )),
+  !any(vapply(
+    history_consumer_lines,
+    function(lines) any(grepl(direct_history_io_pattern, lines)),
     logical(1)
   ))
 )

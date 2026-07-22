@@ -774,32 +774,23 @@ run_indkobsseddel_module_tests <- function() {
 
 run_indkobsseddel_module_tests()
 
-# Standard-callbacken bevarer det historiske objekt-navn `df`, men testen
-# skriver udelukkende i en ny mappe under tempdir().
-history_dir <- tempfile("groceryapp-cart-history-")
-dir.create(history_dir)
-history_fixture <- data.frame(
-  Indkøbsliste = c("2 stk Rugbrød", "", "Testret (2 pers.)"),
-  check.names = FALSE,
-  stringsAsFactors = FALSE
+# Modulet må kun kommunikere med historiklageret gennem de injicerede
+# callbacks. Direkte filadgang hører hjemme i det centrale historiklager.
+module_source <- readLines(
+  "indkobsseddel_module.R",
+  warn = FALSE,
+  encoding = "UTF-8"
 )
-stopifnot(
-  isTRUE(
-    indkobsseddel_save_history(
-      history_fixture,
-      history_dir = history_dir
-    )
-  )
+direct_history_file_calls <- c(
+  "\\bsave\\s*\\(",
+  "\\bload\\s*\\(",
+  "\\blist\\.files\\s*\\("
 )
-history_files <- list.files(history_dir, full.names = TRUE)
-history_environment <- new.env(parent = emptyenv())
-loaded_names <- load(history_files[[1L]], envir = history_environment)
-stopifnot(
-  length(history_files) == 1L,
-  identical(loaded_names, "df"),
-  identical(history_environment$df, history_fixture)
-)
-unlink(history_dir, recursive = TRUE, force = TRUE)
+stopifnot(!any(vapply(
+  direct_history_file_calls,
+  function(pattern) any(grepl(pattern, module_source, perl = TRUE)),
+  logical(1)
+)))
 
 message(
   paste(
