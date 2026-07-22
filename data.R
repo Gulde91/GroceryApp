@@ -1,39 +1,3 @@
-
-## RETTER ----
-read_retter_file <- function(path) {
-  if (!file.exists(path) || file.info(path)$size == 0) {
-    return(data.frame(retter = character(), key = character(), type = character()))
-  }
-
-  readr::read_delim(
-    path, col_types = c("c", "c", "c"),
-    delim = ";", escape_double = FALSE, trim_ws = TRUE
-  ) %>% arrange(retter)
-}
-
-retter <- read_retter_file("./data/retter.txt")
-retter_arkiv <- read_retter_file("./data/retter_arkiv.txt")
-
-
-# alle retter ----
-sti <- "./data/opskrifter/"
-filer <- list.files(sti)
-
-opskrifter <- lapply(filer, function(x) {
-  
-  tmp <- readr::read_delim(
-    paste0(sti, x), col_types = c("c", "d", "c", "c", "c"),
-    delim = ";", escape_double = FALSE, trim_ws = TRUE, na = ""
-  )
-  
-  tmp$enhed[is.na(tmp$enhed)] <- ""
-  tmp$kat_2[is.na(tmp$kat_2)] <- ""
-  
-  tmp
-})
-
-names(opskrifter) <- gsub("\\.txt", "", filer)
-
 # TILBEHØR ----
 tilbehor <- tibble::tribble(
   ~"Indkobsliste", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
@@ -130,21 +94,3 @@ salater_opskrifter <- list(
   boenne_salat_opskr = boenne_salat_opskr,
   groenne_boenner_opskr = groenne_boenner_opskr
 )
-
-# opskrifter ----
-opskrift_df <- c(opskrifter, salater_opskrifter) |> 
-  lapply(function(x) {names(x)[1] <- "Indkobsliste"; return(x)}) |> 
-  dplyr::bind_rows() |> 
-  dplyr::arrange(Indkobsliste) |> 
-  dplyr::mutate(maengde = 1) |> 
-  dplyr::distinct()
-
-# links ----
-links <- readr::read_delim(
-  "./data/links.txt", col_types = c("c", "c"),
-  delim = ";", escape_double = FALSE, trim_ws = TRUE 
-)
-
-# kategorier ----
-kategori_1 <- map_df(opskrifter, ~select(.x, kat_1))$kat_1 |> unique() |> sort()
-kategori_2 <- map_df(opskrifter, ~select(.x, kat_2))$kat_2 |> unique() |> sort()
