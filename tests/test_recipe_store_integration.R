@@ -51,7 +51,7 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    catalog_before <- recipe_catalog_current()
+    catalog_before <- recipe_state$read$snapshot()
     stopifnot(
       "burger_opskr" %in% catalog_before$active_retter$key,
       "burger_opskr" %in% names(catalog_before$recipes)
@@ -63,7 +63,7 @@ run_recipe_store_integration_tests <- function() {
     )
     set_recipe_inputs(session, confirm_delete_ret = 1L)
 
-    catalog_archived <- recipe_catalog_current()
+    catalog_archived <- recipe_state$read$snapshot()
     stopifnot(
       !"burger_opskr" %in% catalog_archived$active_retter$key,
       "burger_opskr" %in% catalog_archived$archived_retter$key,
@@ -82,7 +82,7 @@ run_recipe_store_integration_tests <- function() {
     )
 
     set_recipe_inputs(session, restore_ret = "burger_opskr")
-    catalog_restored <- recipe_catalog_current()
+    catalog_restored <- recipe_state$read$snapshot()
     stopifnot(
       "burger_opskr" %in% catalog_restored$active_retter$key,
       !"burger_opskr" %in% catalog_restored$archived_retter$key,
@@ -90,7 +90,7 @@ run_recipe_store_integration_tests <- function() {
       length(commit_calls) == 2L
     )
 
-    catalog_with_link <- recipe_catalog_current()
+    catalog_with_link <- recipe_state$read$snapshot()
     catalog_with_link$links <- dplyr::bind_rows(
       catalog_with_link$links,
       data.frame(
@@ -99,7 +99,7 @@ run_recipe_store_integration_tests <- function() {
         stringsAsFactors = FALSE
       )
     )
-    publish_recipe_catalog(catalog_with_link)
+    stopifnot(recipe_state$commit(catalog_with_link))
 
     set_recipe_inputs(
       session,
@@ -110,9 +110,9 @@ run_recipe_store_integration_tests <- function() {
     set_recipe_inputs(session, confirm_delete_archived_ret = 1L)
 
     purge_call <- commit_calls[[length(commit_calls)]]
-    catalog_purged <- recipe_catalog_current()
+    catalog_purged <- recipe_state$read$snapshot()
     stopifnot(
-      length(commit_calls) == 4L,
+      length(commit_calls) == 5L,
       identical(purge_call$delete_recipe_keys, "burger_opskr"),
       !is.null(purge_call$archived_retter),
       !is.null(purge_call$links),
@@ -127,7 +127,7 @@ run_recipe_store_integration_tests <- function() {
       !"burger_opskr" %in% catalog_purged$archived_retter$key,
       !"burger_opskr" %in% names(catalog_purged$recipes),
       !any(catalog_purged$links$ret == "Burger"),
-      identical(catalog_purged$revision, "stub-revision-4")
+      identical(catalog_purged$revision, "stub-revision-5")
     )
   })
 
@@ -135,7 +135,7 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    catalog_before <- recipe_catalog_current()
+    catalog_before <- recipe_state$read$snapshot()
 
     set_recipe_inputs(
       session,
@@ -145,13 +145,13 @@ run_recipe_store_integration_tests <- function() {
     set_recipe_inputs(session, confirm_delete_ret = 1L)
 
     stopifnot(
-      identical(recipe_catalog_current(), catalog_before),
+      identical(recipe_state$read$snapshot(), catalog_before),
       length(commit_calls) == calls_before_failure
     )
 
     set_recipe_inputs(session, confirm_delete_ret = 2L)
 
-    catalog_after_retry <- recipe_catalog_current()
+    catalog_after_retry <- recipe_state$read$snapshot()
     stopifnot(
       !"burger_opskr" %in% catalog_after_retry$active_retter$key,
       "burger_opskr" %in% catalog_after_retry$archived_retter$key,
@@ -167,9 +167,9 @@ run_recipe_store_integration_tests <- function() {
       session,
       opskrift_editPressed = list(key = "burger_opskr", row = 1L)
     )
-    opened_edit_revision <- recipe_revision_current()
+    opened_edit_revision <- recipe_state$read$revision()
 
-    refreshed_catalog <- recipe_catalog_current()
+    refreshed_catalog <- recipe_state$read$snapshot()
     refreshed_catalog$recipes[["burger_opskr"]] <-
       refreshed_catalog$recipes[["burger_opskr"]][
         c(2L, 1L, seq.int(3L, nrow(
@@ -178,8 +178,8 @@ run_recipe_store_integration_tests <- function() {
         ,
         drop = FALSE
       ]
-    refreshed_catalog$revision <- "external-edit-revision"
-    publish_recipe_catalog(refreshed_catalog)
+    stopifnot(recipe_state$commit(refreshed_catalog))
+    refreshed_catalog <- recipe_state$read$snapshot()
 
     set_recipe_inputs(
       session,
@@ -191,32 +191,32 @@ run_recipe_store_integration_tests <- function() {
     set_recipe_inputs(session, save_opskrift_row = 1L)
 
     stopifnot(
-      !identical(opened_edit_revision, recipe_revision_current()),
-      identical(recipe_catalog_current(), refreshed_catalog),
-      length(commit_calls) == calls_before_stale_modal
+      !identical(opened_edit_revision, recipe_state$read$revision()),
+      identical(recipe_state$read$snapshot(), refreshed_catalog),
+      length(commit_calls) == calls_before_stale_modal + 1L
     )
 
     set_recipe_inputs(
       session,
       opskrift_deletePressed = list(key = "burger_opskr", row = 1L)
     )
-    opened_delete_revision <- recipe_revision_current()
+    opened_delete_revision <- recipe_state$read$revision()
 
-    refreshed_again <- recipe_catalog_current()
+    refreshed_again <- recipe_state$read$snapshot()
     refreshed_again$recipes[["burger_opskr"]] <-
       refreshed_again$recipes[["burger_opskr"]][
         rev(seq_len(nrow(refreshed_again$recipes[["burger_opskr"]]))),
         ,
         drop = FALSE
       ]
-    refreshed_again$revision <- "external-delete-revision"
-    publish_recipe_catalog(refreshed_again)
+    stopifnot(recipe_state$commit(refreshed_again))
+    refreshed_again <- recipe_state$read$snapshot()
     set_recipe_inputs(session, confirm_delete_opskrift_row = 1L)
 
     stopifnot(
-      !identical(opened_delete_revision, recipe_revision_current()),
-      identical(recipe_catalog_current(), refreshed_again),
-      length(commit_calls) == calls_before_stale_modal
+      !identical(opened_delete_revision, recipe_state$read$revision()),
+      identical(recipe_state$read$snapshot(), refreshed_again),
+      length(commit_calls) == calls_before_stale_modal + 2L
     )
   })
 
@@ -224,16 +224,16 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    catalog_before <- recipe_catalog_current()
+    catalog_before <- recipe_state$read$snapshot()
     catalog_without_recipe <- catalog_before
     catalog_without_recipe$recipes[["burger_opskr"]] <- NULL
 
     stopifnot(
       identical(
-        commit_recipe_store_change(catalog_without_recipe),
+        recipe_state$commit(catalog_without_recipe),
         FALSE
       ),
-      identical(recipe_catalog_current(), catalog_before),
+      identical(recipe_state$read$snapshot(), catalog_before),
       length(commit_calls) == calls_before_rejected_candidates
     )
 
@@ -241,8 +241,8 @@ run_recipe_store_integration_tests <- function() {
     stale_catalog$revision <- "stale-revision"
 
     stopifnot(
-      identical(commit_recipe_store_change(stale_catalog), FALSE),
-      identical(recipe_catalog_current(), catalog_before),
+      identical(recipe_state$commit(stale_catalog), FALSE),
+      identical(recipe_state$read$snapshot(), catalog_before),
       length(commit_calls) == calls_before_rejected_candidates
     )
   })
@@ -251,28 +251,14 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    next_catalog <- recipe_catalog_current()
-    signals_before <- isolate(list(
-      recipes = rv_recipeCatalogSignals$recipes,
-      links = rv_recipeCatalogSignals$links,
-      active_retter = rv_recipeCatalogSignals$active_retter,
-      archived_retter = rv_recipeCatalogSignals$archived_retter,
-      revision = rv_recipeCatalogSignals$revision
-    ))
+    next_catalog <- recipe_state$read$snapshot()
     next_catalog$recipes[["burger_opskr"]]$maengde[[1]] <-
       next_catalog$recipes[["burger_opskr"]]$maengde[[1]] + 0.01
 
-    stopifnot(commit_recipe_store_change(next_catalog))
+    stopifnot(recipe_state$commit(next_catalog))
 
     update_call <- commit_calls[[length(commit_calls)]]
-    published_catalog <- recipe_catalog_current()
-    signals_after <- isolate(list(
-      recipes = rv_recipeCatalogSignals$recipes,
-      links = rv_recipeCatalogSignals$links,
-      active_retter = rv_recipeCatalogSignals$active_retter,
-      archived_retter = rv_recipeCatalogSignals$archived_retter,
-      revision = rv_recipeCatalogSignals$revision
-    ))
+    published_catalog <- recipe_state$read$snapshot()
     stopifnot(
       length(commit_calls) == calls_before_recipe_update + 1L,
       identical(names(update_call$recipes), "burger_opskr"),
@@ -287,15 +273,145 @@ run_recipe_store_integration_tests <- function() {
       identical(
         published_catalog$revision,
         paste0("stub-revision-", calls_before_recipe_update + 1L)
-      ),
-      identical(signals_after$recipes, signals_before$recipes + 1L),
-      identical(signals_after$revision, signals_before$revision + 1L),
-      identical(signals_after$links, signals_before$links),
-      identical(signals_after$active_retter, signals_before$active_retter),
-      identical(
-        signals_after$archived_retter,
-        signals_before$archived_retter
       )
+    )
+  })
+
+  calls_before_ingredient_update <- length(commit_calls)
+  shiny::testServer(server, {
+    initialize_recipe_test_inputs(session)
+
+    key <- "burger_opskr"
+    row <- 1L
+    catalog_before <- recipe_state$read$snapshot()
+    recipe_before <- catalog_before$recipes[[key]]
+    updated_amount <- recipe_before$maengde[[row]] + 0.5
+
+    set_recipe_inputs(
+      session,
+      opskrift_editPressed = list(key = key, row = row)
+    )
+    set_recipe_inputs(
+      session,
+      opskrift_edit_maengde = updated_amount,
+      opskrift_edit_enhed = "kg",
+      opskrift_edit_kat1 = "konserves",
+      opskrift_edit_kat2 = ""
+    )
+    set_recipe_inputs(session, save_opskrift_row = 1L)
+
+    catalog_after <- recipe_state$read$snapshot()
+    recipe_after <- catalog_after$recipes[[key]]
+    update_call <- commit_calls[[calls_before_ingredient_update + 1L]]
+    stopifnot(
+      length(commit_calls) == calls_before_ingredient_update + 1L,
+      identical(recipe_after$maengde[[row]], updated_amount),
+      identical(recipe_after$enhed[[row]], "kg"),
+      identical(recipe_after$kat_1[[row]], "konserves"),
+      identical(recipe_after$kat_2[[row]], ""),
+      identical(catalog_after$active_retter, catalog_before$active_retter),
+      identical(
+        catalog_after$archived_retter,
+        catalog_before$archived_retter
+      ),
+      identical(catalog_after$links, catalog_before$links),
+      identical(names(update_call$recipes), key),
+      identical(update_call$recipes[[key]], recipe_after),
+      is.null(update_call$active_retter),
+      is.null(update_call$archived_retter),
+      is.null(update_call$links),
+      length(update_call$delete_recipe_keys) == 0L,
+      identical(update_call$expected_revision, catalog_before$revision)
+    )
+  })
+
+  calls_before_ingredient_add <- length(commit_calls)
+  shiny::testServer(server, {
+    initialize_recipe_test_inputs(session)
+
+    key <- "burger_opskr"
+    ingredient_name <- "integrationstestvare"
+    catalog_before <- recipe_state$read$snapshot()
+    recipe_before <- catalog_before$recipes[[key]]
+
+    set_recipe_inputs(
+      session,
+      opskrift_addPressed = list(key = key, nonce = 1L)
+    )
+    set_recipe_inputs(
+      session,
+      opskrift_add_navn = ingredient_name,
+      opskrift_add_maengde = 2.5,
+      opskrift_add_enhed = "stk",
+      opskrift_add_kat1 = "konserves",
+      opskrift_add_kat2 = ""
+    )
+    set_recipe_inputs(session, save_opskrift_new_row = 1L)
+
+    catalog_after <- recipe_state$read$snapshot()
+    recipe_after <- catalog_after$recipes[[key]]
+    added_row <- nrow(recipe_after)
+    add_call <- commit_calls[[calls_before_ingredient_add + 1L]]
+    stopifnot(
+      length(commit_calls) == calls_before_ingredient_add + 1L,
+      nrow(recipe_after) == nrow(recipe_before) + 1L,
+      identical(as.character(recipe_after[[1]][[added_row]]), ingredient_name),
+      identical(recipe_after$maengde[[added_row]], 2.5),
+      identical(recipe_after$enhed[[added_row]], "stk"),
+      identical(recipe_after$kat_1[[added_row]], "konserves"),
+      identical(recipe_after$kat_2[[added_row]], ""),
+      identical(catalog_after$active_retter, catalog_before$active_retter),
+      identical(
+        catalog_after$archived_retter,
+        catalog_before$archived_retter
+      ),
+      identical(catalog_after$links, catalog_before$links),
+      identical(names(add_call$recipes), key),
+      identical(add_call$recipes[[key]], recipe_after),
+      is.null(add_call$active_retter),
+      is.null(add_call$archived_retter),
+      is.null(add_call$links),
+      length(add_call$delete_recipe_keys) == 0L,
+      identical(add_call$expected_revision, catalog_before$revision)
+    )
+  })
+
+  calls_before_ingredient_delete <- length(commit_calls)
+  shiny::testServer(server, {
+    initialize_recipe_test_inputs(session)
+
+    key <- "burger_opskr"
+    row <- 2L
+    catalog_before <- recipe_state$read$snapshot()
+    recipe_before <- catalog_before$recipes[[key]]
+    expected_recipe <- recipe_before[-row, , drop = FALSE]
+    rownames(expected_recipe) <- NULL
+
+    set_recipe_inputs(
+      session,
+      opskrift_deletePressed = list(key = key, row = row)
+    )
+    set_recipe_inputs(session, confirm_delete_opskrift_row = 1L)
+
+    catalog_after <- recipe_state$read$snapshot()
+    recipe_after <- catalog_after$recipes[[key]]
+    delete_call <- commit_calls[[calls_before_ingredient_delete + 1L]]
+    stopifnot(
+      length(commit_calls) == calls_before_ingredient_delete + 1L,
+      identical(recipe_after, expected_recipe),
+      identical(catalog_after$active_retter, catalog_before$active_retter),
+      identical(
+        catalog_after$archived_retter,
+        catalog_before$archived_retter
+      ),
+      identical(catalog_after$links, catalog_before$links),
+      identical(names(delete_call$recipes), key),
+      identical(delete_call$recipes[[key]], recipe_after),
+      is.null(delete_call$active_retter),
+      is.null(delete_call$archived_retter),
+      is.null(delete_call$links),
+      length(delete_call$delete_recipe_keys) == 0L,
+      identical(delete_call$expected_revision, catalog_before$revision)
     )
   })
 
@@ -311,7 +427,7 @@ run_recipe_store_integration_tests <- function() {
     )
     set_recipe_inputs(session, save_ny_ret = 1L)
 
-    created_catalog <- recipe_catalog_current()
+    created_catalog <- recipe_state$read$snapshot()
     create_call <- commit_calls[[length(commit_calls)]]
     stopifnot(
       length(commit_calls) == calls_before_create + 1L,
@@ -333,7 +449,7 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    catalog_with_ghost <- recipe_catalog_current()
+    catalog_with_ghost <- recipe_state$read$snapshot()
     catalog_with_ghost$archived_retter <- dplyr::bind_rows(
       catalog_with_ghost$archived_retter,
       data.frame(
@@ -343,15 +459,15 @@ run_recipe_store_integration_tests <- function() {
         stringsAsFactors = FALSE
       )
     )
-    publish_recipe_catalog(catalog_with_ghost)
+    stopifnot(recipe_state$commit(catalog_with_ghost))
 
     set_recipe_inputs(session, delete_archived_ret = "manglende_opskr")
     set_recipe_inputs(session, confirm_delete_archived_ret = 1L)
 
-    purged_catalog <- recipe_catalog_current()
+    purged_catalog <- recipe_state$read$snapshot()
     purge_call <- commit_calls[[length(commit_calls)]]
     stopifnot(
-      length(commit_calls) == calls_before_ghost_purge + 1L,
+      length(commit_calls) == calls_before_ghost_purge + 2L,
       identical(purge_call$delete_recipe_keys, "manglende_opskr"),
       !is.null(purge_call$archived_retter),
       is.null(purge_call$active_retter),
@@ -388,7 +504,7 @@ run_recipe_store_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_recipe_test_inputs(session)
 
-    external_snapshot <- recipe_catalog_current()
+    external_snapshot <- recipe_state$read$snapshot()
     external_snapshot$recipes[["burger_opskr"]]$maengde[[1]] <- 0.321
     external_snapshot$links <- dplyr::bind_rows(
       external_snapshot$links,
@@ -409,11 +525,11 @@ run_recipe_store_integration_tests <- function() {
 
     stopifnot(
       poll_read_calls == reads_before_refresh + 1L,
-      identical(recipe_catalog_current(), external_snapshot),
-      identical(recipes_current(), external_snapshot$recipes),
-      identical(recipe_links_current(), external_snapshot$links),
+      identical(recipe_state$read$snapshot(), external_snapshot),
+      identical(recipe_state$read$recipes(), external_snapshot$recipes),
+      identical(recipe_state$read$links(), external_snapshot$links),
       identical(
-        recipe_revision_current(),
+        recipe_state$read$revision(),
         external_snapshot$revision
       )
     )

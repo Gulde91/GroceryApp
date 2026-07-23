@@ -444,81 +444,26 @@ mod_opskrifter_server <- function(
   })
 
   observeEvent(input$save_ny_ret, {
-    ret_navn <- trimws(input$ny_ret_navn %||% "")
-    ret_type <- trimws(input$ny_ret_type %||% "")
-    ret_link <- recipe_normalize_link(input$ny_ret_link)
-
-    validate(
-      need(ret_navn != "", "Skriv et navn til retten.")
+    change_attempt <- recipe_attempt_catalog_change(
+      recipe_catalog_create(
+        catalog_read$snapshot(),
+        recipe_name = input$ny_ret_navn,
+        recipe_type = input$ny_ret_type,
+        link = input$ny_ret_link
+      )
     )
-    validate(need(ret_type != "", "Vælg en type."))
-
-    next_catalog <- catalog_read$snapshot()
-    ops <- next_catalog$recipes
-    eksisterende_navne <- vapply(
-      ops,
-      recipe_display_name,
-      ""
-    )
-    if (tolower(ret_navn) %in% tolower(eksisterende_navne)) {
+    if (!change_attempt$ok) {
       showNotification(
-        sprintf('Retten "%s" findes allerede.', ret_navn),
+        change_attempt$message,
         type = "warning"
       )
       return(invisible(NULL))
     }
-
-    base_key <- paste0(recipe_slugify_key(ret_navn), "_opskr")
-    key <- base_key
-    i <- 1L
-    while (key %in% names(ops)) {
-      i <- i + 1L
-      key <- paste0(base_key, "_", i)
-    }
-
-    ny_opskrift <- data.frame(
-      temp = character(),
-      maengde = numeric(),
-      enhed = character(),
-      kat_1 = character(),
-      kat_2 = character(),
-      stringsAsFactors = FALSE
-    )
-    names(ny_opskrift)[1] <- ret_navn
-    ops[[key]] <- ny_opskrift
-
-    retter_new <- bind_rows(
-      next_catalog$active_retter,
-      data.frame(
-        retter = ret_navn,
-        key = key,
-        type = ret_type,
-        stringsAsFactors = FALSE
-      )
-    ) |>
-      distinct(key, .keep_all = TRUE) |>
-      arrange(retter)
-
-    links_new <- next_catalog$links
-    if (nzchar(ret_link)) {
-      links_new <- bind_rows(
-        links_new,
-        data.frame(
-          ret = ret_navn,
-          link = ret_link,
-          stringsAsFactors = FALSE
-        )
-      ) |>
-        distinct(ret, .keep_all = TRUE) |>
-        arrange(ret)
-    }
-
-    next_catalog$recipes <- ops
-    next_catalog$active_retter <- retter_new
-    next_catalog$links <- links_new
+    change <- change_attempt$value
 
     saved <- commit_catalog(
-      next_catalog,
+      change$catalog,
+      delete_recipe_keys = change$delete_recipe_keys,
       error_message = "Retten kunne ikke oprettes."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
@@ -527,18 +472,21 @@ mod_opskrifter_server <- function(
     updateSelectizeInput(
       session,
       "opskrift_valgt_key",
-      choices = recipe_choices(retter_new, names(ops)),
-      selected = key,
+      choices = recipe_choices(
+        change$catalog$active_retter,
+        names(change$catalog$recipes)
+      ),
+      selected = change$event$key,
       options = opskrift_selectize_options
     )
     recipe_emit_active_change(
       rv_activeRetterChanged,
       active_change_seq,
-      "created",
+      change$event$reason,
       catalog_read$revision()
     )
     showNotification(
-      sprintf('Retten "%s" er oprettet.', ret_navn),
+      sprintf('Retten "%s" er oprettet.', change$event$recipe_name),
       type = "message"
     )
   })
@@ -602,41 +550,29 @@ mod_opskrifter_server <- function(
       return(invisible(NULL))
     }
 
-    next_catalog <- catalog_read$snapshot()
-    ops <- next_catalog$recipes
-    df <- ops[[key]]
-    req(!is.null(df), nrow(df) >= row)
-
-    maengde <- suppressWarnings(as.numeric(input$opskrift_edit_maengde))
-    if (length(maengde) == 0) maengde <- NA_real_
-    enhed <- trimws(as.character(input$opskrift_edit_enhed %||% ""))
-    kat1 <- trimws(as.character(input$opskrift_edit_kat1 %||% ""))
-    kat2 <- trimws(as.character(input$opskrift_edit_kat2 %||% ""))
-
-    if (!is.na(maengde) && maengde <= 0) {
+    change_attempt <- recipe_attempt_catalog_change(
+      recipe_catalog_update_ingredient(
+        catalog_read$snapshot(),
+        key = key,
+        row = row,
+        amount = input$opskrift_edit_maengde,
+        unit = input$opskrift_edit_enhed,
+        category_1 = input$opskrift_edit_kat1,
+        category_2 = input$opskrift_edit_kat2
+      )
+    )
+    if (!change_attempt$ok) {
       showNotification(
-        "Mængde skal være tom eller et tal større end 0.",
+        change_attempt$message,
         type = "error"
       )
       return(invisible(NULL))
     }
-    if (kat1 == "") {
-      showNotification(
-        "Kategori 1 må ikke være tom.",
-        type = "error"
-      )
-      return(invisible(NULL))
-    }
-
-    df$maengde[row] <- maengde
-    df$enhed[row] <- enhed
-    df$kat_1[row] <- kat1
-    df$kat_2[row] <- kat2
-    ops[[key]] <- df
-    next_catalog$recipes <- ops
+    change <- change_attempt$value
 
     saved <- commit_catalog(
-      next_catalog,
+      change$catalog,
+      delete_recipe_keys = change$delete_recipe_keys,
       error_message = "Ingrediensen kunne ikke opdateres."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
@@ -708,45 +644,31 @@ mod_opskrifter_server <- function(
 
   observeEvent(input$save_opskrift_new_row, {
     key <- rv_recipeAddState$key
-    next_catalog <- catalog_read$snapshot()
-    ops <- next_catalog$recipes
-    req(!is.null(key), key %in% names(ops))
+    req(!is.null(key))
 
-    df <- ops[[key]]
-    ret_navn <- names(df)[1]
-
-    ingrediens <- trimws(as.character(input$opskrift_add_navn %||% ""))
-    maengde <- suppressWarnings(as.numeric(input$opskrift_add_maengde))
-    enhed <- trimws(as.character(input$opskrift_add_enhed %||% ""))
-    kat1 <- trimws(as.character(input$opskrift_add_kat1 %||% ""))
-    kat2 <- trimws(as.character(input$opskrift_add_kat2 %||% ""))
-
-    validate(
-      need(ingrediens != "", "Skriv et varenavn.")
+    change_attempt <- recipe_attempt_catalog_change(
+      recipe_catalog_add_ingredient(
+        catalog_read$snapshot(),
+        key = key,
+        name = input$opskrift_add_navn,
+        amount = input$opskrift_add_maengde,
+        unit = input$opskrift_add_enhed,
+        category_1 = input$opskrift_add_kat1,
+        category_2 = input$opskrift_add_kat2
+      )
     )
-    validate(
-      need(!is.na(maengde), "Mængde skal være et tal.")
-    )
-    validate(
-      need(kat1 != "", "Vælg en kategori 1.")
-    )
-
-    ny_linje <- data.frame(
-      temp = ingrediens,
-      maengde = maengde,
-      enhed = enhed,
-      kat_1 = kat1,
-      kat_2 = kat2,
-      stringsAsFactors = FALSE
-    )
-    names(ny_linje)[1] <- ret_navn
-
-    df <- bind_rows(df, ny_linje)
-    ops[[key]] <- df
-    next_catalog$recipes <- ops
+    if (!change_attempt$ok) {
+      showNotification(
+        change_attempt$message,
+        type = "error"
+      )
+      return(invisible(NULL))
+    }
+    change <- change_attempt$value
 
     saved <- commit_catalog(
-      next_catalog,
+      change$catalog,
+      delete_recipe_keys = change$delete_recipe_keys,
       error_message = "Ingrediensen kunne ikke tilføjes."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
@@ -754,7 +676,10 @@ mod_opskrifter_server <- function(
     recipe_hide_dialog("popup_opskrift_tilfoej", ns)
     rv_recipeAddState$key <- NULL
     showNotification(
-      sprintf('Ingrediensen "%s" er tilføjet.', ingrediens),
+      sprintf(
+        'Ingrediensen "%s" er tilføjet.',
+        change$event$ingredient_name
+      ),
       type = "message"
     )
   })
@@ -793,22 +718,25 @@ mod_opskrifter_server <- function(
       return(invisible(NULL))
     }
 
-    next_catalog <- catalog_read$snapshot()
-    ops <- next_catalog$recipes
-    df <- ops[[key]]
-    req(!is.null(df), nrow(df) >= row)
-
-    slettet <- recipe_format_line(
-      df$maengde[row],
-      df$enhed[row],
-      df[[1]][row]
+    change_attempt <- recipe_attempt_catalog_change(
+      recipe_catalog_delete_ingredient(
+        catalog_read$snapshot(),
+        key = key,
+        row = row
+      )
     )
-    df <- df[-row, , drop = FALSE]
-    ops[[key]] <- df
-    next_catalog$recipes <- ops
+    if (!change_attempt$ok) {
+      showNotification(
+        change_attempt$message,
+        type = "error"
+      )
+      return(invisible(NULL))
+    }
+    change <- change_attempt$value
 
     saved <- commit_catalog(
-      next_catalog,
+      change$catalog,
+      delete_recipe_keys = change$delete_recipe_keys,
       error_message = "Ingrediensen kunne ikke slettes."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
@@ -818,7 +746,10 @@ mod_opskrifter_server <- function(
     rv_recipeDeleteState$row <- NULL
     rv_recipeDeleteState$revision <- NULL
     showNotification(
-      sprintf('Linjen "%s" er slettet permanent.', slettet),
+      sprintf(
+        'Linjen "%s" er slettet permanent.',
+        change$event$line
+      ),
       type = "message"
     )
   })
@@ -846,26 +777,21 @@ mod_opskrifter_server <- function(
     key <- rv_recipeArchiveState$key
     req(!is.null(key))
 
-    next_catalog <- catalog_read$snapshot()
-    active <- next_catalog$active_retter
-    row_idx <- match(key, active$key)
-    req(!is.na(row_idx))
-
-    archived_row <- active[row_idx, , drop = FALSE]
-    active_new <- active[-row_idx, , drop = FALSE] |>
-      arrange(retter)
-    archive_new <- bind_rows(
-      next_catalog$archived_retter,
-      archived_row
-    ) |>
-      distinct(key, .keep_all = TRUE) |>
-      arrange(retter)
-
-    next_catalog$active_retter <- active_new
-    next_catalog$archived_retter <- archive_new
+    change_attempt <- recipe_attempt_catalog_change(
+      recipe_catalog_archive(catalog_read$snapshot(), key)
+    )
+    if (!change_attempt$ok) {
+      showNotification(
+        change_attempt$message,
+        type = "error"
+      )
+      return(invisible(NULL))
+    }
+    change <- change_attempt$value
 
     saved <- commit_catalog(
-      next_catalog,
+      change$catalog,
+      delete_recipe_keys = change$delete_recipe_keys,
       error_message = "Retten kunne ikke arkiveres."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
@@ -873,8 +799,11 @@ mod_opskrifter_server <- function(
     recipe_hide_dialog("popup_ret_slet_bekraeft", ns)
     rv_recipeArchiveState$key <- NULL
 
-    recipe_keys <- names(catalog_read$recipes())
-    valid_active_new <- recipe_active_rows(active_new, recipe_keys)
+    recipe_keys <- names(change$catalog$recipes)
+    valid_active_new <- recipe_active_rows(
+      change$catalog$active_retter,
+      recipe_keys
+    )
     valid_choices <- recipe_choices(valid_active_new, recipe_keys)
     updateSelectizeInput(
       session,
@@ -890,14 +819,14 @@ mod_opskrifter_server <- function(
     recipe_emit_active_change(
       rv_activeRetterChanged,
       active_change_seq,
-      "archived",
+      change$event$reason,
       catalog_read$revision()
     )
 
     showNotification(
       sprintf(
         'Retten "%s" er flyttet til arkivet.',
-        archived_row$retter[[1]]
+        change$event$recipe_name
       ),
       type = "message"
     )
@@ -912,61 +841,48 @@ mod_opskrifter_server <- function(
     key <- as.character(input$restore_ret %||% "")
     req(nzchar(key))
 
-    next_catalog <- catalog_read$snapshot()
-    archive <- next_catalog$archived_retter
-    row_idx <- match(key, archive$key)
-    req(!is.na(row_idx))
-
-    if (!key %in% names(next_catalog$recipes)) {
+    change_attempt <- recipe_attempt_catalog_change(
+      recipe_catalog_restore(catalog_read$snapshot(), key)
+    )
+    if (!change_attempt$ok) {
       showNotification(
-        paste(
-          "Opskriftsfilen mangler, saa retten kan ikke",
-          "gendannes."
-        ),
+        change_attempt$message,
         type = "error"
       )
       return(invisible(NULL))
     }
-
-    restored_row <- archive[row_idx, , drop = FALSE]
-    active_new <- bind_rows(
-      next_catalog$active_retter,
-      restored_row
-    ) |>
-      distinct(key, .keep_all = TRUE) |>
-      arrange(retter)
-    archive_new <- archive[-row_idx, , drop = FALSE] |>
-      arrange(retter)
-
-    next_catalog$active_retter <- active_new
-    next_catalog$archived_retter <- archive_new
+    change <- change_attempt$value
 
     saved <- commit_catalog(
-      next_catalog,
+      change$catalog,
+      delete_recipe_keys = change$delete_recipe_keys,
       error_message = "Retten kunne ikke gendannes."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
-    recipe_keys <- names(catalog_read$recipes())
-    valid_active_new <- recipe_active_rows(active_new, recipe_keys)
+    recipe_keys <- names(change$catalog$recipes)
+    valid_active_new <- recipe_active_rows(
+      change$catalog$active_retter,
+      recipe_keys
+    )
     updateSelectizeInput(
       session,
       "opskrift_valgt_key",
       choices = recipe_choices(valid_active_new, recipe_keys),
-      selected = key,
+      selected = change$event$key,
       options = opskrift_selectize_options
     )
     recipe_emit_active_change(
       rv_activeRetterChanged,
       active_change_seq,
-      "restored",
+      change$event$reason,
       catalog_read$revision()
     )
 
     showNotification(
       sprintf(
         'Retten "%s" er gendannet.',
-        restored_row$retter[[1]]
+        change$event$recipe_name
       ),
       type = "message"
     )
@@ -988,29 +904,21 @@ mod_opskrifter_server <- function(
     key <- rv_recipePermanentDeleteState$key
     req(!is.null(key), nzchar(key))
 
-    next_catalog <- catalog_read$snapshot()
-    archive <- next_catalog$archived_retter
-    row_idx <- match(key, archive$key)
-    req(!is.na(row_idx))
-
-    deleted_row <- archive[row_idx, , drop = FALSE]
-    ret_navn <- deleted_row$retter[[1]]
-    archive_new <- archive[-row_idx, , drop = FALSE] |>
-      arrange(retter)
-
-    ops <- next_catalog$recipes
-    ops[[key]] <- NULL
-    links_new <- next_catalog$links |>
-      filter(ret != ret_navn) |>
-      arrange(ret)
-
-    next_catalog$archived_retter <- archive_new
-    next_catalog$recipes <- ops
-    next_catalog$links <- links_new
+    change_attempt <- recipe_attempt_catalog_change(
+      recipe_catalog_delete(catalog_read$snapshot(), key)
+    )
+    if (!change_attempt$ok) {
+      showNotification(
+        change_attempt$message,
+        type = "error"
+      )
+      return(invisible(NULL))
+    }
+    change <- change_attempt$value
 
     saved <- commit_catalog(
-      next_catalog,
-      delete_recipe_keys = key,
+      change$catalog,
+      delete_recipe_keys = change$delete_recipe_keys,
       error_message = "Retten kunne ikke slettes permanent."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
@@ -1018,7 +926,10 @@ mod_opskrifter_server <- function(
     recipe_hide_dialog("popup_ret_slet_permanent_bekraeft", ns)
     rv_recipePermanentDeleteState$key <- NULL
     showNotification(
-      sprintf('Retten "%s" er slettet permanent.', ret_navn),
+      sprintf(
+        'Retten "%s" er slettet permanent.',
+        change$event$recipe_name
+      ),
       type = "message"
     )
   })
@@ -1308,6 +1219,47 @@ validate_recipe_module_dependencies <- function(
   invisible(TRUE)
 }
 
+#' Pak en fejl fra en katalogændring
+#'
+#' Funktionen omsætter en almindelig R-fejl til den faste resultatstruktur,
+#' som servermodulet kan bruge til at vise en forståelig besked uden at lukke
+#' appens session.
+#'
+#' @param condition Fejlen, som blev udløst af en katalogfunktion.
+#'
+#' @return En liste, der markerer forsøget som mislykket og indeholder fejlens
+#'   besked.
+#' @keywords internal
+recipe_failed_catalog_attempt <- function(condition) {
+  list(
+    ok = FALSE,
+    value = NULL,
+    message = conditionMessage(condition)
+  )
+}
+
+#' Udfør en katalogændring sikkert fra servermodulet
+#'
+#' De rene katalogfunktioner stopper med en letlæselig fejl, når brugerinput
+#' eller kataloget er ugyldigt. Denne hjælper fanger fejlen og returnerer altid
+#' samme form, så hver klik-handler kun skal vælge mellem succes og en besked.
+#'
+#' @param expression Kaldet til den rene katalogfunktion.
+#'
+#' @return En liste med `ok`, det eventuelle resultat i `value` og en eventuel
+#'   fejltekst i `message`.
+#' @keywords internal
+recipe_attempt_catalog_change <- function(expression) {
+  tryCatch(
+    list(
+      ok = TRUE,
+      value = force(expression),
+      message = ""
+    ),
+    error = recipe_failed_catalog_attempt
+  )
+}
+
 #' Åbn en dialog i opskriftsmodulet
 #'
 #' Funktionen oversætter et lokalt dialog-id til modulets fulde, namespacede
@@ -1420,24 +1372,6 @@ recipe_normalize_link <- function(x) {
   paste0("https://", x)
 }
 
-#' Dan en stabil nøgle ud fra rettens navn
-#'
-#' Funktionen gør navnet egnet som intern katalognøgle ved at fjerne accenter,
-#' bruge små bogstaver og erstatte tegn, der ikke er bogstaver eller tal, med
-#' understregninger. Eksempelvis bliver `"Bøf med løg"` til
-#' `"bof_med_log"`.
-#'
-#' @param x Rettens navn som tekst.
-#'
-#' @return En enkel tekstnøgle med små ASCII-tegn.
-#' @keywords internal
-recipe_slugify_key <- function(x) {
-  x_ascii <- iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
-  x_ascii <- tolower(x_ascii)
-  x_ascii <- gsub("[^a-z0-9]+", "_", x_ascii)
-  gsub("^_+|_+$", "", x_ascii)
-}
-
 #' Kontrollér at en åben dialog stadig bruger den aktuelle revision
 #'
 #' En opskrift kan være ændret, mens en redigerings- eller slette-dialog står
@@ -1495,20 +1429,6 @@ recipe_row_context <- function(key, row, recipes) {
   )
 
   recipe_format_line(df$maengde[row], df$enhed[row], df[[1]][row])
-}
-
-#' Hent rettens viste navn fra en opskrift
-#'
-#' I katalogets format ligger rettens navn i navnet på opskriftens første
-#' kolonne. Denne lille funktion gør den konvention tydelig og kan bruges
-#' direkte som callback i `vapply()`.
-#'
-#' @param df Opskriftens data frame.
-#'
-#' @return Navnet på opskriftens første kolonne.
-#' @keywords internal
-recipe_display_name <- function(df) {
-  names(df)[1]
 }
 
 #' Byg redigeringsknappen til en ingrediensrække

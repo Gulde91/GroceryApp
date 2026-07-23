@@ -63,6 +63,57 @@ call_name <- function(node) {
   ""
 }
 
+collect_call_nodes <- function(node) {
+  if (!is.call(node)) return(list())
+
+  children <- unlist(
+    lapply(as.list(node), collect_call_nodes),
+    recursive = FALSE
+  )
+  c(list(node), children)
+}
+
+input_reference_name <- function(node) {
+  if (
+    !is.call(node) ||
+      !call_name(node) %in% c("$", "[[") ||
+      length(node) < 3L ||
+      !is.symbol(node[[2]]) ||
+      !identical(as.character(node[[2]]), "input")
+  ) {
+    return("")
+  }
+
+  member <- node[[3]]
+  if (!is.symbol(member) && !is.character(member)) return("")
+  as.character(member)[[1]]
+}
+
+lhs_contains_catalog_field <- function(node) {
+  if (!is.call(node)) return(FALSE)
+
+  catalog_fields <- c(
+    "catalog",
+    "recipes",
+    "active_retter",
+    "archived_retter",
+    "links",
+    "maengde",
+    "enhed",
+    "kat_1",
+    "kat_2"
+  )
+  own_match <- identical(call_name(node), "$") &&
+    length(node) >= 3L &&
+    as.character(node[[3]]) %in% catalog_fields
+
+  own_match || any(vapply(
+    as.list(node),
+    lhs_contains_catalog_field,
+    logical(1)
+  ))
+}
+
 output_assignment_name <- function(node) {
   if (!is_assignment(node)) return(NULL)
 
@@ -148,6 +199,27 @@ nested_module_functions <- vapply(
 
 module_lines <- readLines("recipe_module.R", encoding = "UTF-8")
 module_expressions <- parse("recipe_module.R", encoding = "UTF-8")
+schema_lines <- readLines("recipe_schema.R", encoding = "UTF-8")
+schema_expressions <- parse("recipe_schema.R", encoding = "UTF-8")
+recipe_store_lines <- readLines("recipe_store.R", encoding = "UTF-8")
+catalog_lines <- readLines("recipe_catalog.R", encoding = "UTF-8")
+catalog_expressions <- parse("recipe_catalog.R", encoding = "UTF-8")
+catalog_state_lines <- readLines(
+  "recipe_catalog_state.R",
+  encoding = "UTF-8"
+)
+catalog_state_expressions <- parse(
+  "recipe_catalog_state.R",
+  encoding = "UTF-8"
+)
+basis_state_lines <- readLines(
+  "basis_varer_state.R",
+  encoding = "UTF-8"
+)
+basis_state_expressions <- parse(
+  "basis_varer_state.R",
+  encoding = "UTF-8"
+)
 top_level_function_lines <- grep(
   "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
   module_lines
@@ -157,6 +229,224 @@ all_module_function_definitions <- sum(vapply(
   count_function_definitions,
   integer(1)
 ))
+
+schema_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  schema_lines
+)
+schema_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(schema_expressions)
+)
+schema_function_names <- vapply(
+  schema_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+all_schema_function_definitions <- sum(vapply(
+  as.list(schema_expressions),
+  count_function_definitions,
+  integer(1)
+))
+schema_has_roxygen_documentation <- vapply(
+  schema_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", schema_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+schema_call_nodes <- unlist(
+  lapply(as.list(schema_expressions), collect_call_nodes),
+  recursive = FALSE
+)
+schema_call_names <- vapply(
+  schema_call_nodes,
+  call_name,
+  character(1)
+)
+
+catalog_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  catalog_lines
+)
+catalog_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(catalog_expressions)
+)
+catalog_function_names <- vapply(
+  catalog_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+all_catalog_function_definitions <- sum(vapply(
+  as.list(catalog_expressions),
+  count_function_definitions,
+  integer(1)
+))
+catalog_has_roxygen_documentation <- vapply(
+  catalog_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", catalog_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+catalog_call_nodes <- unlist(
+  lapply(as.list(catalog_expressions), collect_call_nodes),
+  recursive = FALSE
+)
+catalog_call_names <- vapply(
+  catalog_call_nodes,
+  call_name,
+  character(1)
+)
+catalog_import_calls <- Filter(
+  function(node) {
+    call_name(node) %in% c("library", "require", "requireNamespace")
+  },
+  catalog_call_nodes
+)
+catalog_import_packages <- vapply(
+  catalog_import_calls,
+  function(node) {
+    if (length(node) < 2L) return("")
+    package <- node[[2]]
+    if (!is.symbol(package) && !is.character(package)) return("")
+    as.character(package)[[1]]
+  },
+  character(1)
+)
+catalog_uses_runtime_object <- vapply(
+  catalog_call_nodes,
+  function(node) {
+    call_name(node) %in% c("$", "[[") &&
+      length(node) >= 3L &&
+      is.symbol(node[[2]]) &&
+      as.character(node[[2]]) %in%
+        c("input", "output", "session", "catalog_read")
+  },
+  logical(1)
+)
+
+catalog_state_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  catalog_state_lines
+)
+catalog_state_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(catalog_state_expressions)
+)
+catalog_state_function_names <- vapply(
+  catalog_state_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+catalog_state_has_roxygen_documentation <- vapply(
+  catalog_state_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", catalog_state_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+catalog_state_library_lines <- trimws(grep(
+  "^library\\(",
+  catalog_state_lines,
+  value = TRUE
+))
+loaded_catalog_state_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  catalog_state_library_lines
+)
+
+basis_state_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  basis_state_lines
+)
+basis_state_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(basis_state_expressions)
+)
+basis_state_function_names <- vapply(
+  basis_state_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+basis_state_has_roxygen_documentation <- vapply(
+  basis_state_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", basis_state_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+basis_state_library_lines <- trimws(grep(
+  "^library\\(",
+  basis_state_lines,
+  value = TRUE
+))
+loaded_basis_state_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  basis_state_library_lines
+)
+
+recipe_mutation_handlers <- c(
+  save_ny_ret = "recipe_catalog_create",
+  save_opskrift_row = "recipe_catalog_update_ingredient",
+  save_opskrift_new_row = "recipe_catalog_add_ingredient",
+  confirm_delete_opskrift_row = "recipe_catalog_delete_ingredient",
+  confirm_delete_ret = "recipe_catalog_archive",
+  restore_ret = "recipe_catalog_restore",
+  confirm_delete_archived_ret = "recipe_catalog_delete"
+)
+recipe_mutation_api <- unname(recipe_mutation_handlers)
+recipe_server <- find_server_function(
+  "recipe_module.R",
+  "mod_opskrifter_server"
+)
+recipe_server_call_nodes <- collect_call_nodes(recipe_server[[3]])
+recipe_server_call_names <- vapply(
+  recipe_server_call_nodes,
+  call_name,
+  character(1)
+)
+recipe_mutation_handler_bodies <- list()
+
+for (input_name in names(recipe_mutation_handlers)) {
+  observers <- Filter(
+    function(node) {
+      identical(call_name(node), "observeEvent") &&
+        length(node) >= 3L &&
+        identical(input_reference_name(node[[2]]), input_name)
+    },
+    recipe_server_call_nodes
+  )
+  stopifnot(length(observers) == 1L)
+  recipe_mutation_handler_bodies[[input_name]] <- observers[[1]][[3]]
+}
 
 has_roxygen_documentation <- vapply(
   top_level_function_lines,
@@ -327,6 +617,50 @@ loaded_inspiration_module_libraries <- sub(
 )
 
 app_lines <- readLines("app.R", encoding = "UTF-8")
+app_expressions <- parse("app.R", encoding = "UTF-8")
+app_source_targets <- vapply(
+  as.list(app_expressions),
+  function(node) {
+    if (
+      is.call(node) &&
+        identical(call_name(node), "source") &&
+        length(node) >= 2L &&
+        is.character(node[[2]])
+    ) {
+      return(as.character(node[[2]]))
+    }
+    ""
+  },
+  character(1)
+)
+schema_source_position <- match(
+  "./recipe_schema.R",
+  app_source_targets
+)
+recipe_store_source_position <- match(
+  "./recipe_store.R",
+  app_source_targets
+)
+catalog_source_position <- match(
+  "./recipe_catalog.R",
+  app_source_targets
+)
+catalog_state_source_position <- match(
+  "./recipe_catalog_state.R",
+  app_source_targets
+)
+basis_store_source_position <- match(
+  "./basis_varer_store.R",
+  app_source_targets
+)
+basis_state_source_position <- match(
+  "./basis_varer_state.R",
+  app_source_targets
+)
+recipe_module_source_position <- match(
+  "./recipe_module.R",
+  app_source_targets
+)
 reference_data_lines <- readLines("data.R", encoding = "UTF-8")
 history_consumer_lines <- list(
   funktioner = funktioner_lines,
@@ -338,8 +672,12 @@ runtime_files <- c(
   "data.R",
   "funktioner.R",
   "cart_state.R",
+  "recipe_schema.R",
   "recipe_store.R",
+  "recipe_catalog.R",
+  "recipe_catalog_state.R",
   "basis_varer_store.R",
+  "basis_varer_state.R",
   "shopping_history_store.R",
   "recipe_module.R",
   "varer_module.R",
@@ -392,6 +730,22 @@ old_inspiration_root_patterns <- c(
   "input\\$top_n",
   "opskrifter_statistik[[:space:]]*<-[[:space:]]*reactive"
 )
+old_recipe_state_root_patterns <- c(
+  "rv_recipeCatalog",
+  "rv_recipeCatalogSignals",
+  "initial_recipe_store",
+  "publish_recipe_catalog",
+  "commit_recipe_store_change",
+  "recipe_store_(read|revision|commit)[[:space:]]*\\("
+)
+old_basis_state_root_patterns <- c(
+  "initial_basis_varer_store",
+  "rv_basisVarerStore",
+  "rv_varer_custom",
+  "publish_basis_varer_store",
+  "commit_basis_varer_change",
+  "basis_varer_store_(read|revision|commit)[[:space:]]*\\("
+)
 
 expected_top_level_outputs <- c(
   "opskrift_edit_context",
@@ -410,9 +764,235 @@ expected_top_level_outputs <- c(
   "opskrifter_statistik_plot"
 )
 
+forbidden_catalog_shiny_calls <- c(
+  "moduleServer",
+  "NS",
+  "reactive",
+  "reactiveVal",
+  "reactiveValues",
+  "reactiveValuesToList",
+  "observe",
+  "observeEvent",
+  "eventReactive",
+  "reactivePoll",
+  "reactiveFileReader",
+  "bindEvent",
+  "isolate",
+  "req",
+  "validate",
+  "need",
+  "showNotification",
+  "showModal",
+  "removeModal",
+  "renderUI",
+  "renderText",
+  "renderTable",
+  "renderPlot",
+  "renderDataTable",
+  "renderDT",
+  "insertUI",
+  "removeUI",
+  "updateSelectInput",
+  "updateSelectizeInput",
+  "updateTextInput",
+  "updateNumericInput",
+  "invalidateLater"
+)
+forbidden_catalog_persistence_calls <- c(
+  "commit_catalog",
+  "readRDS",
+  "saveRDS",
+  "readLines",
+  "writeLines",
+  "save",
+  "load",
+  "list.files",
+  "dir.create",
+  "file.create",
+  "file.copy",
+  "file.rename",
+  "unlink"
+)
+
 stopifnot(length(nested_output_assignments) == 0)
 stopifnot(all(expected_top_level_outputs %in% all_output_assignments))
 stopifnot(all(nested_module_functions == 0L))
+stopifnot(
+  !is.na(schema_source_position),
+  !is.na(recipe_store_source_position),
+  !is.na(catalog_source_position),
+  !is.na(catalog_state_source_position),
+  !is.na(basis_store_source_position),
+  !is.na(basis_state_source_position),
+  !is.na(recipe_module_source_position),
+  schema_source_position < recipe_store_source_position,
+  schema_source_position < catalog_source_position,
+  catalog_source_position < catalog_state_source_position,
+  catalog_state_source_position < recipe_module_source_position,
+  basis_store_source_position < basis_state_source_position
+)
+stopifnot(
+  all(startsWith(schema_function_names, "recipe_schema_")),
+  length(schema_top_level_function_lines) > 0L,
+  length(schema_top_level_function_lines) ==
+    length(schema_function_assignments),
+  all_schema_function_definitions ==
+    length(schema_function_assignments),
+  all(schema_has_roxygen_documentation),
+  !any(schema_call_names %in% c("::", ":::")),
+  !any(schema_call_names %in% forbidden_catalog_shiny_calls),
+  !any(schema_call_names %in% forbidden_catalog_persistence_calls),
+  !any(schema_call_names %in% c("<<-", "assign")),
+  any(grepl(
+    "recipe_schema_validate_catalog_tables",
+    catalog_lines,
+    fixed = TRUE
+  )),
+  any(grepl(
+    "recipe_schema_validate_catalog_tables",
+    recipe_store_lines,
+    fixed = TRUE
+  )),
+  any(grepl(
+    "recipe_schema_validate_recipes",
+    catalog_lines,
+    fixed = TRUE
+  )),
+  any(grepl(
+    "recipe_schema_validate_recipes",
+    recipe_store_lines,
+    fixed = TRUE
+  )),
+  !any(grepl(
+    paste0(
+      "^recipe_catalog_validate_(table|keys|recipe)",
+      "[[:space:]]*<-[[:space:]]*function"
+    ),
+    catalog_lines
+  )),
+  !any(grepl(
+    paste0(
+      "^\\.recipe_store_validate_(table|recipe|catalog_tables)",
+      "[[:space:]]*<-[[:space:]]*function"
+    ),
+    recipe_store_lines
+  ))
+)
+stopifnot(
+  all(recipe_mutation_api %in% catalog_function_names),
+  all(startsWith(catalog_function_names, "recipe_catalog_")),
+  length(catalog_top_level_function_lines) > 0L,
+  length(catalog_top_level_function_lines) ==
+    length(catalog_function_assignments),
+  all_catalog_function_definitions ==
+    length(catalog_function_assignments),
+  all(catalog_has_roxygen_documentation),
+  !any(catalog_call_names %in% c("::", ":::")),
+  !any(tolower(catalog_import_packages) %in% c("shiny", "shinymobile")),
+  !any(catalog_call_names %in% forbidden_catalog_shiny_calls),
+  !any(catalog_call_names %in% forbidden_catalog_persistence_calls),
+  !any(startsWith(catalog_call_names, "recipe_store_")),
+  !any(catalog_call_names %in% c("<<-", "assign")),
+  !any(catalog_uses_runtime_object)
+)
+stopifnot(
+  "create_recipe_catalog_state" %in% catalog_state_function_names,
+  all(
+    startsWith(
+      catalog_state_function_names,
+      "recipe_catalog_state_"
+    ) |
+      catalog_state_function_names == "create_recipe_catalog_state"
+  ),
+  length(catalog_state_top_level_function_lines) > 0L,
+  length(catalog_state_top_level_function_lines) ==
+    length(catalog_state_function_assignments),
+  all(catalog_state_has_roxygen_documentation),
+  !any(grepl("::", catalog_state_lines, fixed = TRUE)),
+  "shiny" %in% loaded_catalog_state_libraries,
+  sum(grepl(
+    "create_recipe_catalog_state[[:space:]]*\\(",
+    app_lines
+  )) == 1L,
+  !any(vapply(
+    old_recipe_state_root_patterns,
+    function(pattern) any(grepl(pattern, app_lines)),
+    logical(1)
+  ))
+)
+stopifnot(
+  "create_basis_varer_state" %in% basis_state_function_names,
+  all(
+    startsWith(
+      basis_state_function_names,
+      "basis_varer_state_"
+    ) |
+      basis_state_function_names == "create_basis_varer_state"
+  ),
+  length(basis_state_top_level_function_lines) > 0L,
+  length(basis_state_top_level_function_lines) ==
+    length(basis_state_function_assignments),
+  all(basis_state_has_roxygen_documentation),
+  !any(grepl("::", basis_state_lines, fixed = TRUE)),
+  "shiny" %in% loaded_basis_state_libraries,
+  sum(grepl(
+    "create_basis_varer_state[[:space:]]*\\(",
+    app_lines
+  )) == 1L,
+  !any(vapply(
+    old_basis_state_root_patterns,
+    function(pattern) any(grepl(pattern, app_lines)),
+    logical(1)
+  ))
+)
+stopifnot(vapply(
+  recipe_mutation_api,
+  function(function_name) {
+    sum(recipe_server_call_names == function_name) == 1L
+  },
+  logical(1)
+))
+
+for (input_name in names(recipe_mutation_handlers)) {
+  expected_function <- recipe_mutation_handlers[[input_name]]
+  handler_calls <- collect_call_nodes(
+    recipe_mutation_handler_bodies[[input_name]]
+  )
+  handler_call_names <- vapply(
+    handler_calls,
+    call_name,
+    character(1)
+  )
+
+  stopifnot(
+    sum(handler_call_names == expected_function) == 1L,
+    sum(handler_call_names %in% recipe_mutation_api) == 1L,
+    sum(handler_call_names == "commit_catalog") == 1L
+  )
+
+  mutation_call <- Filter(
+    function(node) identical(call_name(node), expected_function),
+    handler_calls
+  )[[1]]
+  stopifnot(
+    length(mutation_call) >= 2L,
+    identical(mutation_call[[2]], quote(catalog_read$snapshot()))
+  )
+
+  assignments <- Filter(is_assignment, handler_calls)
+  stopifnot(!any(vapply(
+    assignments,
+    function(node) {
+      lhs <- node[[2]]
+      (
+        is.call(lhs) &&
+          call_name(lhs) %in% c("[", "[[")
+      ) ||
+        lhs_contains_catalog_field(lhs)
+    },
+    logical(1)
+  )))
+}
 stopifnot(
   !any(vapply(
     legacy_reference_data_patterns,
@@ -550,5 +1130,12 @@ message(paste(
   "Opskrifts-, vare-, indkøbsseddel- og inspirationsmodulerne har",
   "dokumenterede",
   "topniveau-funktioner,",
-  "ingen nested funktioner, ingen ::-kald og ingen nested outputs."
+  "ingen nested funktioner, ingen ::-kald og ingen nested outputs.",
+  "Opskriftskatalogets syv ændringer ligger i dokumenterede, rene",
+  "katalogfunktioner uden Shiny- eller persistensafhængigheder.",
+  "Katalog og fillager deler de dokumenterede skemaregler i",
+  "recipe_schema.R, mens filreglerne bliver i recipe_store.R.",
+  "Katalogets kanoniske state, polling og commit-koordinering ligger",
+  "i recipe_catalog_state.R og ikke i app.R. Basisvarernes tilsvarende",
+  "state og lagringskoordinering ligger i basis_varer_state.R."
 ))

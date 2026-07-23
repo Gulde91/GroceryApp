@@ -65,101 +65,71 @@
   invisible(TRUE)
 }
 
-.recipe_store_validate_table <- function(df, expected_names, label) {
-  if (!is.data.frame(df)) {
-    stop(sprintf("%s skal være en data frame.", label), call. = FALSE)
-  }
-
-  if (!identical(names(df), expected_names)) {
-    stop(
-      sprintf(
-        "%s skal have kolonnerne: %s.",
-        label,
-        paste(expected_names, collapse = ", ")
-      ),
-      call. = FALSE
-    )
-  }
-
-  .recipe_store_validate_delimited_values(df, label)
-  invisible(TRUE)
-}
-
-.recipe_store_validate_recipe <- function(df, key) {
-  label <- sprintf("Opskriften '%s'", key)
-
-  if (!is.data.frame(df)) {
-    stop(sprintf("%s skal være en data frame.", label), call. = FALSE)
-  }
-
-  if (
-    ncol(df) != 5L ||
-      !identical(names(df)[2:5], c("maengde", "enhed", "kat_1", "kat_2"))
-  ) {
-    stop(
-      sprintf(
-        "%s skal have retten som første kolonne og derefter maengde, enhed, kat_1 og kat_2.",
-        label
-      ),
-      call. = FALSE
-    )
-  }
-
-  if (!is.numeric(df$maengde)) {
-    stop(sprintf("%s skal have en numerisk maengde-kolonne.", label), call. = FALSE)
-  }
-
-  .recipe_store_validate_delimited_values(df, label)
-  invisible(TRUE)
-}
-
-.recipe_store_validate_catalog_tables <- function(
+#' Kontrollér metadata både som fælles data og som tekstfiler
+#'
+#' De fælles skemaregler ligger i `recipe_schema.R`. Denne wrapper tilføjer
+#' kun fillagerets kontrol af semikolon og linjeskift.
+#'
+#' @param active_retter Tabel med aktive retter eller `NULL`.
+#' @param archived_retter Tabel med arkiverede retter eller `NULL`.
+#' @param links Tabel med opskriftslinks eller `NULL`.
+#'
+#' @return Usynligt `TRUE`, hvis tabellerne kan gemmes sikkert.
+#' @keywords internal
+.recipe_store_validate_catalog_files <- function(
   active_retter,
   archived_retter,
   links
 ) {
+  recipe_schema_validate_catalog_tables(
+    active_retter,
+    archived_retter,
+    links
+  )
+
   if (!is.null(active_retter)) {
-    .recipe_store_validate_table(
+    .recipe_store_validate_delimited_values(
       active_retter,
-      c("retter", "key", "type"),
       "Aktive retter"
     )
-
-    if (anyDuplicated(tolower(active_retter$key))) {
-      stop("Aktive retter indeholder dublerede nøgler.", call. = FALSE)
-    }
   }
 
   if (!is.null(archived_retter)) {
-    .recipe_store_validate_table(
+    .recipe_store_validate_delimited_values(
       archived_retter,
-      c("retter", "key", "type"),
       "Arkiverede retter"
     )
-
-    if (anyDuplicated(tolower(archived_retter$key))) {
-      stop("Arkiverede retter indeholder dublerede nøgler.", call. = FALSE)
-    }
-  }
-
-  if (!is.null(active_retter) && !is.null(archived_retter)) {
-    overlap <- intersect(
-      tolower(active_retter$key),
-      tolower(archived_retter$key)
-    )
-    if (length(overlap) > 0L) {
-      stop(
-        sprintf(
-          "Følgende nøgler er både aktive og arkiverede: %s",
-          paste(overlap, collapse = ", ")
-        ),
-        call. = FALSE
-      )
-    }
   }
 
   if (!is.null(links)) {
-    .recipe_store_validate_table(links, c("ret", "link"), "Opskriftslinks")
+    .recipe_store_validate_delimited_values(
+      links,
+      "Opskriftslinks"
+    )
+  }
+
+  invisible(TRUE)
+}
+
+#' Kontrollér opskrifter både som fælles data og som tekstfiler
+#'
+#' Funktionen bruger først det fælles opskriftsskema. Derefter kontrollerer
+#' fillageret, at hver nøgle kan bruges sikkert som filnavn, og at værdierne
+#' ikke indeholder tegn, som ødelægger det semikolonseparerede filformat.
+#'
+#' @param recipes En navngivet liste med opskriftstabeller.
+#'
+#' @return Usynligt `TRUE`, hvis opskrifterne kan gemmes sikkert.
+#' @keywords internal
+.recipe_store_validate_recipe_files <- function(recipes) {
+  recipe_schema_validate_recipes(recipes, "recipes")
+
+  for (key in names(recipes)) {
+    .recipe_store_validate_key(key)
+    .recipe_store_validate_delimited_values(
+      recipes[[key]],
+      sprintf("Opskriften '%s'", key)
+    )
   }
 
   invisible(TRUE)
@@ -622,31 +592,14 @@ recipe_store_commit <- function(
     stop("Mappen til opskriftsfiler kunne ikke oprettes.", call. = FALSE)
   }
 
-  .recipe_store_validate_catalog_tables(
+  .recipe_store_validate_catalog_files(
     active_retter,
     archived_retter,
     links
   )
 
   if (is.null(recipes)) recipes <- list()
-  if (!is.list(recipes)) {
-    stop("recipes skal være en navngivet liste.", call. = FALSE)
-  }
-
-  if (length(recipes) > 0L) {
-    if (
-      is.null(names(recipes)) ||
-        any(!nzchar(names(recipes))) ||
-        anyDuplicated(tolower(names(recipes)))
-    ) {
-      stop("recipes skal have unikke, ikke-tomme nøgler.", call. = FALSE)
-    }
-
-    for (key in names(recipes)) {
-      .recipe_store_validate_key(key)
-      .recipe_store_validate_recipe(recipes[[key]], key)
-    }
-  }
+  .recipe_store_validate_recipe_files(recipes)
 
   delete_recipe_keys <- as.character(delete_recipe_keys)
   if (length(delete_recipe_keys) > 1L) {
@@ -738,7 +691,7 @@ recipe_store_commit <- function(
   } else {
     links
   }
-  .recipe_store_validate_catalog_tables(
+  .recipe_store_validate_catalog_files(
     candidate_active,
     candidate_archive,
     candidate_links

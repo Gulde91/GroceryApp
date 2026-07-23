@@ -1,4 +1,7 @@
-source("recipe_store.R", encoding = "UTF-8")
+suppressPackageStartupMessages({
+  source("recipe_schema.R", encoding = "UTF-8")
+  source("recipe_store.R", encoding = "UTF-8")
+})
 
 expect_error <- function(code, pattern = NULL) {
   error <- tryCatch(
@@ -393,6 +396,45 @@ run_recipe_store_tests <- function() {
       expected_revision = revision_ghost_purged
     ),
     "unikke"
+  )
+  bad_recipe_columns <- empty_recipe
+  names(bad_recipe_columns)[2] <- "antal"
+  expect_error(
+    recipe_store_commit(
+      data_dir = root,
+      recipes = stats::setNames(
+        list(bad_recipe_columns),
+        "schema_test_opskr"
+      ),
+      expected_revision = revision_ghost_purged
+    ),
+    "maengde"
+  )
+  bad_recipe_name <- empty_recipe
+  names(bad_recipe_name)[1] <- ""
+  expect_error(
+    recipe_store_commit(
+      data_dir = root,
+      recipes = stats::setNames(
+        list(bad_recipe_name),
+        "schema_test_opskr"
+      ),
+      expected_revision = revision_ghost_purged
+    ),
+    "mangler rettens navn"
+  )
+  bad_recipe_amount <- empty_recipe
+  bad_recipe_amount$maengde <- character()
+  expect_error(
+    recipe_store_commit(
+      data_dir = root,
+      recipes = stats::setNames(
+        list(bad_recipe_amount),
+        "schema_test_opskr"
+      ),
+      expected_revision = revision_ghost_purged
+    ),
+    "numeriske"
   )
   stopifnot(identical(recipe_store_revision(root), revision_before_validation))
 
