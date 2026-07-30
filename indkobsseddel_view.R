@@ -1,0 +1,140 @@
+library(htmltools)
+library(DT)
+library(shiny)
+
+# Visningsbyggere for indkøbssedlen ---------------------------------------
+#
+# Funktionerne i denne fil omsætter allerede beregnede data til DT-widgets.
+# De registrerer ingen outputs og læser hverken input eller reaktiv state.
+
+#' Byg DT-tabellen til indkøbssedlen
+#'
+#' Synlige varelinjer får redigerings- og sletteknapper. Skjulte
+#' opskriftsnoter lægges efter de synlige rækker, så DataTables' kopiknap kan
+#' kopiere hele teksten uden at vise noterne på den første side.
+#'
+#' @param payload Resultatet fra `cart_copy_payload()`.
+#' @param ns Modulets namespace-funktion.
+#'
+#' @return Et DT-widget-objekt.
+#' @keywords internal
+indkobsseddel_cart_widget <- function(payload, ns) {
+  lines_visible <- as.character(payload$visible)
+  lines_hidden <- as.character(payload$hidden)
+  line_ids <- as.character(payload$line_ids)
+  n_visible <- as.integer(payload$n_visible)
+
+  if (length(n_visible) != 1L || is.na(n_visible) || n_visible < 0L) {
+    stop("Cartens copy-payload har et ugyldigt rækkeantal.", call. = FALSE)
+  }
+  if (
+    length(lines_visible) != n_visible ||
+      length(line_ids) != n_visible
+  ) {
+    stop("Cartens copy-payload er inkonsistent.", call. = FALSE)
+  }
+
+  if (n_visible == 0L) {
+    table_data <- data.frame(
+      `Indkøbsliste` = character(),
+      edit = character(),
+      delete = character(),
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+    page_length <- 1L
+  } else {
+    all_lines <- c(lines_visible, lines_hidden)
+    edit_buttons <- ga_make_cart_edit_buttons(
+      line_ids,
+      event_id = ns("edit_pressed"),
+      id_prefix = ns("edit_")
+    )
+    delete_buttons <- ga_make_cart_delete_buttons(
+      line_ids,
+      event_id = ns("delete_pressed"),
+      id_prefix = ns("delete_")
+    )
+    hidden_count <- length(all_lines) - n_visible
+
+    table_data <- data.frame(
+      `Indkøbsliste` = all_lines,
+      edit = c(edit_buttons, rep("", hidden_count)),
+      delete = c(delete_buttons, rep("", hidden_count)),
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    )
+    page_length <- n_visible
+  }
+
+  datatable(
+    table_data,
+    rownames = FALSE,
+    colnames = NULL,
+    escape = 1,
+    extensions = "Buttons",
+    options = list(
+      paging = TRUE,
+      pageLength = max(1L, page_length),
+      lengthChange = FALSE,
+      info = FALSE,
+      ordering = FALSE,
+      searching = FALSE,
+      dom = "Bft",
+      buttons = list(
+        list(
+          extend = "copy",
+          text = "Kopiér indkøbslisten",
+          title = NULL,
+          exportOptions = list(
+            columns = 0,
+            modifier = list(page = "all")
+          ),
+          attr = list(
+            style = paste(
+              "background:#22c55e;",
+              "color:#fff;",
+              "border:1px solid #16a34a;",
+              "border-radius:100px;",
+              "font-weight:500;"
+            )
+          ),
+          action = JS("copyWithFeedback")
+        )
+      ),
+      columnDefs = list(
+        list(
+          targets = 1,
+          orderable = FALSE,
+          searchable = FALSE
+        ),
+        list(
+          targets = 2,
+          orderable = FALSE,
+          searchable = FALSE
+        )
+      ),
+      language = list(
+        emptyTable = "Ingen varer på indkøbslisten!"
+      )
+    )
+  )
+}
+
+#' Byg preview-tabellen til en opskrift
+#'
+#' @param rows Ingrediensrækker i cart-format.
+#'
+#' @return Et kompakt DT-widget-objekt med navn, mængde og enhed.
+#' @keywords internal
+indkobsseddel_recipe_preview_widget <- function(rows) {
+  datatable(
+    rows[, c("Indkobsliste", "maengde", "enhed"), drop = FALSE],
+    rownames = FALSE,
+    options = list(
+      dom = "t",
+      ordering = FALSE,
+      pageLength = max(1L, nrow(rows))
+    )
+  )
+}

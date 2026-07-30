@@ -17,6 +17,8 @@ source("./data.R")
 source("./funktioner.R")
 source("./varer_module.R")
 source("./cart_state.R")
+source("./indkobsseddel_catalog.R")
+source("./indkobsseddel_view.R")
 source("./indkobsseddel_module.R")
 source("./recipe_module.R")
 source("./inspiration_module.R")
@@ -149,11 +151,46 @@ server <- function(input, output, session) {
   # Historiklageret returnerer først et nyt komplet snapshot, når filen er
   # gemt. Begge historikforbrugere ser derfor samme opdatering på én gang.
   commit_shopping_history <- function(history_df) {
-    next_snapshot <- shopping_history_store_save(
-      history_df,
-      history_dir = history_dir
+    current_snapshot <- isolate(rv_historyStore())
+    save_result <- tryCatch(
+      shopping_history_store_save(
+        history_df,
+        expected_revision = current_snapshot$revision,
+        history_dir = history_dir
+      ),
+      shopping_history_store_conflict = identity
     )
-    rv_historyStore(next_snapshot)
+
+    if (inherits(
+      save_result,
+      "shopping_history_store_conflict"
+    )) {
+      refreshed <- tryCatch(
+        shopping_history_store_read(history_dir),
+        error = identity
+      )
+      if (inherits(refreshed, "error")) {
+        stop(
+          paste(
+            "Indkøbshistorikken er ændret i en anden session,",
+            "og den nyeste historik kunne ikke indlæses:",
+            conditionMessage(refreshed)
+          ),
+          call. = FALSE
+        )
+      }
+
+      rv_historyStore(refreshed)
+      stop(
+        paste(
+          "Indkøbshistorikken blev ændret i en anden session.",
+          "Historikken er nu opdateret; prøv at gemme igen."
+        ),
+        call. = FALSE
+      )
+    }
+
+    rv_historyStore(save_result)
     TRUE
   }
   

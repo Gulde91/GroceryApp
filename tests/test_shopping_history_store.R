@@ -151,6 +151,7 @@ first_history <- data.frame(
 )
 first_saved <- shopping_history_store_save(
   first_history,
+  expected_revision = shopping_history_store_revision(save_dir),
   history_dir = save_dir,
   date = as.Date("2024-06-07")
 )
@@ -172,6 +173,7 @@ second_history <- data.frame(
 )
 second_saved <- shopping_history_store_save(
   second_history,
+  expected_revision = first_saved$revision,
   history_dir = save_dir,
   date = "2024-06-07"
 )
@@ -205,6 +207,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         extra_column,
+        expected_revision = second_saved$revision,
         history_dir = save_dir,
         date = "2024-06-08"
       ),
@@ -216,6 +219,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         factor_column,
+        expected_revision = second_saved$revision,
         history_dir = save_dir,
         date = "2024-06-08"
       ),
@@ -227,6 +231,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         second_history,
+        expected_revision = "empty",
         history_dir = tempfile("groceryapp-no-history-dir-"),
         date = "2024-06-08"
       ),
@@ -238,6 +243,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         second_history,
+        expected_revision = second_saved$revision,
         history_dir = save_dir,
         date = "ikke-en-dato"
       ),

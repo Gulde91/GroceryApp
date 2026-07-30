@@ -1,6 +1,8 @@
 suppressPackageStartupMessages({
   source("cart_state.R", encoding = "UTF-8")
   source("funktioner.R", encoding = "UTF-8")
+  source("indkobsseddel_catalog.R", encoding = "UTF-8")
+  source("indkobsseddel_view.R", encoding = "UTF-8")
   source("indkobsseddel_module.R", encoding = "UTF-8")
 })
 
@@ -776,10 +778,18 @@ run_indkobsseddel_module_tests()
 
 # Modulet må kun kommunikere med historiklageret gennem de injicerede
 # callbacks. Direkte filadgang hører hjemme i det centrale historiklager.
-module_source <- readLines(
-  "indkobsseddel_module.R",
-  warn = FALSE,
-  encoding = "UTF-8"
+indkobsseddel_source <- unlist(
+  lapply(
+    c(
+      "indkobsseddel_catalog.R",
+      "indkobsseddel_view.R",
+      "indkobsseddel_module.R"
+    ),
+    readLines,
+    warn = FALSE,
+    encoding = "UTF-8"
+  ),
+  use.names = FALSE
 )
 direct_history_file_calls <- c(
   "\\bsave\\s*\\(",
@@ -788,7 +798,9 @@ direct_history_file_calls <- c(
 )
 stopifnot(!any(vapply(
   direct_history_file_calls,
-  function(pattern) any(grepl(pattern, module_source, perl = TRUE)),
+  function(pattern) {
+    any(grepl(pattern, indkobsseddel_source, perl = TRUE))
+  },
   logical(1)
 )))
 

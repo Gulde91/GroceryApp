@@ -530,6 +530,22 @@ indkobsseddel_module_expressions <- parse(
   "indkobsseddel_module.R",
   encoding = "UTF-8"
 )
+indkobsseddel_catalog_lines <- readLines(
+  "indkobsseddel_catalog.R",
+  encoding = "UTF-8"
+)
+indkobsseddel_catalog_expressions <- parse(
+  "indkobsseddel_catalog.R",
+  encoding = "UTF-8"
+)
+indkobsseddel_view_lines <- readLines(
+  "indkobsseddel_view.R",
+  encoding = "UTF-8"
+)
+indkobsseddel_view_expressions <- parse(
+  "indkobsseddel_view.R",
+  encoding = "UTF-8"
+)
 indkobsseddel_top_level_function_lines <- grep(
   "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
   indkobsseddel_module_lines
@@ -552,12 +568,77 @@ indkobsseddel_has_roxygen_documentation <- vapply(
   logical(1)
 )
 
+indkobsseddel_catalog_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  indkobsseddel_catalog_lines
+)
+all_indkobsseddel_catalog_function_definitions <- sum(vapply(
+  as.list(indkobsseddel_catalog_expressions),
+  count_function_definitions,
+  integer(1)
+))
+indkobsseddel_catalog_has_roxygen_documentation <- vapply(
+  indkobsseddel_catalog_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl(
+        "^#'",
+        indkobsseddel_catalog_lines[[line_number - 1L]]
+      )
+  },
+  logical(1)
+)
+indkobsseddel_catalog_call_nodes <- unlist(
+  lapply(
+    as.list(indkobsseddel_catalog_expressions),
+    collect_call_nodes
+  ),
+  recursive = FALSE
+)
+indkobsseddel_catalog_call_names <- vapply(
+  indkobsseddel_catalog_call_nodes,
+  call_name,
+  character(1)
+)
+
+indkobsseddel_view_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  indkobsseddel_view_lines
+)
+all_indkobsseddel_view_function_definitions <- sum(vapply(
+  as.list(indkobsseddel_view_expressions),
+  count_function_definitions,
+  integer(1)
+))
+indkobsseddel_view_has_roxygen_documentation <- vapply(
+  indkobsseddel_view_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl(
+        "^#'",
+        indkobsseddel_view_lines[[line_number - 1L]]
+      )
+  },
+  logical(1)
+)
+indkobsseddel_view_call_nodes <- unlist(
+  lapply(
+    as.list(indkobsseddel_view_expressions),
+    collect_call_nodes
+  ),
+  recursive = FALSE
+)
+indkobsseddel_view_call_names <- vapply(
+  indkobsseddel_view_call_nodes,
+  call_name,
+  character(1)
+)
+
 required_indkobsseddel_module_libraries <- c(
   "htmltools",
   "DT",
   "shiny",
   "shinyMobile",
-  "dplyr",
   "shinyjs"
 )
 indkobsseddel_module_library_lines <- trimws(grep(
@@ -569,6 +650,26 @@ loaded_indkobsseddel_module_libraries <- sub(
   "^library\\(([^)]+)\\).*$",
   "\\1",
   indkobsseddel_module_library_lines
+)
+indkobsseddel_catalog_library_lines <- trimws(grep(
+  "^library\\(",
+  indkobsseddel_catalog_lines,
+  value = TRUE
+))
+loaded_indkobsseddel_catalog_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  indkobsseddel_catalog_library_lines
+)
+indkobsseddel_view_library_lines <- trimws(grep(
+  "^library\\(",
+  indkobsseddel_view_lines,
+  value = TRUE
+))
+loaded_indkobsseddel_view_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  indkobsseddel_view_library_lines
 )
 
 inspiration_module_lines <- readLines(
@@ -661,6 +762,22 @@ recipe_module_source_position <- match(
   "./recipe_module.R",
   app_source_targets
 )
+funktioner_source_position <- match(
+  "./funktioner.R",
+  app_source_targets
+)
+indkobsseddel_catalog_source_position <- match(
+  "./indkobsseddel_catalog.R",
+  app_source_targets
+)
+indkobsseddel_view_source_position <- match(
+  "./indkobsseddel_view.R",
+  app_source_targets
+)
+indkobsseddel_module_source_position <- match(
+  "./indkobsseddel_module.R",
+  app_source_targets
+)
 reference_data_lines <- readLines("data.R", encoding = "UTF-8")
 history_consumer_lines <- list(
   funktioner = funktioner_lines,
@@ -681,6 +798,8 @@ runtime_files <- c(
   "shopping_history_store.R",
   "recipe_module.R",
   "varer_module.R",
+  "indkobsseddel_catalog.R",
+  "indkobsseddel_view.R",
   "indkobsseddel_module.R",
   "inspiration_module.R"
 )
@@ -825,11 +944,20 @@ stopifnot(
   !is.na(basis_store_source_position),
   !is.na(basis_state_source_position),
   !is.na(recipe_module_source_position),
+  !is.na(funktioner_source_position),
+  !is.na(indkobsseddel_catalog_source_position),
+  !is.na(indkobsseddel_view_source_position),
+  !is.na(indkobsseddel_module_source_position),
   schema_source_position < recipe_store_source_position,
   schema_source_position < catalog_source_position,
   catalog_source_position < catalog_state_source_position,
   catalog_state_source_position < recipe_module_source_position,
-  basis_store_source_position < basis_state_source_position
+  basis_store_source_position < basis_state_source_position,
+  funktioner_source_position < indkobsseddel_view_source_position,
+  indkobsseddel_catalog_source_position <
+    indkobsseddel_module_source_position,
+  indkobsseddel_view_source_position <
+    indkobsseddel_module_source_position
 )
 stopifnot(
   all(startsWith(schema_function_names, "recipe_schema_")),
@@ -1083,6 +1211,57 @@ stopifnot(
   match("shiny", loaded_varer_module_libraries) <
     match("shinyjs", loaded_varer_module_libraries)
 )
+stopifnot(
+  length(indkobsseddel_catalog_top_level_function_lines) > 0L,
+  all_indkobsseddel_catalog_function_definitions ==
+    length(indkobsseddel_catalog_top_level_function_lines),
+  all(indkobsseddel_catalog_has_roxygen_documentation),
+  !any(grepl("::", indkobsseddel_catalog_lines, fixed = TRUE)),
+  identical(loaded_indkobsseddel_catalog_libraries, "dplyr"),
+  !any(
+    indkobsseddel_catalog_call_names %in%
+      forbidden_catalog_shiny_calls
+  ),
+  !any(
+    indkobsseddel_catalog_call_names %in%
+      forbidden_catalog_persistence_calls
+  ),
+  any(grepl(
+    "^indkobsseddel_prepare_recipe[[:space:]]*<-",
+    indkobsseddel_catalog_lines
+  )),
+  any(grepl(
+    "^indkobsseddel_find_item[[:space:]]*<-",
+    indkobsseddel_catalog_lines
+  ))
+)
+stopifnot(
+  length(indkobsseddel_view_top_level_function_lines) > 0L,
+  all_indkobsseddel_view_function_definitions ==
+    length(indkobsseddel_view_top_level_function_lines),
+  all(indkobsseddel_view_has_roxygen_documentation),
+  !any(grepl("::", indkobsseddel_view_lines, fixed = TRUE)),
+  identical(
+    loaded_indkobsseddel_view_libraries,
+    c("htmltools", "DT", "shiny")
+  ),
+  !any(
+    indkobsseddel_view_call_names %in%
+      forbidden_catalog_shiny_calls
+  ),
+  !any(
+    indkobsseddel_view_call_names %in%
+      forbidden_catalog_persistence_calls
+  ),
+  any(grepl(
+    "^indkobsseddel_cart_widget[[:space:]]*<-",
+    indkobsseddel_view_lines
+  )),
+  any(grepl(
+    "^indkobsseddel_recipe_preview_widget[[:space:]]*<-",
+    indkobsseddel_view_lines
+  ))
+)
 stopifnot(length(indkobsseddel_top_level_function_lines) > 0L)
 stopifnot(
   all_indkobsseddel_module_function_definitions ==
@@ -1102,7 +1281,15 @@ stopifnot(
   all(
     required_indkobsseddel_module_libraries %in%
       loaded_indkobsseddel_module_libraries
-  )
+  ),
+  !"dplyr" %in% loaded_indkobsseddel_module_libraries,
+  !any(grepl(
+    paste0(
+      "^indkobsseddel_(prepare_recipe|find_item|cart_widget|",
+      "recipe_preview_widget)[[:space:]]*<-"
+    ),
+    indkobsseddel_module_lines
+  ))
 )
 stopifnot(
   match("htmltools", loaded_indkobsseddel_module_libraries) <
@@ -1135,6 +1322,8 @@ message(paste(
   "katalogfunktioner uden Shiny- eller persistensafhængigheder.",
   "Katalog og fillager deler de dokumenterede skemaregler i",
   "recipe_schema.R, mens filreglerne bliver i recipe_store.R.",
+  "Indkøbssedlens rene valgregler og view-buildere ligger i hver sin fil,",
+  "mens den reaktive koordinering bliver i indkobsseddel_module.R.",
   "Katalogets kanoniske state, polling og commit-koordinering ligger",
   "i recipe_catalog_state.R og ikke i app.R. Basisvarernes tilsvarende",
   "state og lagringskoordinering ligger i basis_varer_state.R."

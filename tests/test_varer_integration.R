@@ -356,12 +356,22 @@ indkobsseddel_module_lines <- readLines(
   "indkobsseddel_module.R",
   encoding = "UTF-8"
 )
+indkobsseddel_catalog_lines <- readLines(
+  "indkobsseddel_catalog.R",
+  encoding = "UTF-8"
+)
+indkobsseddel_view_lines <- readLines(
+  "indkobsseddel_view.R",
+  encoding = "UTF-8"
+)
 stopifnot(
   !any(grepl(
     "(read|write)\\.csv\\(",
     c(
       app_lines,
       varer_module_lines,
+      indkobsseddel_catalog_lines,
+      indkobsseddel_view_lines,
       indkobsseddel_module_lines
     )
   )),
@@ -387,6 +397,14 @@ stopifnot(
       "publish_basis_varer_store|commit_basis_varer_change",
       sep = ""
     ),
+    app_lines
+  )),
+  any(grepl(
+    'source\\("\\./indkobsseddel_catalog\\.R"\\)',
+    app_lines
+  )),
+  any(grepl(
+    'source\\("\\./indkobsseddel_view\\.R"\\)',
     app_lines
   )),
   any(grepl(
