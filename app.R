@@ -6,22 +6,16 @@ library(dplyr)
 library(fontawesome)
 library(shinyjs)
 
-source("./recipe_schema.R")
-source("./recipe_store.R")
-source("./recipe_catalog.R")
-source("./recipe_catalog_state.R")
-source("./basis_varer_store.R")
-source("./basis_varer_state.R")
-source("./shopping_history_store.R")
-source("./data.R")
-source("./funktioner.R")
-source("./varer_module.R")
-source("./cart_state.R")
-source("./indkobsseddel_catalog.R")
-source("./indkobsseddel_view.R")
-source("./indkobsseddel_module.R")
-source("./recipe_module.R")
-source("./inspiration_module.R")
+# Ved normal appstart indlæser Shiny automatisk alle scripts i R-mappen.
+# Denne korte fallback gør det fortsat muligt at source app.R direkte i tests.
+if (!exists("mod_varer_server", mode = "function")) {
+  invisible(lapply(
+    sort(list.files("R", pattern = "\\.R$", full.names = TRUE)),
+    source,
+    local = FALSE,
+    encoding = "UTF-8"
+  ))
+}
 
 
 ui <- f7Page(
@@ -97,10 +91,11 @@ ui <- f7Page(
 
 server <- function(input, output, session) {
 
-  # Sætter reaktive værdier ----
-  history_dir <- "./data/indkobssedler"
-  initial_history_store <- shopping_history_store_read(history_dir)
-  rv_historyStore <- reactiveVal(initial_history_store)
+  # Opretter appens kanoniske state-lag ----
+  history_state <- create_shopping_history_state(
+    session = session,
+    history_dir = "./data/indkobssedler"
+  )
   recipe_state <- create_recipe_catalog_state(
     session = session,
     data_dir = "./data"
@@ -110,9 +105,7 @@ server <- function(input, output, session) {
     data_dir = "./data"
   )
 
-  history_current <- reactive({
-    rv_historyStore()$entries
-  })
+  history_current <- history_state$read$entries
   
   # laves som reactive (og ikke reactiveVal) fordi der ikke kan indgå
   # reactive elementer i en reactiveVal
@@ -148,52 +141,6 @@ server <- function(input, output, session) {
     commit_varer = basis_state$commit
   )
 
-  # Historiklageret returnerer først et nyt komplet snapshot, når filen er
-  # gemt. Begge historikforbrugere ser derfor samme opdatering på én gang.
-  commit_shopping_history <- function(history_df) {
-    current_snapshot <- isolate(rv_historyStore())
-    save_result <- tryCatch(
-      shopping_history_store_save(
-        history_df,
-        expected_revision = current_snapshot$revision,
-        history_dir = history_dir
-      ),
-      shopping_history_store_conflict = identity
-    )
-
-    if (inherits(
-      save_result,
-      "shopping_history_store_conflict"
-    )) {
-      refreshed <- tryCatch(
-        shopping_history_store_read(history_dir),
-        error = identity
-      )
-      if (inherits(refreshed, "error")) {
-        stop(
-          paste(
-            "Indkøbshistorikken er ændret i en anden session,",
-            "og den nyeste historik kunne ikke indlæses:",
-            conditionMessage(refreshed)
-          ),
-          call. = FALSE
-        )
-      }
-
-      rv_historyStore(refreshed)
-      stop(
-        paste(
-          "Indkøbshistorikken blev ændret i en anden session.",
-          "Historikken er nu opdateret; prøv at gemme igen."
-        ),
-        call. = FALSE
-      )
-    }
-
-    rv_historyStore(save_result)
-    TRUE
-  }
-  
   recipe_catalog_read <- c(
     recipe_state$read,
     list(
@@ -222,7 +169,7 @@ server <- function(input, output, session) {
     "indkobsseddel",
     recipe_read = recipe_catalog_read,
     varer_current = rv_varer,
-    save_cart = commit_shopping_history,
+    save_cart = history_state$commit,
     popular_items = popular_items_current
   )
 

@@ -9,12 +9,18 @@ run_shopping_history_integration_tests <- function() {
   )
 
   original_read <- shopping_history_store_read
+  original_revision <- shopping_history_store_revision
   original_save <- shopping_history_store_save
   on.exit(
     {
       assign(
         "shopping_history_store_read",
         original_read,
+        envir = .GlobalEnv
+      )
+      assign(
+        "shopping_history_store_revision",
+        original_revision,
         envir = .GlobalEnv
       )
       assign(
@@ -28,6 +34,7 @@ run_shopping_history_integration_tests <- function() {
 
   fixed_date <- as.Date("2026-07-22")
   requested_read_dirs <- character()
+  requested_revision_dirs <- character()
   requested_save_dirs <- character()
   requested_expected_revisions <- character()
   save_calls <- 0L
@@ -46,6 +53,14 @@ run_shopping_history_integration_tests <- function() {
       )
     }
     original_read(history_dir = test_history_dir)
+  }
+
+  revision_stub <- function(history_dir = "./data/indkobssedler") {
+    requested_revision_dirs <<- c(
+      requested_revision_dirs,
+      history_dir
+    )
+    original_revision(history_dir = test_history_dir)
   }
 
   # Stubbene ignorerer appens faste sti og sender alle filoperationer til den
@@ -83,6 +98,11 @@ run_shopping_history_integration_tests <- function() {
     envir = .GlobalEnv
   )
   assign(
+    "shopping_history_store_revision",
+    revision_stub,
+    envir = .GlobalEnv
+  )
+  assign(
     "shopping_history_store_save",
     save_stub,
     envir = .GlobalEnv
@@ -91,7 +111,7 @@ run_shopping_history_integration_tests <- function() {
   shiny::testServer(server, {
     session$flushReact()
 
-    initial_snapshot <- rv_historyStore()
+    initial_snapshot <- history_state$read$snapshot()
     stopifnot(
       identical(names(initial_snapshot), c("entries", "revision")),
       identical(
@@ -116,10 +136,10 @@ run_shopping_history_integration_tests <- function() {
     )
     names(history_df) <- history_column
 
-    stopifnot(identical(commit_shopping_history(history_df), TRUE))
+    stopifnot(identical(history_state$commit(history_df), TRUE))
     session$flushReact()
 
-    published_snapshot <- rv_historyStore()
+    published_snapshot <- history_state$read$snapshot()
     popular_items <- popular_items_current()
     recipe_statistics <- inspiration_api$recipe_statistics()
     stopifnot(
@@ -150,7 +170,7 @@ run_shopping_history_integration_tests <- function() {
       )
     )
 
-    snapshot_before_failure <- rv_historyStore()
+    snapshot_before_failure <- history_state$read$snapshot()
     failed_history <- data.frame(
       value = "1 stk Skal-ikke-publiceres",
       check.names = FALSE,
@@ -159,7 +179,7 @@ run_shopping_history_integration_tests <- function() {
     names(failed_history) <- history_column
     fail_next_save <<- TRUE
     failure <- tryCatch(
-      commit_shopping_history(failed_history),
+      history_state$commit(failed_history),
       error = identity
     )
     session$flushReact()
@@ -168,7 +188,10 @@ run_shopping_history_integration_tests <- function() {
       inherits(failure, "error"),
       grepl("Fremprovokeret historikfejl", conditionMessage(failure)),
       save_calls == 2L,
-      identical(rv_historyStore(), snapshot_before_failure),
+      identical(
+        history_state$read$snapshot(),
+        snapshot_before_failure
+      ),
       identical(history_current(), snapshot_before_failure$entries),
       !"Skal-ikke-publiceres" %in%
         popular_items_current()[[history_column]],
@@ -204,7 +227,7 @@ run_shopping_history_integration_tests <- function() {
     names(conflicting_history) <- history_column
 
     conflict <- tryCatch(
-      commit_shopping_history(conflicting_history),
+      history_state$commit(conflicting_history),
       error = identity
     )
     session$flushReact()
@@ -217,7 +240,10 @@ run_shopping_history_integration_tests <- function() {
         requested_expected_revisions[[3L]],
         snapshot_before_failure$revision
       ),
-      identical(rv_historyStore(), external_snapshot),
+      identical(
+        history_state$read$snapshot(),
+        external_snapshot
+      ),
       identical(history_current(), external_snapshot$entries),
       "Ekstern-vare" %in%
         popular_items_current()[[history_column]],
@@ -241,7 +267,7 @@ run_shopping_history_integration_tests <- function() {
     )
     names(retry_history) <- history_column
     stopifnot(identical(
-      commit_shopping_history(retry_history),
+      history_state$commit(retry_history),
       TRUE
     ))
     session$flushReact()
@@ -252,14 +278,18 @@ run_shopping_history_integration_tests <- function() {
         requested_expected_revisions[[4L]],
         external_snapshot$revision
       ),
-      identical(rv_historyStore(), returned_snapshot),
+      identical(
+        history_state$read$snapshot(),
+        returned_snapshot
+      ),
       "Efter-genindlæsning" %in%
         popular_items_current()[[history_column]]
     )
 
     # Hvis selve genindlæsningen fejler efter en konflikt, bevares det sidste
     # komplette snapshot i alle forbrugere.
-    snapshot_before_read_failure <- rv_historyStore()
+    snapshot_before_read_failure <-
+      history_state$read$snapshot()
     statistics_before_read_failure <-
       inspiration_api$recipe_statistics()
     newer_disk_history <- data.frame(
@@ -277,7 +307,7 @@ run_shopping_history_integration_tests <- function() {
     ))
     fail_next_read <<- TRUE
     refresh_failure <- tryCatch(
-      commit_shopping_history(conflicting_history),
+      history_state$commit(conflicting_history),
       error = identity
     )
     session$flushReact()
@@ -298,7 +328,7 @@ run_shopping_history_integration_tests <- function() {
         snapshot_before_read_failure$revision
       ),
       identical(
-        rv_historyStore(),
+        history_state$read$snapshot(),
         snapshot_before_read_failure
       ),
       identical(

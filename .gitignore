@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 data/indkobssedler
+data/.basis-varer-lock.sqlite*
+data/.recipe-store-lock.sqlite*

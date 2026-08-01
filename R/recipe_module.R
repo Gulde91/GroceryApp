@@ -1,3 +1,9 @@
+# Shiny-modul for fanen Opskrifter -----------------------------------------
+#
+# Denne fil styrer fanens brugerflade, dialoger og reaktive arbejdsgange for
+# oprettelse, redigering, arkivering og sletning. Selve dataændringerne og
+# lagringen udføres gennem opskriftskatalogets regler og den indsprøjtede state.
+
 library(stats)
 library(htmltools)
 library(DT)

@@ -1,10 +1,10 @@
-library(dplyr)
-
 # Rene katalog- og valgregler for indkøbssedlen --------------------------
 #
 # Funktionerne i denne fil arbejder kun med de data, de får udleveret.
 # De kender hverken Shiny-sessioner, reaktiv state eller filer og kan derfor
 # testes direkte uden at starte appen.
+
+library(dplyr)
 
 #' Rens én tekstværdi fra et input
 #'
@@ -606,5 +606,4 @@ indkobsseddel_find_item <- function(varer, name) {
     "kat_2"
   )]
 }
-
 

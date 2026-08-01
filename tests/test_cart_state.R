@@ -1,5 +1,5 @@
 suppressPackageStartupMessages(library(dplyr))
-source("cart_state.R", encoding = "UTF-8")
+source(file.path("R", "cart_state.R"), encoding = "UTF-8")
 
 cart_rows <- function(name, amount = 1, unit = "stk", category_1 = "konserves", category_2 = "") {
   data.frame(

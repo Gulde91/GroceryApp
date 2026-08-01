@@ -1,9 +1,13 @@
+r_file <- function(filename) {
+  file.path("R", filename)
+}
+
 server_source_files <- c(
   app = "app.R",
-  opskrifter = "recipe_module.R",
-  varer = "varer_module.R",
-  indkobsseddel = "indkobsseddel_module.R",
-  inspiration = "inspiration_module.R"
+  opskrifter = r_file("recipe_module.R"),
+  varer = r_file("varer_module.R"),
+  indkobsseddel = r_file("indkobsseddel_module.R"),
+  inspiration = r_file("inspiration_module.R")
 )
 
 server_function_names <- c(
@@ -197,27 +201,41 @@ nested_module_functions <- vapply(
   integer(1)
 )
 
-module_lines <- readLines("recipe_module.R", encoding = "UTF-8")
-module_expressions <- parse("recipe_module.R", encoding = "UTF-8")
-schema_lines <- readLines("recipe_schema.R", encoding = "UTF-8")
-schema_expressions <- parse("recipe_schema.R", encoding = "UTF-8")
-recipe_store_lines <- readLines("recipe_store.R", encoding = "UTF-8")
-catalog_lines <- readLines("recipe_catalog.R", encoding = "UTF-8")
-catalog_expressions <- parse("recipe_catalog.R", encoding = "UTF-8")
+module_lines <- readLines(r_file("recipe_module.R"), encoding = "UTF-8")
+module_expressions <- parse(r_file("recipe_module.R"), encoding = "UTF-8")
+schema_lines <- readLines(r_file("recipe_schema.R"), encoding = "UTF-8")
+schema_expressions <- parse(r_file("recipe_schema.R"), encoding = "UTF-8")
+recipe_store_lines <- readLines(
+  r_file("recipe_store.R"),
+  encoding = "UTF-8"
+)
+catalog_lines <- readLines(r_file("recipe_catalog.R"), encoding = "UTF-8")
+catalog_expressions <- parse(
+  r_file("recipe_catalog.R"),
+  encoding = "UTF-8"
+)
 catalog_state_lines <- readLines(
-  "recipe_catalog_state.R",
+  r_file("recipe_catalog_state.R"),
   encoding = "UTF-8"
 )
 catalog_state_expressions <- parse(
-  "recipe_catalog_state.R",
+  r_file("recipe_catalog_state.R"),
   encoding = "UTF-8"
 )
 basis_state_lines <- readLines(
-  "basis_varer_state.R",
+  r_file("basis_varer_state.R"),
   encoding = "UTF-8"
 )
 basis_state_expressions <- parse(
-  "basis_varer_state.R",
+  r_file("basis_varer_state.R"),
+  encoding = "UTF-8"
+)
+history_state_lines <- readLines(
+  r_file("shopping_history_state.R"),
+  encoding = "UTF-8"
+)
+history_state_expressions <- parse(
+  r_file("shopping_history_state.R"),
   encoding = "UTF-8"
 )
 top_level_function_lines <- grep(
@@ -413,6 +431,43 @@ loaded_basis_state_libraries <- sub(
   basis_state_library_lines
 )
 
+history_state_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  history_state_lines
+)
+history_state_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(history_state_expressions)
+)
+history_state_function_names <- vapply(
+  history_state_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+history_state_has_roxygen_documentation <- vapply(
+  history_state_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", history_state_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+history_state_library_lines <- trimws(grep(
+  "^library\\(",
+  history_state_lines,
+  value = TRUE
+))
+loaded_history_state_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  history_state_library_lines
+)
+
 recipe_mutation_handlers <- c(
   save_ny_ret = "recipe_catalog_create",
   save_opskrift_row = "recipe_catalog_update_ingredient",
@@ -424,7 +479,7 @@ recipe_mutation_handlers <- c(
 )
 recipe_mutation_api <- unname(recipe_mutation_handlers)
 recipe_server <- find_server_function(
-  "recipe_module.R",
+  r_file("recipe_module.R"),
   "mod_opskrifter_server"
 )
 recipe_server_call_nodes <- collect_call_nodes(recipe_server[[3]])
@@ -478,9 +533,12 @@ loaded_module_libraries <- sub(
   module_library_lines
 )
 
-varer_module_lines <- readLines("varer_module.R", encoding = "UTF-8")
+varer_module_lines <- readLines(
+  r_file("varer_module.R"),
+  encoding = "UTF-8"
+)
 varer_module_expressions <- parse(
-  "varer_module.R",
+  r_file("varer_module.R"),
   encoding = "UTF-8"
 )
 varer_top_level_function_lines <- grep(
@@ -523,27 +581,27 @@ loaded_varer_module_libraries <- sub(
 )
 
 indkobsseddel_module_lines <- readLines(
-  "indkobsseddel_module.R",
+  r_file("indkobsseddel_module.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_module_expressions <- parse(
-  "indkobsseddel_module.R",
+  r_file("indkobsseddel_module.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_catalog_lines <- readLines(
-  "indkobsseddel_catalog.R",
+  r_file("indkobsseddel_catalog.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_catalog_expressions <- parse(
-  "indkobsseddel_catalog.R",
+  r_file("indkobsseddel_catalog.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_view_lines <- readLines(
-  "indkobsseddel_view.R",
+  r_file("indkobsseddel_view.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_view_expressions <- parse(
-  "indkobsseddel_view.R",
+  r_file("indkobsseddel_view.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_top_level_function_lines <- grep(
@@ -673,12 +731,15 @@ loaded_indkobsseddel_view_libraries <- sub(
 )
 
 inspiration_module_lines <- readLines(
-  "inspiration_module.R",
+  r_file("inspiration_module.R"),
   encoding = "UTF-8"
 )
-funktioner_lines <- readLines("funktioner.R", encoding = "UTF-8")
+funktioner_lines <- readLines(
+  r_file("funktioner.R"),
+  encoding = "UTF-8"
+)
 inspiration_module_expressions <- parse(
-  "inspiration_module.R",
+  r_file("inspiration_module.R"),
   encoding = "UTF-8"
 )
 inspiration_top_level_function_lines <- grep(
@@ -719,13 +780,20 @@ loaded_inspiration_module_libraries <- sub(
 
 app_lines <- readLines("app.R", encoding = "UTF-8")
 app_expressions <- parse("app.R", encoding = "UTF-8")
-app_source_targets <- vapply(
-  as.list(app_expressions),
+app_call_nodes <- unlist(
+  lapply(as.list(app_expressions), collect_call_nodes),
+  recursive = FALSE
+)
+app_call_names <- vapply(app_call_nodes, call_name, character(1))
+app_source_calls <- Filter(
+  function(node) identical(call_name(node), "source"),
+  app_call_nodes
+)
+app_literal_source_targets <- vapply(
+  app_source_calls,
   function(node) {
     if (
-      is.call(node) &&
-        identical(call_name(node), "source") &&
-        length(node) >= 2L &&
+      length(node) >= 2L &&
         is.character(node[[2]])
     ) {
       return(as.character(node[[2]]))
@@ -734,51 +802,82 @@ app_source_targets <- vapply(
   },
   character(1)
 )
-schema_source_position <- match(
-  "./recipe_schema.R",
-  app_source_targets
+app_lists_r_directory <- any(vapply(
+  app_call_nodes,
+  function(node) {
+    identical(call_name(node), "list.files") &&
+      length(node) >= 2L &&
+      is.character(node[[2]]) &&
+      identical(as.character(node[[2]]), "R")
+  },
+  logical(1)
+))
+app_lapply_calls <- Filter(
+  function(node) identical(call_name(node), "lapply"),
+  app_call_nodes
 )
-recipe_store_source_position <- match(
-  "./recipe_store.R",
-  app_source_targets
+app_passes_source_to_loader <- any(vapply(
+  app_lapply_calls,
+  function(node) {
+    any(vapply(
+      as.list(node)[-1L],
+      function(argument) {
+        is.symbol(argument) &&
+          identical(as.character(argument), "source")
+      },
+      logical(1)
+    ))
+  },
+  logical(1)
+))
+
+expected_r_script_names <- c(
+  "basis_varer_state.R",
+  "basis_varer_store.R",
+  "cart_state.R",
+  "data.R",
+  "funktioner.R",
+  "indkobsseddel_catalog.R",
+  "indkobsseddel_module.R",
+  "indkobsseddel_view.R",
+  "inspiration_module.R",
+  "recipe_catalog.R",
+  "recipe_catalog_state.R",
+  "recipe_module.R",
+  "recipe_schema.R",
+  "recipe_store.R",
+  "shopping_history_state.R",
+  "shopping_history_store.R",
+  "store_lock.R",
+  "varer_module.R"
 )
-catalog_source_position <- match(
-  "./recipe_catalog.R",
-  app_source_targets
+actual_r_script_names <- sort(list.files(
+  "R",
+  pattern = "\\.R$",
+  full.names = FALSE
+))
+root_r_script_names <- sort(list.files(
+  ".",
+  pattern = "\\.R$",
+  full.names = FALSE,
+  recursive = FALSE
+))
+r_script_paths <- r_file(actual_r_script_names)
+r_script_first_content <- vapply(
+  r_script_paths,
+  function(path) {
+    lines <- readLines(path, encoding = "UTF-8")
+    content <- lines[nzchar(trimws(lines))]
+    if (length(content) == 0L) return("")
+    trimws(content[[1L]])
+  },
+  character(1)
 )
-catalog_state_source_position <- match(
-  "./recipe_catalog_state.R",
-  app_source_targets
+
+reference_data_lines <- readLines(
+  r_file("data.R"),
+  encoding = "UTF-8"
 )
-basis_store_source_position <- match(
-  "./basis_varer_store.R",
-  app_source_targets
-)
-basis_state_source_position <- match(
-  "./basis_varer_state.R",
-  app_source_targets
-)
-recipe_module_source_position <- match(
-  "./recipe_module.R",
-  app_source_targets
-)
-funktioner_source_position <- match(
-  "./funktioner.R",
-  app_source_targets
-)
-indkobsseddel_catalog_source_position <- match(
-  "./indkobsseddel_catalog.R",
-  app_source_targets
-)
-indkobsseddel_view_source_position <- match(
-  "./indkobsseddel_view.R",
-  app_source_targets
-)
-indkobsseddel_module_source_position <- match(
-  "./indkobsseddel_module.R",
-  app_source_targets
-)
-reference_data_lines <- readLines("data.R", encoding = "UTF-8")
 history_consumer_lines <- list(
   funktioner = funktioner_lines,
   indkobsseddel = indkobsseddel_module_lines,
@@ -786,22 +885,7 @@ history_consumer_lines <- list(
 )
 runtime_files <- c(
   "app.R",
-  "data.R",
-  "funktioner.R",
-  "cart_state.R",
-  "recipe_schema.R",
-  "recipe_store.R",
-  "recipe_catalog.R",
-  "recipe_catalog_state.R",
-  "basis_varer_store.R",
-  "basis_varer_state.R",
-  "shopping_history_store.R",
-  "recipe_module.R",
-  "varer_module.R",
-  "indkobsseddel_catalog.R",
-  "indkobsseddel_view.R",
-  "indkobsseddel_module.R",
-  "inspiration_module.R"
+  r_script_paths
 )
 runtime_lines <- unlist(
   lapply(runtime_files, readLines, encoding = "UTF-8"),
@@ -864,6 +948,14 @@ old_basis_state_root_patterns <- c(
   "publish_basis_varer_store",
   "commit_basis_varer_change",
   "basis_varer_store_(read|revision|commit)[[:space:]]*\\("
+)
+old_history_state_root_patterns <- c(
+  "initial_history_store",
+  "rv_historyStore",
+  "publish_shopping_history",
+  "commit_shopping_history",
+  "shopping_history_store_(read|revision|save)[[:space:]]*\\(",
+  "reactiveVal[[:space:]]*\\([^)]*history"
 )
 
 expected_top_level_outputs <- c(
@@ -937,27 +1029,19 @@ stopifnot(length(nested_output_assignments) == 0)
 stopifnot(all(expected_top_level_outputs %in% all_output_assignments))
 stopifnot(all(nested_module_functions == 0L))
 stopifnot(
-  !is.na(schema_source_position),
-  !is.na(recipe_store_source_position),
-  !is.na(catalog_source_position),
-  !is.na(catalog_state_source_position),
-  !is.na(basis_store_source_position),
-  !is.na(basis_state_source_position),
-  !is.na(recipe_module_source_position),
-  !is.na(funktioner_source_position),
-  !is.na(indkobsseddel_catalog_source_position),
-  !is.na(indkobsseddel_view_source_position),
-  !is.na(indkobsseddel_module_source_position),
-  schema_source_position < recipe_store_source_position,
-  schema_source_position < catalog_source_position,
-  catalog_source_position < catalog_state_source_position,
-  catalog_state_source_position < recipe_module_source_position,
-  basis_store_source_position < basis_state_source_position,
-  funktioner_source_position < indkobsseddel_view_source_position,
-  indkobsseddel_catalog_source_position <
-    indkobsseddel_module_source_position,
-  indkobsseddel_view_source_position <
-    indkobsseddel_module_source_position
+  dir.exists("R"),
+  all(expected_r_script_names %in% actual_r_script_names),
+  identical(root_r_script_names, "app.R"),
+  all(file.exists(r_script_paths)),
+  all(startsWith(r_script_first_content, "#")),
+  length(app_literal_source_targets) == 0L,
+  "lapply" %in% app_call_names,
+  app_lists_r_directory,
+  app_passes_source_to_loader,
+  any(grepl(
+    'exists\\("mod_varer_server",[[:space:]]*mode[[:space:]]*=[[:space:]]*"function"\\)',
+    app_lines
+  ))
 )
 stopifnot(
   all(startsWith(schema_function_names, "recipe_schema_")),
@@ -1073,6 +1157,50 @@ stopifnot(
     logical(1)
   ))
 )
+stopifnot(
+  "create_shopping_history_state" %in% history_state_function_names,
+  all(
+    startsWith(
+      history_state_function_names,
+      "shopping_history_state_"
+    ) |
+      history_state_function_names == "create_shopping_history_state"
+  ),
+  length(history_state_top_level_function_lines) > 0L,
+  length(history_state_top_level_function_lines) ==
+    length(history_state_function_assignments),
+  all(history_state_has_roxygen_documentation),
+  !any(grepl("::", history_state_lines, fixed = TRUE)),
+  "shiny" %in% loaded_history_state_libraries,
+  sum(grepl(
+    "create_shopping_history_state[[:space:]]*\\(",
+    app_lines
+  )) == 1L,
+  any(grepl(
+    "history_state\\$read\\$entries",
+    app_lines
+  )),
+  any(grepl(
+    "save_cart[[:space:]]*=[[:space:]]*history_state\\$commit",
+    app_lines
+  )),
+  all(vapply(
+    c(
+      "shopping_history_store_read",
+      "shopping_history_store_revision",
+      "shopping_history_store_save"
+    ),
+    function(function_name) {
+      any(grepl(function_name, history_state_lines, fixed = TRUE))
+    },
+    logical(1)
+  )),
+  !any(vapply(
+    old_history_state_root_patterns,
+    function(pattern) any(grepl(pattern, app_lines)),
+    logical(1)
+  ))
+)
 stopifnot(vapply(
   recipe_mutation_api,
   function(function_name) {
@@ -1130,10 +1258,7 @@ stopifnot(
   !any(grepl("kategori_[12]", app_lines))
 )
 stopifnot(
-  any(grepl(
-    'source\\("\\./indkobsseddel_module\\.R"\\)',
-    app_lines
-  )),
+  file.exists(r_file("indkobsseddel_module.R")),
   any(grepl("mod_indkobsseddel_ui", app_lines, fixed = TRUE)),
   any(grepl("mod_indkobsseddel_dialogs_ui", app_lines, fixed = TRUE)),
   any(grepl("mod_indkobsseddel_server", app_lines, fixed = TRUE)),
@@ -1144,10 +1269,7 @@ stopifnot(
   ))
 )
 stopifnot(
-  any(grepl(
-    'source\\("\\./inspiration_module\\.R"\\)',
-    app_lines
-  )),
+  file.exists(r_file("inspiration_module.R")),
   any(grepl("mod_inspiration_ui", app_lines, fixed = TRUE)),
   any(grepl("mod_inspiration_filters_ui", app_lines, fixed = TRUE)),
   any(grepl("mod_inspiration_server", app_lines, fixed = TRUE)),
@@ -1158,10 +1280,8 @@ stopifnot(
   ))
 )
 stopifnot(
-  any(grepl(
-    'source\\("\\./shopping_history_store\\.R"\\)',
-    app_lines
-  )),
+  file.exists(r_file("shopping_history_store.R")),
+  file.exists(r_file("shopping_history_state.R")),
   !any(vapply(
     legacy_history_function_patterns,
     function(pattern) any(grepl(pattern, runtime_lines)),
@@ -1324,7 +1444,10 @@ message(paste(
   "recipe_schema.R, mens filreglerne bliver i recipe_store.R.",
   "Indkøbssedlens rene valgregler og view-buildere ligger i hver sin fil,",
   "mens den reaktive koordinering bliver i indkobsseddel_module.R.",
+  "Alle produktionsscripts bortset fra app.R ligger dokumenteret i R-mappen,",
+  "som Shiny indlæser automatisk, og app.R har kun en dynamisk test-fallback.",
   "Katalogets kanoniske state, polling og commit-koordinering ligger",
   "i recipe_catalog_state.R og ikke i app.R. Basisvarernes tilsvarende",
-  "state og lagringskoordinering ligger i basis_varer_state.R."
+  "state ligger i basis_varer_state.R, og indkøbshistorikkens state ligger",
+  "i shopping_history_state.R."
 ))

@@ -1,11 +1,11 @@
-library(shiny)
-
 # Reaktiv state og lagringskoordinering for basisvarer ----------------------
 #
 # Denne fil binder basisvarelageret i basis_varer_store.R sammen med resten
 # af appen. Resten af appen får kun læseadgang og en kontrolleret
 # commit-funktion. Den reaktive state og publiceringen holdes private i
 # create_basis_varer_state().
+
+library(shiny)
 
 #' Kontrollér et komplet snapshot til basisvarernes reaktive state
 #'

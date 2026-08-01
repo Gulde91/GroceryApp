@@ -1,3 +1,9 @@
+# Shiny-modul for fanen Inspiration ----------------------------------------
+#
+# Denne fil bygger fanens filtre, statistik og ordsky ud fra de opskrifter
+# og den indkøbshistorik, modulet får udleveret. Modulet læser ikke selv fra
+# disken og ejer ikke appens kanoniske data.
+
 library(shiny)
 library(shinyMobile)
 library(dplyr)

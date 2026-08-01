@@ -1,5 +1,8 @@
 suppressPackageStartupMessages(
-  source("indkobsseddel_catalog.R", encoding = "UTF-8")
+  source(
+    file.path("R", "indkobsseddel_catalog.R"),
+    encoding = "UTF-8"
+  )
 )
 
 indkobsseddel_catalog_test_recipe <- function(

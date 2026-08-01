@@ -1,4 +1,7 @@
-source("shopping_history_store.R", encoding = "UTF-8")
+source(
+  file.path("R", "shopping_history_store.R"),
+  encoding = "UTF-8"
+)
 
 # Manglende og tomme mapper giver samme, typede tomme snapshot.
 missing_dir <- tempfile("groceryapp-missing-history-")
@@ -352,7 +355,10 @@ stopifnot(
 
 # Store-filen består af dokumenterede top-level-funktioner og bruger ikke
 # dobbelte koloner til pakkefunktioner.
-store_lines <- readLines("shopping_history_store.R", encoding = "UTF-8")
+store_lines <- readLines(
+  file.path("R", "shopping_history_store.R"),
+  encoding = "UTF-8"
+)
 function_lines <- grep(
   "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
   store_lines

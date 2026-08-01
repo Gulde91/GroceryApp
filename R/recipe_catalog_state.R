@@ -1,11 +1,11 @@
-library(shiny)
-
 # Reaktiv state og lagringskoordinering for opskrifter -----------------------
 #
 # Denne fil binder det rene opskriftskatalog i recipe_catalog.R sammen med
 # fillageret i recipe_store.R. Resten af appen får kun læseadgang og en
 # kontrolleret commit-funktion. Den reaktive state og publiceringen holdes
 # private i create_recipe_catalog_state().
+
+library(shiny)
 
 #' Kontroller et komplet snapshot til den reaktive opskriftstilstand
 #'

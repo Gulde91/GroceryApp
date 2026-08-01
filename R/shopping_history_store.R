@@ -1,3 +1,9 @@
+# Holdbar lagring og analyse af indkøbshistorikken -------------------------
+#
+# Denne fil læser og gemmer historiske indkøbssedler som komplette snapshots.
+# Den håndterer revisioner, låsning og gendannelse efter afbrudte gemninger og
+# indeholder indtil videre også analyser af populære varer og opskriftsbrug.
+
 library(tools)
 library(DBI, exclude = "show")
 library(RSQLite, exclude = "show")

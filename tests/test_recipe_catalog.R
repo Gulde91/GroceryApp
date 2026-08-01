@@ -1,6 +1,6 @@
 suppressPackageStartupMessages({
-  source("recipe_schema.R", encoding = "UTF-8")
-  source("recipe_catalog.R", encoding = "UTF-8")
+  source(file.path("R", "recipe_schema.R"), encoding = "UTF-8")
+  source(file.path("R", "recipe_catalog.R"), encoding = "UTF-8")
 })
 
 expect_recipe_catalog_error <- function(expression, pattern) {

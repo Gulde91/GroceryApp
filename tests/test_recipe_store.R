@@ -1,6 +1,7 @@
 suppressPackageStartupMessages({
-  source("recipe_schema.R", encoding = "UTF-8")
-  source("recipe_store.R", encoding = "UTF-8")
+  source(file.path("R", "store_lock.R"), encoding = "UTF-8")
+  source(file.path("R", "recipe_schema.R"), encoding = "UTF-8")
+  source(file.path("R", "recipe_store.R"), encoding = "UTF-8")
 })
 
 expect_error <- function(code, pattern = NULL) {
@@ -210,15 +211,14 @@ run_recipe_store_tests <- function() {
     "Simuleret processtop"
   )
   stopifnot(
-    dir.exists(file.path(root, ".recipe-store-lock")),
+    file.exists(file.path(root, ".recipe-store-lock.sqlite")),
+    !dir.exists(file.path(root, ".recipe-store-lock")),
     file.exists(file.path(root, ".recipe-store-transaction.rds"))
   )
-  Sys.setFileTime(
-    file.path(root, ".recipe-store-lock"),
-    Sys.time() - 60
-  )
+  recovered_revision <- recipe_store_revision(root)
   recovered_snapshot <- recipe_store_read(root)
   stopifnot(
+    identical(recovered_revision, revision_restored),
     identical(recovered_snapshot$revision, revision_restored),
     identical(recovered_snapshot$active_retter$key, active$key),
     nrow(recovered_snapshot$archived_retter) == 0L,
@@ -241,6 +241,7 @@ run_recipe_store_tests <- function() {
     identical(recipe_store_revision(root), before_rollback_revision),
     identical(read_store_table(file.path(root, "retter.txt"))$key, active$key),
     nrow(read_store_table(file.path(root, "retter_arkiv.txt"))) == 0L,
+    file.exists(file.path(root, ".recipe-store-lock.sqlite")),
     !dir.exists(file.path(root, ".recipe-store-lock"))
   )
 
@@ -301,10 +302,6 @@ run_recipe_store_tests <- function() {
       .crash_at = "after_commit_marker"
     ),
     "Simuleret processtop"
-  )
-  Sys.setFileTime(
-    file.path(root, ".recipe-store-lock"),
-    Sys.time() - 60
   )
   purged_snapshot <- recipe_store_read(root)
   revision_purged <- purged_snapshot$revision
@@ -443,6 +440,10 @@ run_recipe_store_tests <- function() {
     pattern = "^\\.(recipe-store|retter|links)",
     all.files = TRUE,
     recursive = TRUE
+  )
+  hidden_artifacts <- setdiff(
+    hidden_artifacts,
+    ".recipe-store-lock.sqlite"
   )
   stopifnot(length(hidden_artifacts) == 0L)
 }

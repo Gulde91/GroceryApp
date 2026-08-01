@@ -1,4 +1,4 @@
-source("recipe_schema.R", encoding = "UTF-8")
+source(file.path("R", "recipe_schema.R"), encoding = "UTF-8")
 
 expect_recipe_schema_error <- function(expression, pattern) {
   error <- tryCatch(

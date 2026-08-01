@@ -1,3 +1,9 @@
+# Shiny-modul for fanen Indkøbsseddel --------------------------------------
+#
+# Denne fil styrer fanens brugerflade, dialoger og reaktive arbejdsgange.
+# Beregninger, tabelvisning og permanent lagring sendes videre til de rene
+# katalogfunktioner, view-funktioner og callbacks, som modulet får udleveret.
+
 library(htmltools)
 library(DT)
 library(shiny)

@@ -1,4 +1,8 @@
 # Kanonisk state for indkøbssedlen -----------------------------------------
+#
+# Denne fil indeholder indkøbssedlens autoritative data og de rene regler,
+# der tilføjer, samler, redigerer og sletter varelinjer. Funktionerne kender
+# hverken Shiny, dialoger eller filer og kan derfor testes direkte.
 
 .cart_group_columns <- c("Indkobsliste", "enhed", "kat_1", "kat_2")
 .cart_input_columns <- c("Indkobsliste", "maengde", "enhed", "kat_1", "kat_2")

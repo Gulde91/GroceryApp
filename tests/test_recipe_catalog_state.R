@@ -1,7 +1,10 @@
 suppressPackageStartupMessages({
-  source("recipe_schema.R", encoding = "UTF-8")
-  source("recipe_catalog.R", encoding = "UTF-8")
-  source("recipe_catalog_state.R", encoding = "UTF-8")
+  source(file.path("R", "recipe_schema.R"), encoding = "UTF-8")
+  source(file.path("R", "recipe_catalog.R"), encoding = "UTF-8")
+  source(
+    file.path("R", "recipe_catalog_state.R"),
+    encoding = "UTF-8"
+  )
 })
 
 recipe_catalog_state_fixture <- function(revision = "fixture-revision-1") {

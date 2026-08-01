@@ -1,3 +1,9 @@
+# Shiny-modul for fanen Varer ----------------------------------------------
+#
+# Denne fil styrer visning og dialoger for brugerens egne basisvarer. Modulet
+# holder kun midlertidig dialogtilstand og sender permanente ændringer gennem
+# den state-funktion, som appen giver det.
+
 library(stats)
 library(htmltools)
 library(DT)

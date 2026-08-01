@@ -1,4 +1,7 @@
-source("basis_varer_store.R", encoding = "UTF-8")
+suppressPackageStartupMessages({
+  source(file.path("R", "store_lock.R"), encoding = "UTF-8")
+  source(file.path("R", "basis_varer_store.R"), encoding = "UTF-8")
+})
 
 basis_expect_error <- function(code, pattern = NULL) {
   error <- tryCatch(
@@ -33,6 +36,18 @@ basis_store_artifacts <- function(data_dir) {
     all.files = TRUE,
     full.names = FALSE
   )
+}
+
+basis_expect_lock_available <- function(data_dir) {
+  lock_handle <- .basis_varer_store_acquire_lock(
+    data_dir,
+    wait_seconds = 0.1
+  )
+  stopifnot(
+    isTRUE(dbIsValid(lock_handle$connection)),
+    isTRUE(.basis_varer_store_release_lock(lock_handle))
+  )
+  invisible(TRUE)
 }
 
 basis_fixture <- function() {
@@ -164,9 +179,7 @@ run_basis_varer_store_tests <- function() {
     )
 
     stopifnot(
-      !dir.exists(
-        file.path(root, ".basis-varer-store-lock")
-      ),
+      basis_expect_lock_available(root),
       length(basis_store_artifacts(root)) == 0L,
       identical(basis_read_raw(target), bytes_before),
       identical(
@@ -361,8 +374,8 @@ run_basis_varer_store_tests <- function() {
     length(basis_store_artifacts(root)) == 0L
   )
 
-  # Et processtop før markøren efterlader transaktionsfilerne. Næste læsning
-  # overtager den gamle lås og ruller automatisk tilbage.
+  # Et processtop før markøren efterlader transaktionsfilerne. OS-låsen er
+  # straks fri, og næste læsning ruller automatisk tilbage.
   crash_rollback_candidate <- rbind(
     marker_snapshot$varer,
     basis_row("Estragon")
@@ -382,14 +395,8 @@ run_basis_varer_store_tests <- function() {
       crash_error,
       "basis_varer_store_simulated_crash"
     ),
-    dir.exists(
-      file.path(root, ".basis-varer-store-lock")
-    ),
+    basis_expect_lock_available(root),
     length(basis_store_artifacts(root)) > 0L
-  )
-  Sys.setFileTime(
-    file.path(root, ".basis-varer-store-lock"),
-    Sys.time() - 60
   )
   recovered_old <- basis_varer_store_read(root)
   stopifnot(
@@ -412,10 +419,7 @@ run_basis_varer_store_tests <- function() {
     ),
     "Simuleret processtop"
   )
-  Sys.setFileTime(
-    file.path(root, ".basis-varer-store-lock"),
-    Sys.time() - 60
-  )
+  stopifnot(basis_expect_lock_available(root))
   recovered_new <- basis_varer_store_read(root)
   stopifnot(
     "Fennikel" %in% recovered_new$varer$Indkobsliste,
@@ -423,50 +427,28 @@ run_basis_varer_store_tests <- function() {
     length(basis_store_artifacts(root)) == 0L
   )
 
-  # En frisk lås må ikke stjæles. En gammel lås må overtages.
-  lock_path <- file.path(root, ".basis-varer-store-lock")
-  dir.create(lock_path)
+  # SQLite-låsen serialiserer samtidige ejere og frigives straks.
+  lock_path <- file.path(root, ".basis-varer-lock.sqlite")
+  first_owner <- .basis_varer_store_acquire_lock(root)
   basis_expect_error(
     .basis_varer_store_acquire_lock(
       root,
-      wait_seconds = 0,
-      stale_after_seconds = 30
+      wait_seconds = 0.05
     ),
     "i brug"
   )
-  stopifnot(dir.exists(lock_path))
-  Sys.setFileTime(lock_path, Sys.time() - 60)
-  acquired_stale_lock <- .basis_varer_store_acquire_lock(
-    root,
-    wait_seconds = 0,
-    stale_after_seconds = 30
-  )
   stopifnot(
-    identical(acquired_stale_lock$path, lock_path),
-    isTRUE(
-      .basis_varer_store_release_lock(
-        acquired_stale_lock
-      )
-    )
+    file.exists(lock_path),
+    isTRUE(.basis_varer_store_release_lock(first_owner)),
+    !isTRUE(.basis_varer_store_release_lock(first_owner))
   )
-
-  # En gammel ejer må ikke fjerne den nye ejers lås efter en overtagelse.
-  first_owner <- .basis_varer_store_acquire_lock(root)
-  Sys.setFileTime(first_owner$path, Sys.time() - 60)
   second_owner <- .basis_varer_store_acquire_lock(
     root,
-    wait_seconds = 0,
-    stale_after_seconds = 30
+    wait_seconds = 0.1
   )
   stopifnot(
-    !isTRUE(.basis_varer_store_release_lock(first_owner)),
-    dir.exists(second_owner$path),
-    identical(
-      .basis_varer_store_lock_owner(second_owner$path),
-      second_owner$token
-    ),
-    isTRUE(.basis_varer_store_release_lock(second_owner)),
-    !dir.exists(lock_path)
+    identical(second_owner$path, lock_path),
+    isTRUE(.basis_varer_store_release_lock(second_owner))
   )
 
   # To gamle snapshots må ikke overskrive hinanden. Efter konflikten kan den
@@ -566,7 +548,7 @@ run_basis_varer_store_tests <- function() {
   )
   basis_expect_error(basis_varer_store_read(root))
   stopifnot(
-    !dir.exists(lock_path),
+    basis_expect_lock_available(root),
     length(basis_store_artifacts(root)) == 0L
   )
 }
@@ -574,7 +556,7 @@ run_basis_varer_store_tests <- function() {
 run_basis_varer_store_tests()
 
 store_lines <- readLines(
-  "basis_varer_store.R",
+  file.path("R", "basis_varer_store.R"),
   encoding = "UTF-8"
 )
 store_function_lines <- grep(

@@ -1,11 +1,11 @@
-library(htmltools)
-library(DT)
-library(shiny)
-
 # Visningsbyggere for indkøbssedlen ---------------------------------------
 #
 # Funktionerne i denne fil omsætter allerede beregnede data til DT-widgets.
 # De registrerer ingen outputs og læser hverken input eller reaktiv state.
+
+library(htmltools)
+library(DT)
+library(shiny)
 
 #' Byg DT-tabellen til indkøbssedlen
 #'

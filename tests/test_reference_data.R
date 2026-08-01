@@ -11,7 +11,7 @@ reference_data_env$recipe_store_read <- function(...) {
 }
 
 source(
-  "data.R",
+  file.path("R", "data.R"),
   local = reference_data_env,
   encoding = "UTF-8"
 )
@@ -81,7 +81,10 @@ stopifnot(
   ))
 )
 
-data_lines <- readLines("data.R", encoding = "UTF-8")
+data_lines <- readLines(
+  file.path("R", "data.R"),
+  encoding = "UTF-8"
+)
 stopifnot(!any(grepl("recipe_store_read[[:space:]]*\\(", data_lines)))
 
 message(

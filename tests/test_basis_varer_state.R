@@ -1,5 +1,5 @@
 suppressPackageStartupMessages(
-  source("basis_varer_state.R", encoding = "UTF-8")
+  source(file.path("R", "basis_varer_state.R"), encoding = "UTF-8")
 )
 
 basis_varer_state_row <- function(

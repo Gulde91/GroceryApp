@@ -1,9 +1,9 @@
 suppressPackageStartupMessages({
-  source("cart_state.R", encoding = "UTF-8")
-  source("funktioner.R", encoding = "UTF-8")
-  source("indkobsseddel_catalog.R", encoding = "UTF-8")
-  source("indkobsseddel_view.R", encoding = "UTF-8")
-  source("indkobsseddel_module.R", encoding = "UTF-8")
+  source(file.path("R", "cart_state.R"), encoding = "UTF-8")
+  source(file.path("R", "funktioner.R"), encoding = "UTF-8")
+  source(file.path("R", "indkobsseddel_catalog.R"), encoding = "UTF-8")
+  source(file.path("R", "indkobsseddel_view.R"), encoding = "UTF-8")
+  source(file.path("R", "indkobsseddel_module.R"), encoding = "UTF-8")
 })
 
 indkobsseddel_test_varer <- function() {
@@ -781,9 +781,9 @@ run_indkobsseddel_module_tests()
 indkobsseddel_source <- unlist(
   lapply(
     c(
-      "indkobsseddel_catalog.R",
-      "indkobsseddel_view.R",
-      "indkobsseddel_module.R"
+      file.path("R", "indkobsseddel_catalog.R"),
+      file.path("R", "indkobsseddel_view.R"),
+      file.path("R", "indkobsseddel_module.R")
     ),
     readLines,
     warn = FALSE,

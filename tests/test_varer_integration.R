@@ -349,19 +349,19 @@ run_varer_integration_tests()
 
 app_lines <- readLines("app.R", encoding = "UTF-8")
 varer_module_lines <- readLines(
-  "varer_module.R",
+  file.path("R", "varer_module.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_module_lines <- readLines(
-  "indkobsseddel_module.R",
+  file.path("R", "indkobsseddel_module.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_catalog_lines <- readLines(
-  "indkobsseddel_catalog.R",
+  file.path("R", "indkobsseddel_catalog.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_view_lines <- readLines(
-  "indkobsseddel_view.R",
+  file.path("R", "indkobsseddel_view.R"),
   encoding = "UTF-8"
 )
 stopifnot(
@@ -375,14 +375,8 @@ stopifnot(
       indkobsseddel_module_lines
     )
   )),
-  any(grepl(
-    'source\\("\\./basis_varer_store\\.R"\\)',
-    app_lines
-  )),
-  any(grepl(
-    'source\\("\\./basis_varer_state\\.R"\\)',
-    app_lines
-  )),
+  file.exists(file.path("R", "basis_varer_store.R")),
+  file.exists(file.path("R", "basis_varer_state.R")),
   sum(grepl(
     "create_basis_varer_state[[:space:]]*\\(",
     app_lines
@@ -399,18 +393,9 @@ stopifnot(
     ),
     app_lines
   )),
-  any(grepl(
-    'source\\("\\./indkobsseddel_catalog\\.R"\\)',
-    app_lines
-  )),
-  any(grepl(
-    'source\\("\\./indkobsseddel_view\\.R"\\)',
-    app_lines
-  )),
-  any(grepl(
-    'source\\("\\./indkobsseddel_module\\.R"\\)',
-    app_lines
-  )),
+  file.exists(file.path("R", "indkobsseddel_catalog.R")),
+  file.exists(file.path("R", "indkobsseddel_view.R")),
+  file.exists(file.path("R", "indkobsseddel_module.R")),
   any(grepl(
     "mod_indkobsseddel_server",
     app_lines

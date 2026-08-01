@@ -1,6 +1,6 @@
 suppressPackageStartupMessages({
-  source("funktioner.R", encoding = "UTF-8")
-  source("indkobsseddel_view.R", encoding = "UTF-8")
+  source(file.path("R", "funktioner.R"), encoding = "UTF-8")
+  source(file.path("R", "indkobsseddel_view.R"), encoding = "UTF-8")
 })
 
 expect_indkobsseddel_view_error <- function(expression, pattern) {

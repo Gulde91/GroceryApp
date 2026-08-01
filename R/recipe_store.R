@@ -190,12 +190,31 @@
   invisible(TRUE)
 }
 
-.recipe_store_release_lock <- function(lock_path) {
-  if (dir.exists(lock_path)) {
-    unlink(lock_path, recursive = TRUE, force = TRUE)
-  }
+#' Kontrollér opskriftslåsen mellem kritiske filtrin
+#'
+#' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
+#'
+#' @return Usynligt `TRUE`.
+#' @keywords internal
+.recipe_store_touch_lock <- function(lock_handle) {
+  store_lock_touch(
+    lock_handle = lock_handle,
+    store_label = "opskriftslageret",
+    lock_lost_class = "recipe_store_lock_lost"
+  )
+}
 
-  invisible(NULL)
+#' Frigiv opskriftslagerets SQLite-lås
+#'
+#' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
+#'
+#' @return `TRUE`, hvis forbindelsen blev lukket, ellers `FALSE`, usynligt.
+#' @keywords internal
+.recipe_store_release_lock <- function(lock_handle) {
+  store_lock_release(
+    lock_handle = lock_handle,
+    store_label = "opskriftslageret"
+  )
 }
 
 .recipe_store_transaction_paths <- function(data_dir) {
@@ -252,8 +271,9 @@
   invisible(marker_path)
 }
 
-.recipe_store_rollback_journal <- function(journal) {
+.recipe_store_rollback_journal <- function(journal, lock_handle) {
   errors <- character()
+  .recipe_store_touch_lock(lock_handle)
 
   if (length(journal$target_paths) > 0L) {
     for (i in rev(seq_along(journal$target_paths))) {
@@ -261,14 +281,18 @@
       backup <- journal$backup_paths[[i]]
 
       if (file.exists(backup)) {
-        if (file.exists(target) && !file.remove(target)) {
-          errors <- c(
-            errors,
-            sprintf("kunne ikke fjerne ny fil '%s'", basename(target))
-          )
-          next
+        if (file.exists(target)) {
+          .recipe_store_touch_lock(lock_handle)
+          if (!file.remove(target)) {
+            errors <- c(
+              errors,
+              sprintf("kunne ikke fjerne ny fil '%s'", basename(target))
+            )
+            next
+          }
         }
 
+        .recipe_store_touch_lock(lock_handle)
         if (!file.rename(backup, target)) {
           errors <- c(
             errors,
@@ -276,6 +300,7 @@
           )
         }
       } else if (isFALSE(journal$had_original[[i]]) && file.exists(target)) {
+        .recipe_store_touch_lock(lock_handle)
         if (!file.remove(target)) {
           errors <- c(
             errors,
@@ -310,11 +335,14 @@
             errors,
             sprintf("opskriften '%s' findes allerede", basename(target))
           )
-        } else if (!file.rename(quarantine, target)) {
-          errors <- c(
-            errors,
-            sprintf("kunne ikke gendanne '%s'", basename(target))
-          )
+        } else {
+          .recipe_store_touch_lock(lock_handle)
+          if (!file.rename(quarantine, target)) {
+            errors <- c(
+              errors,
+              sprintf("kunne ikke gendanne '%s'", basename(target))
+            )
+          }
         }
       } else if (isTRUE(journal$delete_existed[[i]])) {
         if (
@@ -334,6 +362,7 @@
   }
 
   if (length(errors) == 0L) {
+    .recipe_store_touch_lock(lock_handle)
     failed_cleanup <- .recipe_store_remove_files(journal$stage_paths)
     if (length(failed_cleanup) > 0L) {
       errors <- c(
@@ -349,13 +378,17 @@
   errors
 }
 
-.recipe_store_recover_locked <- function(data_dir) {
+.recipe_store_recover_locked <- function(data_dir, lock_handle) {
+  .recipe_store_touch_lock(lock_handle)
   transaction_paths <- .recipe_store_transaction_paths(data_dir)
   journal_path <- unname(transaction_paths[["journal"]])
   marker_path <- unname(transaction_paths[["committed"]])
 
   if (!file.exists(journal_path)) {
-    if (file.exists(marker_path)) file.remove(marker_path)
+    if (file.exists(marker_path)) {
+      .recipe_store_touch_lock(lock_handle)
+      file.remove(marker_path)
+    }
     return(TRUE)
   }
 
@@ -375,15 +408,23 @@
       journal$backup_paths,
       journal$quarantine_paths
     )
+    .recipe_store_touch_lock(lock_handle)
     failed_cleanup <- .recipe_store_remove_files(leftovers)
     if (length(failed_cleanup) > 0L) return(FALSE)
 
+    .recipe_store_touch_lock(lock_handle)
     if (!file.remove(journal_path)) return(FALSE)
-    if (file.exists(marker_path) && !file.remove(marker_path)) return(FALSE)
+    if (file.exists(marker_path)) {
+      .recipe_store_touch_lock(lock_handle)
+      if (!file.remove(marker_path)) return(FALSE)
+    }
     return(TRUE)
   }
 
-  rollback_errors <- .recipe_store_rollback_journal(journal)
+  rollback_errors <- .recipe_store_rollback_journal(
+    journal,
+    lock_handle
+  )
   if (length(rollback_errors) > 0L) {
     stop(
       paste(
@@ -394,50 +435,42 @@
     )
   }
 
+  .recipe_store_touch_lock(lock_handle)
   if (!file.remove(journal_path)) {
     stop("Den gendannede transaktionsjournal kunne ikke fjernes.", call. = FALSE)
   }
   TRUE
 }
 
+#' Tag den eksklusive SQLite-lås til opskriftslageret
+#'
+#' @param data_dir Mappen med opskriftslagerets filer.
+#' @param wait_seconds Hvor længe der højst ventes på en aktiv lås.
+#'
+#' @return Et låsehåndtag med forbindelse og sti.
+#' @keywords internal
 .recipe_store_acquire_lock <- function(
   data_dir,
-  wait_seconds = 1,
-  stale_after_seconds = 30
+  wait_seconds = 1
 ) {
-  lock_path <- file.path(data_dir, ".recipe-store-lock")
-  deadline <- Sys.time() + wait_seconds
-
-  repeat {
-    if (dir.create(lock_path, showWarnings = FALSE)) {
-      return(lock_path)
-    }
-
-    lock_info <- file.info(lock_path)
-    lock_age <- as.numeric(
-      difftime(Sys.time(), lock_info$mtime, units = "secs")
-    )
-    if (
-      !is.na(lock_age) &&
-        lock_age >= stale_after_seconds
-    ) {
-      unlink(lock_path, recursive = TRUE, force = TRUE)
-      next
-    }
-
-    if (Sys.time() >= deadline) {
-      stop(
-        "Opskriftslageret er i brug af en anden handling. Prøv igen om et øjeblik.",
-        call. = FALSE
-      )
-    }
-
-    Sys.sleep(0.02)
-  }
+  store_lock_acquire(
+    lock_path = file.path(
+      data_dir,
+      ".recipe-store-lock.sqlite"
+    ),
+    store_label = "opskriftslageret",
+    lock_lost_class = "recipe_store_lock_lost",
+    wait_seconds = wait_seconds
+  )
 }
 
-recipe_store_revision <- function(data_dir = "./data") {
-  data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
+#' Beregn opskriftslagerets revision under en allerede aktiv lås
+#'
+#' @param data_dir Mappen med opskriftslagerets filer.
+#'
+#' @return En stabil tekstværdi med filnavne og hashes.
+#' @keywords internal
+.recipe_store_revision_unlocked <- function(data_dir) {
   recipe_dir <- .recipe_store_recipe_dir(data_dir)
   metadata_paths <- .recipe_store_metadata_paths(data_dir)
 
@@ -467,6 +500,25 @@ recipe_store_revision <- function(data_dir = "./data") {
   )
 
   paste(paste(labels, hashes, sep = "="), collapse = "\n")
+}
+
+#' Læs en konsistent revision af opskriftslageret
+#'
+#' Funktionen tager samme OS-lås og udfører samme recovery som en almindelig
+#' læsning, så polling aldrig ser et halvpubliceret katalog.
+#'
+#' @param data_dir Mappen med opskriftslagerets filer.
+#'
+#' @return En stabil tekstværdi med filnavne og hashes.
+recipe_store_revision <- function(data_dir = "./data") {
+  data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
+  lock_handle <- .recipe_store_acquire_lock(data_dir)
+  on.exit(
+    .recipe_store_release_lock(lock_handle),
+    add = TRUE
+  )
+  .recipe_store_recover_locked(data_dir, lock_handle)
+  .recipe_store_revision_unlocked(data_dir)
 }
 
 .recipe_store_empty_retter <- function() {
@@ -553,9 +605,12 @@ recipe_store_revision <- function(data_dir = "./data") {
 
 recipe_store_read <- function(data_dir = "./data") {
   data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
-  lock_path <- .recipe_store_acquire_lock(data_dir)
-  on.exit(.recipe_store_release_lock(lock_path), add = TRUE)
-  .recipe_store_recover_locked(data_dir)
+  lock_handle <- .recipe_store_acquire_lock(data_dir)
+  on.exit(
+    .recipe_store_release_lock(lock_handle),
+    add = TRUE
+  )
+  .recipe_store_recover_locked(data_dir, lock_handle)
 
   metadata_paths <- .recipe_store_metadata_paths(data_dir)
   snapshot <- list(
@@ -570,7 +625,8 @@ recipe_store_read <- function(data_dir = "./data") {
       unname(metadata_paths[["links"]])
     )
   )
-  snapshot$revision <- recipe_store_revision(data_dir)
+  .recipe_store_touch_lock(lock_handle)
+  snapshot$revision <- .recipe_store_revision_unlocked(data_dir)
   snapshot
 }
 
@@ -587,10 +643,6 @@ recipe_store_commit <- function(
 ) {
   data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
   recipe_dir <- .recipe_store_recipe_dir(data_dir)
-
-  if (!dir.exists(recipe_dir) && !dir.create(recipe_dir, recursive = FALSE)) {
-    stop("Mappen til opskriftsfiler kunne ikke oprettes.", call. = FALSE)
-  }
 
   .recipe_store_validate_catalog_files(
     active_retter,
@@ -649,14 +701,22 @@ recipe_store_commit <- function(
     )
   }
 
-  lock_path <- .recipe_store_acquire_lock(data_dir)
+  lock_handle <- .recipe_store_acquire_lock(data_dir)
   release_lock <- TRUE
   on.exit(
-    if (release_lock) .recipe_store_release_lock(lock_path),
+    if (release_lock) .recipe_store_release_lock(lock_handle),
     add = TRUE
   )
 
-  recovered_cleanly <- .recipe_store_recover_locked(data_dir)
+  .recipe_store_touch_lock(lock_handle)
+  if (!dir.exists(recipe_dir) && !dir.create(recipe_dir, recursive = FALSE)) {
+    stop("Mappen til opskriftsfiler kunne ikke oprettes.", call. = FALSE)
+  }
+
+  recovered_cleanly <- .recipe_store_recover_locked(
+    data_dir,
+    lock_handle
+  )
   if (!recovered_cleanly) {
     stop(
       "En tidligere opskriftstransaktion mangler stadig filoprydning.",
@@ -664,7 +724,7 @@ recipe_store_commit <- function(
     )
   }
 
-  current_revision <- recipe_store_revision(data_dir)
+  current_revision <- .recipe_store_revision_unlocked(data_dir)
   if (
     !is.null(expected_revision) &&
       !identical(current_revision, expected_revision)
@@ -779,6 +839,7 @@ recipe_store_commit <- function(
   tryCatch(
     {
       for (i in seq_along(write_specs)) {
+        .recipe_store_touch_lock(lock_handle)
         .recipe_store_write_table(write_specs[[i]]$data, stage_paths[[i]])
       }
 
@@ -801,12 +862,14 @@ recipe_store_commit <- function(
           character(1)
         )
       )
+      .recipe_store_touch_lock(lock_handle)
       .recipe_store_write_journal(data_dir, journal)
       journal_prepared <- TRUE
       .recipe_store_checkpoint(.fail_at, "after_stage", .crash_at)
 
       for (i in seq_along(write_specs)) {
         if (file.exists(target_paths[[i]])) {
+          .recipe_store_touch_lock(lock_handle)
           .recipe_store_move(
             target_paths[[i]],
             backup_paths[[i]],
@@ -822,6 +885,7 @@ recipe_store_commit <- function(
 
       for (i in seq_along(delete_targets)) {
         if (file.exists(delete_targets[[i]])) {
+          .recipe_store_touch_lock(lock_handle)
           .recipe_store_move(
             delete_targets[[i]],
             quarantine_paths[[i]],
@@ -836,6 +900,7 @@ recipe_store_commit <- function(
       }
 
       for (i in seq_along(write_specs)) {
+        .recipe_store_touch_lock(lock_handle)
         .recipe_store_move(
           stage_paths[[i]],
           target_paths[[i]],
@@ -848,10 +913,12 @@ recipe_store_commit <- function(
         )
       }
 
-      next_revision <- recipe_store_revision(data_dir)
+      .recipe_store_touch_lock(lock_handle)
+      next_revision <- .recipe_store_revision_unlocked(data_dir)
+      .recipe_store_touch_lock(lock_handle)
       .recipe_store_mark_committed(data_dir)
       .recipe_store_checkpoint(NULL, "after_commit_marker", .crash_at)
-      .recipe_store_recover_locked(data_dir)
+      .recipe_store_recover_locked(data_dir, lock_handle)
     },
     error = function(error) {
       commit_error <<- error
@@ -861,18 +928,24 @@ recipe_store_commit <- function(
   if (!is.null(commit_error)) {
     if (inherits(commit_error, "recipe_store_simulated_crash")) {
       release_lock <- FALSE
-      stop(conditionMessage(commit_error), call. = FALSE)
+      .recipe_store_release_lock(lock_handle)
+      stop(commit_error)
+    }
+
+    if (inherits(commit_error, "store_lock_lost")) {
+      stop(commit_error)
     }
 
     if (journal_prepared) {
       recovery_error <- tryCatch(
         {
-          .recipe_store_recover_locked(data_dir)
+          .recipe_store_recover_locked(data_dir, lock_handle)
           NULL
         },
         error = identity
       )
     } else {
+      .recipe_store_touch_lock(lock_handle)
       failed_cleanup <- .recipe_store_remove_files(
         c(stage_paths, backup_paths, quarantine_paths)
       )
@@ -886,6 +959,9 @@ recipe_store_commit <- function(
       }
     }
 
+    if (inherits(recovery_error, "store_lock_lost")) {
+      stop(recovery_error)
+    }
     if (!is.null(recovery_error)) {
       stop(
         paste(

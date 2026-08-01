@@ -1,4 +1,7 @@
-source("shopping_history_store.R", encoding = "UTF-8")
+source(
+  file.path("R", "shopping_history_store.R"),
+  encoding = "UTF-8"
+)
 
 history_test_frame <- function(label) {
   data.frame(
