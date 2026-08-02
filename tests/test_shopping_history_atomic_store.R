@@ -1,7 +1,13 @@
-source(
-  file.path("R", "shopping_history_store.R"),
-  encoding = "UTF-8"
-)
+suppressPackageStartupMessages({
+  source(
+    file.path("R", "store_lock.R"),
+    encoding = "UTF-8"
+  )
+  source(
+    file.path("R", "shopping_history_store.R"),
+    encoding = "UTF-8"
+  )
+})
 
 history_test_frame <- function(label) {
   data.frame(
@@ -623,6 +629,13 @@ stopifnot(grepl(
   conditionMessage(probe_error),
   fixed = TRUE
 ))
+stopifnot(
+  inherits(
+    probe_error,
+    "shopping_history_store_lock_lost"
+  ),
+  inherits(probe_error, "store_lock_lost")
+)
 after_probe_owner <- .shopping_history_store_acquire_lock(
   lock_dir,
   wait_seconds = 0.05
@@ -638,7 +651,7 @@ invalid_lock_dir <- history_test_new_dir(
 test_dirs <- c(test_dirs, invalid_lock_dir)
 invalid_lock_path <- file.path(
   invalid_lock_dir,
-  ".shopping-history-lock.sqlite"
+  "shopping-history-lock.sqlite"
 )
 writeLines("ikke en SQLite-database", invalid_lock_path, useBytes = TRUE)
 invalid_lock_error <- history_test_expect_error(
@@ -648,7 +661,7 @@ invalid_lock_error <- history_test_expect_error(
   )
 )
 stopifnot(grepl(
-  "Historiklåsen",
+  "kunne ikke oprettes",
   conditionMessage(invalid_lock_error),
   fixed = TRUE
 ))

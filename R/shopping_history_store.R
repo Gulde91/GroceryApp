@@ -1,12 +1,11 @@
 # Holdbar lagring og analyse af indkøbshistorikken -------------------------
 #
 # Denne fil læser og gemmer historiske indkøbssedler som komplette snapshots.
-# Den håndterer revisioner, låsning og gendannelse efter afbrudte gemninger og
-# indeholder indtil videre også analyser af populære varer og opskriftsbrug.
+# Den håndterer revisioner og gendannelse efter afbrudte gemninger, mens selve
+# låsemekanismen kommer fra store_lock.R. Filen indeholder indtil videre også
+# analyser af populære varer og opskriftsbrug.
 
 library(tools)
-library(DBI, exclude = "show")
-library(RSQLite, exclude = "show")
 
 #' Opret en tom, kanonisk indkøbshistorik
 #'
@@ -109,7 +108,7 @@ library(RSQLite, exclude = "show")
     ),
     lock = file.path(
       history_dir,
-      ".shopping-history-lock.sqlite"
+      "shopping-history-lock.sqlite"
     )
   )
 }
@@ -678,94 +677,28 @@ library(RSQLite, exclude = "show")
   invisible(NULL)
 }
 
-#' Stop når SQLite-låsen til historikken er mistet
-#'
-#' Den særskilte fejlklasse sikrer, at en handling stopper uden rollback, hvis
-#' forbindelsen til den OS-understøttede lås ikke længere er gyldig.
-#'
-#' @return Funktionen returnerer ikke.
-#' @keywords internal
-.shopping_history_store_stop_lock_lost <- function() {
-  condition <- structure(
-    list(
-      message = paste(
-        "Låsen til indkøbshistorikken blev mistet.",
-        "Prøv handlingen igen."
-      ),
-      call = NULL
-    ),
-    class = c(
-      "shopping_history_store_lock_lost",
-      "error",
-      "condition"
-    )
-  )
-  stop(condition)
-}
-
-#' Kontrollér at SQLite-forbindelsen stadig holder historiklåsen
-#'
-#' SQLite bruger operativsystemets fillås. Låsen frigives automatisk, hvis
-#' processen stopper, og kan derfor ikke blive efterladt som en gammel
-#' låsemappe, der senere skal stjæles.
-#'
-#' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
-#'
-#' @return `TRUE` usynligt.
-#' @keywords internal
-.shopping_history_store_assert_lock_owner <- function(
-  lock_handle
-) {
-  valid_handle <- is.list(lock_handle) &&
-    identical(
-      sort(names(lock_handle)),
-      c("connection", "path")
-    ) &&
-    length(lock_handle$path) == 1L &&
-    !is.na(lock_handle$path) &&
-    inherits(lock_handle$connection, "DBIConnection") &&
-    isTRUE(dbIsValid(lock_handle$connection))
-
-  if (!isTRUE(valid_handle)) {
-    .shopping_history_store_stop_lock_lost()
-  }
-
-  invisible(TRUE)
-}
-
 #' Kontrollér den aktive SQLite-lås mellem kritiske filtrin
 #'
-#' En lille forespørgsel bekræfter, at forbindelsen fortsat er brugbar.
-#' Selve den eksklusive transaktion forbliver åben indtil release.
+#' Historikken bruger den fælles OS-understøttede lagerlås, men beholder sin
+#' egen fejlklasse, så dens eksisterende recovery-flow kan genkende en mistet
+#' lås og stoppe uden rollback.
 #'
 #' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
 #'
 #' @return `TRUE` usynligt.
 #' @keywords internal
 .shopping_history_store_touch_lock <- function(lock_handle) {
-  .shopping_history_store_assert_lock_owner(lock_handle)
-  probe <- tryCatch(
-    dbGetQuery(
-      lock_handle$connection,
-      "SELECT 1 AS lock_is_alive"
-    ),
-    error = identity
+  store_lock_touch(
+    lock_handle = lock_handle,
+    store_label = "indkøbshistorikken",
+    lock_lost_class = "shopping_history_store_lock_lost"
   )
-  if (
-    inherits(probe, "error") ||
-      !identical(probe$lock_is_alive, 1L)
-  ) {
-    .shopping_history_store_stop_lock_lost()
-  }
-
-  invisible(TRUE)
 }
 
 #' Tag den eksklusive OS-understøttede historiklås
 #'
-#' En eksklusiv SQLite-transaktion fungerer som fillås på både Windows og
-#' Unix. Operativsystemet frigiver låsen ved et processtop, mens SQLite
-#' serialiserer samtidige sessioner uden en sårbar stale-lock-overtagelse.
+#' Funktionen giver historikken sin egen låsefil og fejlklasse, men delegerer
+#' forbindelses-, timeout- og processtopadfærden til `store_lock_acquire()`.
 #'
 #' @param history_dir Mappen med historiklageret.
 #' @param wait_seconds Hvor længe der højst ventes på en aktiv lås.
@@ -776,153 +709,30 @@ library(RSQLite, exclude = "show")
   history_dir,
   wait_seconds = 1
 ) {
-  valid_wait <- is.numeric(wait_seconds) &&
-    length(wait_seconds) == 1L &&
-    !is.na(wait_seconds) &&
-    is.finite(wait_seconds) &&
-    wait_seconds >= 0 &&
-    wait_seconds <= 3600
-  if (!isTRUE(valid_wait)) {
-    stop(
-      "Ventetiden for historiklåsen er ugyldig.",
-      call. = FALSE
-    )
-  }
-
-  lock_path <- file.path(
-    history_dir,
-    ".shopping-history-lock.sqlite"
-  )
-  connection <- tryCatch(
-    dbConnect(
-      SQLite(),
-      lock_path,
-      synchronous = NULL
+  store_lock_acquire(
+    lock_path = file.path(
+      history_dir,
+      "shopping-history-lock.sqlite"
     ),
-    error = identity
+    store_label = "indkøbshistorikken",
+    lock_lost_class = "shopping_history_store_lock_lost",
+    wait_seconds = wait_seconds
   )
-  if (inherits(connection, "error")) {
-    stop(
-      paste(
-        "Historiklåsens database kunne ikke åbnes:",
-        conditionMessage(connection)
-      ),
-      call. = FALSE
-    )
-  }
-
-  wait_milliseconds <- as.integer(
-    ceiling(wait_seconds * 1000)
-  )
-  lock_error <- tryCatch(
-    {
-      dbExecute(
-        connection,
-        paste0(
-          "PRAGMA busy_timeout = ",
-          wait_milliseconds
-        )
-      )
-      dbExecute(
-        connection,
-        "BEGIN EXCLUSIVE TRANSACTION"
-      )
-      NULL
-    },
-    error = identity
-  )
-  if (inherits(lock_error, "error")) {
-    try(
-      dbDisconnect(connection),
-      silent = TRUE
-    )
-    lock_message <- conditionMessage(lock_error)
-    if (grepl(
-      "locked|busy",
-      lock_message,
-      ignore.case = TRUE
-    )) {
-      stop(
-        paste(
-          "Indkøbshistorikken er i brug af en anden handling.",
-          "Prøv igen om et øjeblik."
-        ),
-        call. = FALSE
-      )
-    }
-    stop(
-      paste(
-        "Historiklåsen kunne ikke oprettes:",
-        lock_message
-      ),
-      call. = FALSE
-    )
-  }
-
-  lock_handle <- list(
-    connection = connection,
-    path = lock_path
-  )
-  lock_ready <- FALSE
-  on.exit(
-    if (!lock_ready) {
-      .shopping_history_store_release_lock(lock_handle)
-    },
-    add = TRUE
-  )
-  .shopping_history_store_touch_lock(lock_handle)
-  lock_ready <- TRUE
-  lock_handle
 }
 
 #' Frigiv den eksklusive SQLite-lås
 #'
-#' Transaktionen rulles tilbage, fordi låsedatabasen ikke indeholder
-#' forretningsdata. Forbindelsen lukkes derefter, så operativsystemets fillås
-#' frigives med det samme.
+#' Funktionen delegerer oprydningen til den fælles låsemekanisme.
 #'
 #' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
 #'
 #' @return `TRUE`, hvis forbindelsen blev lukket, ellers `FALSE`, usynligt.
 #' @keywords internal
 .shopping_history_store_release_lock <- function(lock_handle) {
-  valid_handle <- is.list(lock_handle) &&
-    identical(
-      sort(names(lock_handle)),
-      c("connection", "path")
-    ) &&
-    inherits(lock_handle$connection, "DBIConnection") &&
-    isTRUE(dbIsValid(lock_handle$connection))
-  if (!isTRUE(valid_handle)) {
-    return(invisible(FALSE))
-  }
-
-  try(
-    dbExecute(
-      lock_handle$connection,
-      "ROLLBACK"
-    ),
-    silent = TRUE
+  store_lock_release(
+    lock_handle = lock_handle,
+    store_label = "indkøbshistorikken"
   )
-  disconnect_error <- tryCatch(
-    {
-      dbDisconnect(lock_handle$connection)
-      NULL
-    },
-    error = identity
-  )
-  if (inherits(disconnect_error, "error")) {
-    warning(
-      paste(
-        "Historiklåsens forbindelse kunne ikke lukkes:",
-        conditionMessage(disconnect_error)
-      ),
-      call. = FALSE
-    )
-    return(invisible(FALSE))
-  }
-
-  invisible(TRUE)
 }
 
 #' Stop med en genkendelig revisionskonflikt
@@ -952,8 +762,8 @@ library(RSQLite, exclude = "show")
 #' Fremprovokér en kontrolleret historikfejl i tests
 #'
 #' En almindelig testfejl går gennem rollback. Et simuleret processtop
-#' efterlader derimod lås og transaktionsfiler, så næste læsning kan afprøve
-#' recovery-forløbet.
+#' efterlader derimod transaktionsfilerne, mens SQLite-forbindelsen lukkes på
+#' samme måde, som operativsystemet ville frigive låsen ved et rigtigt stop.
 #'
 #' @param fail_at Navnene på trin med en almindelig testfejl.
 #' @param step Det aktuelle transaktionstrin.
@@ -1736,6 +1546,9 @@ shopping_history_store_save <- function(
     ),
     error = identity
   )
+  if (inherits(recovery_result, "store_lock_lost")) {
+    stop(recovery_result)
+  }
   if (inherits(recovery_result, "error")) {
     stop(
       paste(

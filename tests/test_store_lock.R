@@ -272,7 +272,8 @@ run_store_lock_tests()
 lock_consumer_lines <- lapply(
   c(
     file.path("R", "recipe_store.R"),
-    file.path("R", "basis_varer_store.R")
+    file.path("R", "basis_varer_store.R"),
+    file.path("R", "shopping_history_store.R")
   ),
   readLines,
   warn = FALSE,

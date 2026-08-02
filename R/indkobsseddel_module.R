@@ -640,33 +640,18 @@ mod_indkobsseddel_server <- function(
   })
 
   observeEvent(input$open_manual, {
-    varer <- varer_current()
-    units <- indkobsseddel_choice_values(
-      varer$enhed,
-      defaults = "stk",
-      include_blank = FALSE
-    )
-
-    updateTextInput(
+    indkobsseddel_reset_manual_dialog(
       session,
-      "manual_name",
-      value = ""
-    )
-    updateNumericInput(
-      session,
-      "manual_amount",
-      value = 1
-    )
-    updateSelectInput(
-      session,
-      "manual_unit",
-      choices = units,
-      selected = indkobsseddel_preferred_choice(units, "stk")
+      varer_current()
     )
     indkobsseddel_show_dialog("manual_dialog", ns)
   })
 
   observeEvent(input$close_manual, {
+    indkobsseddel_reset_manual_dialog(
+      session,
+      varer_current()
+    )
     indkobsseddel_hide_dialog("manual_dialog", ns)
   })
 
@@ -706,6 +691,10 @@ mod_indkobsseddel_server <- function(
       stringsAsFactors = FALSE
     )
     rv_cart(cart_add_rows(rv_cart(), new_row))
+    indkobsseddel_reset_manual_dialog(
+      session,
+      varer_current()
+    )
     indkobsseddel_hide_dialog("manual_dialog", ns)
   })
 
@@ -878,6 +867,63 @@ indkobsseddel_validate_recipe_read <- function(recipe_read) {
   }
 
   invisible(TRUE)
+}
+
+#' Nulstil felterne i dialogen til manuel varetilføjelse
+#'
+#' Alle fem felter sættes tilbage til deres startværdier. Funktionen bruges
+#' ved åbning, efter en vellykket tilføjelse og når brugeren lukker dialogen.
+#' Ugyldige indtastninger nulstilles ikke, så brugeren kan rette dem.
+#'
+#' @param session Den aktuelle Shiny-session.
+#' @param varer Det aktuelle varekatalog, som leverer enheder og kategorier.
+#'
+#' @return `NULL` usynligt.
+#' @keywords internal
+indkobsseddel_reset_manual_dialog <- function(session, varer) {
+  units <- indkobsseddel_choice_values(
+    varer$enhed,
+    defaults = "stk",
+    include_blank = FALSE
+  )
+  categories <- indkobsseddel_manual_category_choices(varer)
+
+  updateTextInput(
+    session,
+    "manual_name",
+    value = ""
+  )
+  updateNumericInput(
+    session,
+    "manual_amount",
+    value = 1
+  )
+  updateSelectInput(
+    session,
+    "manual_unit",
+    choices = units,
+    selected = indkobsseddel_preferred_choice(
+      units,
+      "stk"
+    )
+  )
+  updateSelectInput(
+    session,
+    "manual_category_1",
+    choices = categories$category_1,
+    selected = indkobsseddel_preferred_choice(
+      categories$category_1,
+      "konserves"
+    )
+  )
+  updateSelectInput(
+    session,
+    "manual_category_2",
+    choices = categories$category_2,
+    selected = ""
+  )
+
+  invisible(NULL)
 }
 
 #' Vis en namespacet dialog

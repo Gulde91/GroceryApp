@@ -19,10 +19,12 @@ library(shiny)
 #' @return Et DT-widget-objekt.
 #' @keywords internal
 indkobsseddel_cart_widget <- function(payload, ns) {
+  
   lines_visible <- as.character(payload$visible)
   lines_hidden <- as.character(payload$hidden)
   line_ids <- as.character(payload$line_ids)
   n_visible <- as.integer(payload$n_visible)
+  category_break_after <- as.integer(payload$category_break_after)
 
   if (length(n_visible) != 1L || is.na(n_visible) || n_visible < 0L) {
     stop("Cartens copy-payload har et ugyldigt rækkeantal.", call. = FALSE)
@@ -32,6 +34,19 @@ indkobsseddel_cart_widget <- function(payload, ns) {
       length(line_ids) != n_visible
   ) {
     stop("Cartens copy-payload er inkonsistent.", call. = FALSE)
+  }
+  valid_category_breaks <- length(category_break_after) == 0L ||
+    (
+      !anyNA(category_break_after) &&
+        all(category_break_after > 0L) &&
+        all(category_break_after < n_visible) &&
+        identical(
+          category_break_after,
+          sort(unique(category_break_after))
+        )
+    )
+  if (!isTRUE(valid_category_breaks)) {
+    stop("Cartens kategoriskift til kopiering er ugyldige.", call. = FALSE)
   }
 
   if (n_visible == 0L) {
@@ -88,7 +103,10 @@ indkobsseddel_cart_widget <- function(payload, ns) {
           title = NULL,
           exportOptions = list(
             columns = 0,
-            modifier = list(page = "all")
+            modifier = list(page = "all"),
+            customizeData = indkobsseddel_copy_group_customizer(
+              category_break_after
+            )
           ),
           attr = list(
             style = paste(
@@ -119,6 +137,35 @@ indkobsseddel_cart_widget <- function(payload, ns) {
       )
     )
   )
+}
+
+#' Indsæt blanklinjer mellem hovedkategorier ved kopiering
+#'
+#' Funktionen bygger en lille JavaScript-tilpasning til DataTables. Den føjer
+#' et ekstra linjeskift til den sidste eksporterede vare i hver kategori 1-
+#' gruppe. Dermed ændres kun teksten i udklipsholderen; tabellen og den gemte
+#' indkøbshistorik beholder deres oprindelige rækker.
+#'
+#' @param category_break_after Énbaserede rækkenumre, som afslutter en
+#'   kategori 1-gruppe.
+#'
+#' @return JavaScript, som tilpasser DataTables' eksporterede tabeldata.
+#' @keywords internal
+indkobsseddel_copy_group_customizer <- function(
+  category_break_after
+) {
+  zero_based_rows <- as.integer(category_break_after) - 1L
+  rows_javascript <- paste(zero_based_rows, collapse = ",")
+
+  JS(paste0(
+    "function(data) {",
+    "[", rows_javascript, "].forEach(function(rowIndex) {",
+    "if (data.body[rowIndex] && data.body[rowIndex][0] !== undefined) {",
+    "data.body[rowIndex][0] = data.body[rowIndex][0] + '\\n';",
+    "}",
+    "});",
+    "}"
+  ))
 }
 
 #' Byg preview-tabellen til en opskrift

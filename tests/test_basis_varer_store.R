@@ -428,7 +428,7 @@ run_basis_varer_store_tests <- function() {
   )
 
   # SQLite-låsen serialiserer samtidige ejere og frigives straks.
-  lock_path <- file.path(root, ".basis-varer-lock.sqlite")
+  lock_path <- file.path(root, "basis-varer-lock.sqlite")
   first_owner <- .basis_varer_store_acquire_lock(root)
   basis_expect_error(
     .basis_varer_store_acquire_lock(

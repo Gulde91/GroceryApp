@@ -119,6 +119,44 @@ missing_column_error <- tryCatch(
 )
 stopifnot(missing_column_error)
 
+# Kopieringen markerer kun skiftene mellem kategori 1-grupper. De synlige
+# tabelrækker får ingen tomme linjer, og én enkelt gruppe kræver intet skift.
+grouped_state <- new_cart_state()
+grouped_state <- cart_add_rows(
+  grouped_state,
+  bind_rows(
+    cart_rows("agurk", 1, "stk", "frugt og grønt"),
+    cart_rows("æbler", 2, "stk", "frugt og grønt"),
+    cart_rows("mælk", 1, "liter", "mejeri"),
+    cart_rows("køkkenrulle", 2, "rulle(r)", "husholdning")
+  )
+)
+grouped_payload <- cart_copy_payload(grouped_state)
+stopifnot(
+  identical(grouped_payload$category_break_after, c(2L, 3L)),
+  grouped_payload$n_visible == 4L,
+  length(grouped_payload$visible) == 4L,
+  !any(grouped_payload$visible == "")
+)
+
+single_group_state <- cart_add_rows(
+  new_cart_state(),
+  bind_rows(
+    cart_rows("agurk", 1, "stk", "frugt og grønt"),
+    cart_rows("æbler", 2, "stk", "frugt og grønt")
+  )
+)
+stopifnot(
+  identical(
+    cart_copy_payload(single_group_state)$category_break_after,
+    integer()
+  ),
+  identical(
+    cart_copy_payload(new_cart_state())$category_break_after,
+    integer()
+  )
+)
+
 # Recipe-noter og ingredienser tilføjes i samme state-opdatering. Noterne er
 # kopitekst til madlavning, ikke en konkurrerende struktureret vare-state.
 recipe_state <- new_cart_state()
@@ -161,5 +199,28 @@ stopifnot(any(payload$hidden == "2 stk tomater"))
 recipe_state <- cart_delete_line(recipe_state, onion_id)
 payload <- cart_copy_payload(recipe_state)
 stopifnot(payload$n_visible == 0, length(payload$hidden) == 0)
+
+# Alle funktioner i cart-state skal fortsat have en umiddelbart foregående
+# Roxygen-blok, så nye regler ikke bliver til udokumenteret domænelogik.
+cart_state_lines <- readLines(
+  file.path("R", "cart_state.R"),
+  encoding = "UTF-8"
+)
+cart_state_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  cart_state_lines
+)
+cart_state_has_roxygen <- vapply(
+  cart_state_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", cart_state_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+stopifnot(
+  length(cart_state_function_lines) > 0L,
+  all(cart_state_has_roxygen)
+)
 
 message("Alle cart-state tests bestod.")

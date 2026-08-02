@@ -314,7 +314,7 @@ basis_varer_store_commit <- function(
     ),
     lock = file.path(
       data_dir,
-      ".basis-varer-lock.sqlite"
+      "basis-varer-lock.sqlite"
     )
   )
 }
@@ -768,7 +768,7 @@ basis_varer_store_commit <- function(
   store_lock_acquire(
     lock_path = file.path(
       data_dir,
-      ".basis-varer-lock.sqlite"
+      "basis-varer-lock.sqlite"
     ),
     store_label = "basisvarelageret",
     lock_lost_class = "basis_varer_store_lock_lost",

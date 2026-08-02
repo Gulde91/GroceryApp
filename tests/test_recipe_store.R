@@ -211,7 +211,7 @@ run_recipe_store_tests <- function() {
     "Simuleret processtop"
   )
   stopifnot(
-    file.exists(file.path(root, ".recipe-store-lock.sqlite")),
+    file.exists(file.path(root, "recipe-store-lock.sqlite")),
     !dir.exists(file.path(root, ".recipe-store-lock")),
     file.exists(file.path(root, ".recipe-store-transaction.rds"))
   )
@@ -241,7 +241,7 @@ run_recipe_store_tests <- function() {
     identical(recipe_store_revision(root), before_rollback_revision),
     identical(read_store_table(file.path(root, "retter.txt"))$key, active$key),
     nrow(read_store_table(file.path(root, "retter_arkiv.txt"))) == 0L,
-    file.exists(file.path(root, ".recipe-store-lock.sqlite")),
+    file.exists(file.path(root, "recipe-store-lock.sqlite")),
     !dir.exists(file.path(root, ".recipe-store-lock"))
   )
 
@@ -443,10 +443,34 @@ run_recipe_store_tests <- function() {
   )
   hidden_artifacts <- setdiff(
     hidden_artifacts,
-    ".recipe-store-lock.sqlite"
+    "recipe-store-lock.sqlite"
   )
   stopifnot(length(hidden_artifacts) == 0L)
 }
 
 run_recipe_store_tests()
+
+# Alle store-funktioner skal fortsat have en umiddelbart foregående
+# Roxygen-blok, så transaktions- og recovery-reglerne er lette at forstå.
+recipe_store_lines <- readLines(
+  file.path("R", "recipe_store.R"),
+  encoding = "UTF-8"
+)
+recipe_store_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  recipe_store_lines
+)
+recipe_store_has_roxygen <- vapply(
+  recipe_store_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", recipe_store_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+stopifnot(
+  length(recipe_store_function_lines) > 0L,
+  all(recipe_store_has_roxygen)
+)
+
 message("Alle recipe-store transaktions- og rollback-tests bestod.")

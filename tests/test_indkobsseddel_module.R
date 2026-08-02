@@ -245,6 +245,9 @@ run_indkobsseddel_module_tests <- function() {
   first_open_messages <- NULL
   second_open_messages <- NULL
   category_update_messages <- NULL
+  manual_close_messages <- NULL
+  manual_add_messages <- NULL
+  manual_invalid_messages <- NULL
   dialog_varer <- shiny::reactiveVal(indkobsseddel_test_varer())
 
   shiny::testServer(
@@ -296,6 +299,39 @@ run_indkobsseddel_module_tests <- function() {
       ))
       session$flushReact()
       category_update_messages <<- dialog_messages
+
+      # Manuel-dialogen skal nulstille alle felter ved Luk og efter en
+      # vellykket tilføjelse. En valideringsfejl skal derimod bevare inputtet.
+      dialog_messages <<- list()
+      session$setInputs(
+        manual_name = "Gem ikke dette",
+        manual_amount = 3,
+        manual_unit = "liter",
+        manual_category_1 = "mejeri",
+        manual_category_2 = "mælk"
+      )
+      session$setInputs(close_manual = 1L)
+      manual_close_messages <<- dialog_messages
+
+      dialog_messages <<- list()
+      session$setInputs(
+        manual_name = "Havregryn",
+        manual_amount = 2,
+        manual_unit = "pakke",
+        manual_category_1 = "konserves",
+        manual_category_2 = ""
+      )
+      session$setInputs(add_manual_item = 1L)
+      manual_add_messages <<- dialog_messages
+
+      dialog_messages <<- list()
+      session$setInputs(
+        manual_name = " ",
+        manual_amount = 1,
+        manual_unit = "stk"
+      )
+      session$setInputs(add_manual_item = 2L)
+      manual_invalid_messages <<- dialog_messages
     }
   )
 
@@ -360,6 +396,45 @@ run_indkobsseddel_module_tests <- function() {
       category_update_messages[[category_2_id]]$value,
       "mælk"
     )
+  )
+  manual_reset_expected <- list(
+    manual_name = "",
+    manual_amount = 1,
+    manual_unit = "stk",
+    manual_category_1 = "konserves",
+    manual_category_2 = ""
+  )
+  for (messages in list(manual_close_messages, manual_add_messages)) {
+    for (input_name in names(manual_reset_expected)) {
+      input_id <- grep(
+        paste0(input_name, "$"),
+        names(messages),
+        value = TRUE
+      )
+      stopifnot(length(input_id) == 1L)
+      actual_value <- messages[[input_id]]$value
+      expected_value <- manual_reset_expected[[input_name]]
+      if (!identical(
+        as.character(actual_value),
+        as.character(expected_value)
+      )) {
+        stop(
+          sprintf(
+            "Nulstilling af %s gav '%s' i stedet for '%s'.",
+            input_name,
+            paste(actual_value, collapse = ", "),
+            paste(expected_value, collapse = ", ")
+          ),
+          call. = FALSE
+        )
+      }
+    }
+  }
+  stopifnot(
+    !any(grepl("manual_name$", names(manual_invalid_messages))),
+    !any(grepl("manual_amount$", names(manual_invalid_messages))),
+    !any(grepl("manual_category_1$", names(manual_invalid_messages))),
+    !any(grepl("manual_category_2$", names(manual_invalid_messages)))
   )
 
   # Selve tabel-widgeten skal sende klik til modulets namespacede inputs.

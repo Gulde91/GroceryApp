@@ -1,7 +1,13 @@
-source(
-  file.path("R", "shopping_history_store.R"),
-  encoding = "UTF-8"
-)
+suppressPackageStartupMessages({
+  source(
+    file.path("R", "store_lock.R"),
+    encoding = "UTF-8"
+  )
+  source(
+    file.path("R", "shopping_history_store.R"),
+    encoding = "UTF-8"
+  )
+})
 
 # Manglende og tomme mapper giver samme, typede tomme snapshot.
 missing_dir <- tempfile("groceryapp-missing-history-")
@@ -162,7 +168,16 @@ saved_path <- file.path(save_dir, "indkobsseddel_20240607.rda")
 loaded_environment <- new.env(parent = emptyenv())
 loaded_names <- load(saved_path, envir = loaded_environment)
 stopifnot(
-  identical(list.files(save_dir), "indkobsseddel_20240607.rda"),
+  identical(
+    list.files(
+      save_dir,
+      pattern = "^indkobsseddel_[0-9]{8}\\.rda$"
+    ),
+    "indkobsseddel_20240607.rda"
+  ),
+  file.exists(
+    file.path(save_dir, "shopping-history-lock.sqlite")
+  ),
   identical(loaded_names, "df"),
   identical(loaded_environment$df, first_history),
   identical(first_saved$entries$Indkøbsliste, first_history$Indkøbsliste)
@@ -183,7 +198,13 @@ second_saved <- shopping_history_store_save(
 loaded_environment <- new.env(parent = emptyenv())
 loaded_names <- load(saved_path, envir = loaded_environment)
 stopifnot(
-  identical(list.files(save_dir), "indkobsseddel_20240607.rda"),
+  identical(
+    list.files(
+      save_dir,
+      pattern = "^indkobsseddel_[0-9]{8}\\.rda$"
+    ),
+    "indkobsseddel_20240607.rda"
+  ),
   identical(loaded_names, "df"),
   identical(loaded_environment$df, second_history),
   identical(second_saved$entries$Indkøbsliste, second_history$Indkøbsliste),

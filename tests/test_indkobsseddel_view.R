@@ -22,7 +22,8 @@ empty_payload <- list(
   visible = character(),
   hidden = character(),
   line_ids = character(),
-  n_visible = 0L
+  n_visible = 0L,
+  category_break_after = integer()
 )
 empty_widget <- indkobsseddel_cart_widget(
   empty_payload,
@@ -41,7 +42,8 @@ payload <- list(
   visible = c("1 liter Mælk", "2 stk Agurk"),
   hidden = c("", "Burger (2 pers.)"),
   line_ids = c("cart_1", "cart_2"),
-  n_visible = 2L
+  n_visible = 2L,
+  category_break_after = 1L
 )
 widget <- indkobsseddel_cart_widget(
   payload,
@@ -54,6 +56,20 @@ stopifnot(
     c(payload$visible, payload$hidden)
   ),
   identical(widget$x$options$pageLength, 2L),
+  grepl(
+    "[0].forEach",
+    as.character(
+      widget$x$options$buttons[[1L]]$exportOptions$customizeData
+    ),
+    fixed = TRUE
+  ),
+  grepl(
+    "+ '\\n'",
+    as.character(
+      widget$x$options$buttons[[1L]]$exportOptions$customizeData
+    ),
+    fixed = TRUE
+  ),
   grepl(
     'id="kurv-edit_cart_1"',
     widget$x$data$edit[[1L]],
@@ -84,7 +100,8 @@ expect_indkobsseddel_view_error(
       visible = "Mælk",
       hidden = character(),
       line_ids = character(),
-      n_visible = 1L
+      n_visible = 1L,
+      category_break_after = integer()
     ),
     shiny::NS("kurv")
   ),
@@ -96,11 +113,25 @@ expect_indkobsseddel_view_error(
       visible = character(),
       hidden = character(),
       line_ids = character(),
-      n_visible = -1L
+      n_visible = -1L,
+      category_break_after = integer()
     ),
     shiny::NS("kurv")
   ),
   "ugyldigt rækkeantal"
+)
+expect_indkobsseddel_view_error(
+  indkobsseddel_cart_widget(
+    list(
+      visible = c("Mælk", "Smør"),
+      hidden = character(),
+      line_ids = c("cart_1", "cart_2"),
+      n_visible = 2L,
+      category_break_after = 2L
+    ),
+    shiny::NS("kurv")
+  ),
+  "kategoriskift"
 )
 
 preview_rows <- data.frame(
