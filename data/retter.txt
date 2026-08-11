@@ -8,9 +8,7 @@ Dahl;dahl_opskr;vegetar
 Fiskefilet;fiskefilet_opskr;fisk
 Frikadeller;frikadeller_opskr;gris
 Fyldte peberfrugter;fyldtepeberfrugter_opskr;okse
-Gnocchi med kylling og chorizo;gnocchi_med_kylling_og_chorizo_opskr;kylling
 Gullasch;gullasch_opskr;okse
-Kalkunschnitzel;kalkunschnitzel_opskr;kalkun
 Kartoffel-porre suppe;kartoffel_porre_suppe_opskr;gris
 Kyllingebowl;kyllingebowl_opskr;kylling
 Kyllingespyd;kyllingespyd_opsk;kylling
