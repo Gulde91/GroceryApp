@@ -203,6 +203,14 @@ nested_module_functions <- vapply(
 
 module_lines <- readLines(r_file("recipe_module.R"), encoding = "UTF-8")
 module_expressions <- parse(r_file("recipe_module.R"), encoding = "UTF-8")
+recipe_view_lines <- readLines(
+  r_file("recipe_view.R"),
+  encoding = "UTF-8"
+)
+recipe_view_expressions <- parse(
+  r_file("recipe_view.R"),
+  encoding = "UTF-8"
+)
 schema_lines <- readLines(r_file("recipe_schema.R"), encoding = "UTF-8")
 schema_expressions <- parse(r_file("recipe_schema.R"), encoding = "UTF-8")
 recipe_store_lines <- readLines(
@@ -247,6 +255,72 @@ all_module_function_definitions <- sum(vapply(
   count_function_definitions,
   integer(1)
 ))
+module_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(module_expressions)
+)
+module_function_names <- vapply(
+  module_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+
+recipe_view_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  recipe_view_lines
+)
+all_recipe_view_function_definitions <- sum(vapply(
+  as.list(recipe_view_expressions),
+  count_function_definitions,
+  integer(1)
+))
+recipe_view_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(recipe_view_expressions)
+)
+recipe_view_function_names <- vapply(
+  recipe_view_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+recipe_view_has_roxygen_documentation <- vapply(
+  recipe_view_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", recipe_view_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+recipe_view_call_nodes <- unlist(
+  lapply(as.list(recipe_view_expressions), collect_call_nodes),
+  recursive = FALSE
+)
+recipe_view_call_names <- vapply(
+  recipe_view_call_nodes,
+  call_name,
+  character(1)
+)
+recipe_view_uses_runtime_object <- vapply(
+  recipe_view_call_nodes,
+  function(node) {
+    call_name(node) %in% c("$", "[[") &&
+      length(node) >= 3L &&
+      is.symbol(node[[2]]) &&
+      as.character(node[[2]]) %in%
+        c("input", "output", "session", "catalog_read")
+  },
+  logical(1)
+)
 
 schema_top_level_function_lines <- grep(
   "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
@@ -513,14 +587,9 @@ has_roxygen_documentation <- vapply(
 )
 
 required_module_libraries <- c(
-  "shiny",
-  "shinyMobile",
-  "shinyjs",
-  "dplyr",
-  "purrr",
   "DT",
-  "htmltools",
-  "stats"
+  "shiny",
+  "shinyjs"
 )
 module_library_lines <- trimws(grep(
   "^library\\(",
@@ -531,6 +600,40 @@ loaded_module_libraries <- sub(
   "^library\\(([^)]+)\\).*$",
   "\\1",
   module_library_lines
+)
+
+required_recipe_view_libraries <- c(
+  "stats",
+  "htmltools",
+  "DT",
+  "shiny",
+  "shinyMobile",
+  "dplyr"
+)
+recipe_view_library_lines <- trimws(grep(
+  "^library\\(",
+  recipe_view_lines,
+  value = TRUE
+))
+loaded_recipe_view_libraries <- sub(
+  "^library\\(([^)]+)\\).*$",
+  "\\1",
+  recipe_view_library_lines
+)
+required_recipe_view_functions <- c(
+  "mod_opskrifter_ui",
+  "mod_opskrifter_dialogs_ui",
+  "recipe_active_rows",
+  "recipe_choices",
+  "recipe_format_line",
+  "recipe_normalize_link",
+  "recipe_edit_button",
+  "recipe_delete_button",
+  "recipe_archive_row_ui",
+  "recipe_ingredient_table_rows",
+  "recipe_ingredient_table_widget",
+  "recipe_overview_ui",
+  "recipe_selected_ui"
 )
 
 varer_module_lines <- readLines(
@@ -846,6 +949,7 @@ expected_r_script_names <- c(
   "recipe_module.R",
   "recipe_schema.R",
   "recipe_store.R",
+  "recipe_view.R",
   "shopping_history_state.R",
   "shopping_history_store.R",
   "store_lock.R",
@@ -1030,7 +1134,7 @@ stopifnot(all(expected_top_level_outputs %in% all_output_assignments))
 stopifnot(all(nested_module_functions == 0L))
 stopifnot(
   dir.exists("R"),
-  all(expected_r_script_names %in% actual_r_script_names),
+  identical(expected_r_script_names, actual_r_script_names),
   identical(root_r_script_names, "app.R"),
   all(file.exists(r_script_paths)),
   all(startsWith(r_script_first_content, "#")),
@@ -1297,16 +1401,35 @@ stopifnot(length(top_level_function_lines) > 0L)
 stopifnot(all_module_function_definitions == length(top_level_function_lines))
 stopifnot(all(has_roxygen_documentation))
 stopifnot(!any(grepl("::", module_lines, fixed = TRUE)))
-stopifnot(all(required_module_libraries %in% loaded_module_libraries))
+stopifnot(identical(required_module_libraries, loaded_module_libraries))
 stopifnot(
-  match("stats", loaded_module_libraries) <
-    match("dplyr", loaded_module_libraries),
-  match("htmltools", loaded_module_libraries) <
-    match("shiny", loaded_module_libraries),
   match("DT", loaded_module_libraries) <
     match("shiny", loaded_module_libraries),
   match("shiny", loaded_module_libraries) <
     match("shinyjs", loaded_module_libraries)
+)
+stopifnot(
+  length(recipe_view_top_level_function_lines) > 0L,
+  all_recipe_view_function_definitions ==
+    length(recipe_view_top_level_function_lines),
+  all(recipe_view_has_roxygen_documentation),
+  !any(grepl("::", recipe_view_lines, fixed = TRUE)),
+  identical(
+    required_recipe_view_libraries,
+    loaded_recipe_view_libraries
+  ),
+  all(required_recipe_view_functions %in% recipe_view_function_names),
+  !any(required_recipe_view_functions %in% module_function_names),
+  !any(recipe_view_call_names %in% reactive_registration_calls),
+  !any(recipe_view_uses_runtime_object)
+)
+stopifnot(
+  match("stats", loaded_recipe_view_libraries) <
+    match("dplyr", loaded_recipe_view_libraries),
+  match("htmltools", loaded_recipe_view_libraries) <
+    match("shiny", loaded_recipe_view_libraries),
+  match("DT", loaded_recipe_view_libraries) <
+    match("shiny", loaded_recipe_view_libraries)
 )
 stopifnot(length(varer_top_level_function_lines) > 0L)
 stopifnot(
@@ -1442,6 +1565,8 @@ message(paste(
   "katalogfunktioner uden Shiny- eller persistensafhængigheder.",
   "Katalog og fillager deler de dokumenterede skemaregler i",
   "recipe_schema.R, mens filreglerne bliver i recipe_store.R.",
+  "Opskriftsfanens rene UI- og tabelbyggere ligger i recipe_view.R,",
+  "mens outputregistreringer og reaktiv koordinering bliver i recipe_module.R.",
   "Indkøbssedlens rene valgregler og view-buildere ligger i hver sin fil,",
   "mens den reaktive koordinering bliver i indkobsseddel_module.R.",
   "Alle produktionsscripts bortset fra app.R ligger dokumenteret i R-mappen,",
