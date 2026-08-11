@@ -152,7 +152,7 @@ table.dataTable tbody tr:hover {
 }
 
 /* --- Edit-overlay (custom modal) --- */
-#edit-overlay {
+.ga-edit-overlay {
   position: fixed;
   inset: 0;
   display: none;                /* styres af shinyjs::show/hide */
@@ -160,7 +160,7 @@ table.dataTable tbody tr:hover {
   z-index: 50000;
 }
 
-#edit-dialog {
+.ga-edit-dialog {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -175,12 +175,12 @@ table.dataTable tbody tr:hover {
   box-shadow: 0 10px 30px rgba(0,0,0,0.4);
 }
 
-#edit-dialog h3 {
+.ga-edit-dialog h3 {
   margin: 0 0 12px 0;
   font-size: 18px;
 }
 
-#edit-actions {
+.ga-edit-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
@@ -204,13 +204,13 @@ table.dataTable tbody tr:hover {
 }
 
 /* Inputfeltet i overlayet */
-#indkobsseddel_edit_value {
+.ga-edit-input input {
   background: #374151;
   color: #fff;
   border: 1px solid #4b5563;
   border-radius: 8px;
 }
-#indkobsseddel_edit_value:focus {
+.ga-edit-input input:focus {
   outline: none;
   border-color: #60a5fa;
 }
@@ -437,7 +437,7 @@ button.dt-button.copy-btn-pushed {
 
 
 /* Gem-knap med præcis samme blå hex som blå toast */
-button#gem_indkobsseddel {
+.ga-save-cart button {
   background: #0ea5e9 !important;
   border: 1px solid #0ea5e9 !important;
   color: #ffffff !important;

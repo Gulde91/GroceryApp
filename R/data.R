@@ -1,41 +1,14 @@
+# Faste referencedata -------------------------------------------------------
+#
+# Denne fil indeholder appens faste lister med tilbehør og salater. Data, som
+# brugeren selv kan oprette eller ændre, hører ikke hjemme her, men læses fra
+# de særskilte lagre.
 
-## RETTER ----
-read_retter_file <- function(path) {
-  if (!file.exists(path) || file.info(path)$size == 0) {
-    return(data.frame(retter = character(), key = character(), type = character()))
-  }
-
-  readr::read_delim(
-    path, col_types = c("c", "c", "c"),
-    delim = ";", escape_double = FALSE, trim_ws = TRUE
-  ) %>% arrange(retter)
-}
-
-retter <- read_retter_file("./data/retter.txt")
-retter_arkiv <- read_retter_file("./data/retter_arkiv.txt")
-
-
-# alle retter ----
-sti <- "./data/opskrifter/"
-filer <- list.files(sti)
-
-opskrifter <- lapply(filer, function(x) {
-  
-  tmp <- readr::read_delim(
-    paste0(sti, x), col_types = c("c", "d", "c", "c", "c"),
-    delim = ";", escape_double = FALSE, trim_ws = TRUE, na = ""
-  )
-  
-  tmp$enhed[is.na(tmp$enhed)] <- ""
-  tmp$kat_2[is.na(tmp$kat_2)] <- ""
-  
-  tmp
-})
-
-names(opskrifter) <- gsub("\\.txt", "", filer)
+library(dplyr)
+library(tibble)
 
 # TILBEHØR ----
-tilbehor <- tibble::tribble(
+tilbehor <- tribble(
   ~"Indkobsliste", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "kartofler", 0.25, "kg", "frugt og gr\u00F8nt", "",
   "rodfrugter", 150, "gram", "frugt og gr\u00F8nt", "",
@@ -49,7 +22,7 @@ tilbehor <- tibble::tribble(
 
 
 # SALATER ----
-salater <- tibble::tribble(
+salater <- tribble(
   ~retter, ~key, ~type,
   "", "", "",
   "Revet guler\u00F8dder", "revet_gulerodder_opskr", "vegetar",
@@ -62,7 +35,7 @@ salater <- tibble::tribble(
   ) %>% arrange(retter)
 
 # revet gulerødder ----
-revet_gulerodder_opskr <- tibble::tribble(
+revet_gulerodder_opskr <- tribble(
   ~"Revet guler\u00F8dder", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "guler\u00F8dder", 75, "gram", "frugt og gr\u00F8nt", "",
   "rosiner", 10, "gram", "konserves", "",
@@ -70,7 +43,7 @@ revet_gulerodder_opskr <- tibble::tribble(
 )
 
 # broccolisalat ----
-broccoli_salat_opskr <- tibble::tribble(
+broccoli_salat_opskr <- tribble(
   ~"Broccolisalat", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "broccoli", 0.25, "stk", "frugt og gr\u00F8nt", "",
   "granat\u00E6bler", 0.125, "stk", "frugt og gr\u00F8nt", "",
@@ -81,7 +54,7 @@ broccoli_salat_opskr <- tibble::tribble(
   "sukker", 5, "gram", "konserves", ""
 )
 # boennesalat ----
-boenne_salat_opskr <- tibble::tribble(
+boenne_salat_opskr <- tribble(
   ~"B\u00F8nnesalat", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "gr\u00F8nne b\u00F8nner (frost)", 75, "gram", "frost", "",
   "solt\u00F8rrede tomater i tern", 12.5, "gram", "konserves", "",
@@ -89,7 +62,7 @@ boenne_salat_opskr <- tibble::tribble(
   "br\u00F8dcroutoner", 10, "gram", "konserves", ""
 )
 # spidskål agurk salat ----
-spidskaal_agurk_opskr <- tibble::tribble(
+spidskaal_agurk_opskr <- tribble(
   ~"Spidsk\u00E5lsalat med agurk og edamameb\u00F8nner", 
   ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "spidsk\u00E5l", 0.15, "stk", "frugt og gr\u00F8nt", "",
@@ -98,7 +71,7 @@ spidskaal_agurk_opskr <- tibble::tribble(
 )
 
 # hytteost salat ----
-hytteost_salat_opskr <- tibble::tribble(
+hytteost_salat_opskr <- tribble(
   ~"Hytteostsalat", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "spidsk\u00E5l", 1/8, "stk", "frugt og gr\u00F8nt", "",
   "blomk\u00E5l", 0.13, "stk", "frugt og gr\u00F8nt", "",
@@ -108,13 +81,13 @@ hytteost_salat_opskr <- tibble::tribble(
 )
 
 # broccoli ----
-broccoli_opskr <- tibble::tribble(
+broccoli_opskr <- tribble(
   ~"Broccoli", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "broccoli", 0.25, "stk", "frugt og gr\u00F8nt", "",
 )
 
 # bønner ----
-groenne_boenner_opskr <- tibble::tribble(
+groenne_boenner_opskr <- tribble(
   ~"Gr\u00F8nne b\u00F8nner", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "gr\u00F8nne b\u00F8nner (frost)", 75, "gram", "frost", ""
 )
@@ -130,21 +103,3 @@ salater_opskrifter <- list(
   boenne_salat_opskr = boenne_salat_opskr,
   groenne_boenner_opskr = groenne_boenner_opskr
 )
-
-# opskrifter ----
-opskrift_df <- c(opskrifter, salater_opskrifter) |> 
-  lapply(function(x) {names(x)[1] <- "Indkobsliste"; return(x)}) |> 
-  dplyr::bind_rows() |> 
-  dplyr::arrange(Indkobsliste) |> 
-  dplyr::mutate(maengde = 1) |> 
-  dplyr::distinct()
-
-# links ----
-links <- readr::read_delim(
-  "./data/links.txt", col_types = c("c", "c"),
-  delim = ";", escape_double = FALSE, trim_ws = TRUE 
-)
-
-# kategorier ----
-kategori_1 <- map_df(opskrifter, ~select(.x, kat_1))$kat_1 |> unique() |> sort()
-kategori_2 <- map_df(opskrifter, ~select(.x, kat_2))$kat_2 |> unique() |> sort()
