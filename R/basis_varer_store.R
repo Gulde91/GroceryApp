@@ -1,3 +1,9 @@
+# Sikker lagring af basisvarer ----------------------------------------------
+#
+# Denne fil læser og gemmer brugerens basisvarer på disken. Den håndterer
+# validering, revisioner, låse, midlertidige filer og gendannelse efter en
+# afbrudt gemning uden at kende til Shiny eller appens brugerflade.
+
 library(utils)
 library(tools)
 
@@ -218,6 +224,7 @@ basis_varer_store_commit <- function(
     )
   ) {
     release_lock <- FALSE
+    .basis_varer_store_release_lock(lock_handle)
     stop(commit_error)
   }
 
@@ -234,6 +241,12 @@ basis_varer_store_commit <- function(
     .basis_varer_store_recover(paths, lock_handle),
     error = identity
   )
+  if (inherits(
+    recovery_result,
+    "basis_varer_store_lock_lost"
+  )) {
+    stop(recovery_result)
+  }
   if (inherits(recovery_result, "error")) {
     stop(
       paste(
@@ -301,7 +314,7 @@ basis_varer_store_commit <- function(
     ),
     lock = file.path(
       data_dir,
-      ".basis-varer-store-lock"
+      "basis-varer-lock.sqlite"
     )
   )
 }
@@ -720,265 +733,60 @@ basis_varer_store_commit <- function(
   "committed"
 }
 
-#' Opret et unikt ejerskabstoken til basisvarelåsen
+#' Kontrollér basisvarelåsen mellem kritiske filtrin
 #'
-#' Tokenet gør det muligt at skelne en gammel låseejer fra en ny proces, som
-#' har overtaget den samme faste låsemappe.
+#' En lille SQLite-forespørgsel bekræfter, at forbindelsen og den eksklusive
+#' OS-lås fortsat er aktive.
 #'
-#' @return Et token som én tekstværdi.
-#' @keywords internal
-.basis_varer_store_new_lock_token <- function() {
-  paste(
-    Sys.getpid(),
-    format(Sys.time(), "%Y%m%d%H%M%OS6"),
-    basename(tempfile("basis-owner-")),
-    sep = "-"
-  )
-}
-
-#' Læs ejeren af en basisvarelås
-#'
-#' En manglende eller ufuldstændig ejerfil behandles som ukendt ejerskab. Det
-#' gør også gamle låse fra tidligere appversioner mulige at overtage, når de
-#' er blevet forældede.
-#'
-#' @param lock_path Stien til låsemappen.
-#'
-#' @return Ejerens token eller `NULL`, hvis det ikke kan læses.
-#' @keywords internal
-.basis_varer_store_lock_owner <- function(lock_path) {
-  owner_path <- file.path(lock_path, "owner")
-  if (!file.exists(owner_path)) return(NULL)
-
-  owner <- tryCatch(
-    readLines(
-      owner_path,
-      n = 1L,
-      warn = FALSE,
-      encoding = "UTF-8"
-    ),
-    error = function(error) character()
-  )
-  if (length(owner) != 1L || !nzchar(owner[[1L]])) {
-    return(NULL)
-  }
-
-  owner[[1L]]
-}
-
-#' Kontrollér at den aktuelle proces stadig ejer basisvarelåsen
-#'
-#' Hvis en langsom eller pauset proces har fået sin lås overtaget, må den ikke
-#' længere flytte eller slette store-filer.
-#'
-#' @param lock_handle Låsens sti og ejerskabstoken.
-#'
-#' @return `TRUE` usynligt.
-#' @keywords internal
-.basis_varer_store_assert_lock_owner <- function(lock_handle) {
-  valid_handle <- is.list(lock_handle) &&
-    identical(
-      sort(names(lock_handle)),
-      c("path", "token")
-    ) &&
-    length(lock_handle$path) == 1L &&
-    length(lock_handle$token) == 1L
-
-  if (
-    !valid_handle ||
-      !dir.exists(lock_handle$path) ||
-      !identical(
-        .basis_varer_store_lock_owner(lock_handle$path),
-        lock_handle$token
-      )
-  ) {
-    .basis_varer_store_stop_lock_lost()
-  }
-
-  invisible(TRUE)
-}
-
-#' Forny basisvarelåsen og kontrollér ejerskabet
-#'
-#' Mappens tidsstempel holdes friskt ved de kritiske store-trin, så en aktiv
-#' proces ikke fejlagtigt ligner en efterladt lås.
-#'
-#' @param lock_handle Låsens sti og ejerskabstoken.
+#' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
 #'
 #' @return `TRUE` usynligt.
 #' @keywords internal
 .basis_varer_store_touch_lock <- function(lock_handle) {
-  .basis_varer_store_assert_lock_owner(lock_handle)
-  touched <- Sys.setFileTime(lock_handle$path, Sys.time())
-  if (length(touched) != 1L || !isTRUE(touched)) {
-    .basis_varer_store_stop_lock_lost()
-  }
-  .basis_varer_store_assert_lock_owner(lock_handle)
-  invisible(TRUE)
+  store_lock_touch(
+    lock_handle,
+    store_label = "basisvarelageret",
+    lock_lost_class = "basis_varer_store_lock_lost"
+  )
 }
 
 #' Tag den eksklusive basisvarelås
 #'
-#' En mappe bruges som lås, fordi oprettelsen er atomisk på de understøttede
-#' filsystemer. En efterladt lås kan overtages efter 30 sekunder.
+#' En eksklusiv SQLite-transaktion bruger operativsystemets fillås. Låsen
+#' frigives automatisk ved processtop og kan derfor ikke blive efterladt som
+#' en gammel låsemappe.
 #'
 #' @param data_dir Mappen med basisvarelageret.
 #' @param wait_seconds Hvor længe funktionen højst venter på en aktiv lås.
-#' @param stale_after_seconds Hvornår en efterladt lås må overtages.
 #'
-#' @return Et låsehåndtag med sti og et unikt ejerskabstoken.
+#' @return Et låsehåndtag med forbindelse og sti.
 #' @keywords internal
 .basis_varer_store_acquire_lock <- function(
   data_dir,
-  wait_seconds = 1,
-  stale_after_seconds = 30
+  wait_seconds = 1
 ) {
-  lock_path <- file.path(
-    data_dir,
-    ".basis-varer-store-lock"
+  store_lock_acquire(
+    lock_path = file.path(
+      data_dir,
+      "basis-varer-lock.sqlite"
+    ),
+    store_label = "basisvarelageret",
+    lock_lost_class = "basis_varer_store_lock_lost",
+    wait_seconds = wait_seconds
   )
-  deadline <- Sys.time() + wait_seconds
-  token <- .basis_varer_store_new_lock_token()
-
-  repeat {
-    if (dir.create(lock_path, showWarnings = FALSE)) {
-      lock_handle <- list(
-        path = lock_path,
-        token = token
-      )
-      owner_error <- tryCatch(
-        {
-          writeLines(
-            token,
-            file.path(lock_path, "owner"),
-            useBytes = TRUE
-          )
-          NULL
-        },
-        error = identity
-      )
-      if (
-        inherits(owner_error, "error") ||
-          !identical(
-            .basis_varer_store_lock_owner(lock_path),
-            token
-          )
-      ) {
-        unlink(lock_path, recursive = TRUE, force = TRUE)
-        stop(
-          "Basisvarelåsens ejerskab kunne ikke registreres.",
-          call. = FALSE
-        )
-      }
-      .basis_varer_store_touch_lock(lock_handle)
-      return(lock_handle)
-    }
-
-    lock_info <- file.info(lock_path)
-    lock_age <- as.numeric(
-      difftime(
-        Sys.time(),
-        lock_info$mtime,
-        units = "secs"
-      )
-    )
-    if (
-      !is.na(lock_age) &&
-        lock_age >= stale_after_seconds
-    ) {
-      observed_owner <- .basis_varer_store_lock_owner(
-        lock_path
-      )
-      confirmed_info <- file.info(lock_path)
-      confirmed_owner <- .basis_varer_store_lock_owner(
-        lock_path
-      )
-      unchanged_lock <- dir.exists(lock_path) &&
-        identical(observed_owner, confirmed_owner) &&
-        identical(
-          as.numeric(lock_info$mtime),
-          as.numeric(confirmed_info$mtime)
-        )
-      if (unchanged_lock) {
-        unlink(lock_path, recursive = TRUE, force = TRUE)
-      }
-      next
-    }
-
-    if (Sys.time() >= deadline) {
-      stop(
-        paste(
-          "Basisvarelageret er i brug af en anden handling.",
-          "Prøv igen om et øjeblik."
-        ),
-        call. = FALSE
-      )
-    }
-
-    Sys.sleep(0.02)
-  }
 }
 
 #' Frigiv basisvarelåsen
 #'
-#' Kun den ejer, der oprettede det aktuelle token, må fjerne låsemappen. En
-#' ældre proces kan derfor ikke komme til at frigive en nyere ejers lås.
+#' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
 #'
-#' @param lock_handle Låsens sti og ejerskabstoken.
-#'
-#' @return `TRUE`, hvis låsen blev fjernet, ellers `FALSE`, usynligt.
+#' @return `TRUE`, hvis forbindelsen blev lukket, ellers `FALSE`, usynligt.
 #' @keywords internal
 .basis_varer_store_release_lock <- function(lock_handle) {
-  valid_handle <- is.list(lock_handle) &&
-    identical(
-      sort(names(lock_handle)),
-      c("path", "token")
-    )
-  if (!valid_handle || !dir.exists(lock_handle$path)) {
-    return(invisible(FALSE))
-  }
-  if (!identical(
-    .basis_varer_store_lock_owner(lock_handle$path),
-    lock_handle$token
-  )) {
-    return(invisible(FALSE))
-  }
-
-  unlink(lock_handle$path, recursive = TRUE, force = TRUE)
-  if (dir.exists(lock_handle$path)) {
-    warning(
-      "Basisvarelåsen kunne ikke frigives; den kan overtages automatisk senere.",
-      call. = FALSE
-    )
-    return(invisible(FALSE))
-  }
-
-  invisible(TRUE)
-}
-
-#' Stop når ejerskabet af basisvarelåsen er mistet
-#'
-#' Den særskilte condition-klasse sikrer, at en gammel proces afbryder uden
-#' at forsøge rollback i filer, som en nyere låseejer kan være i gang med.
-#'
-#' @return Funktionen returnerer ikke.
-#' @keywords internal
-.basis_varer_store_stop_lock_lost <- function() {
-  condition <- structure(
-    list(
-      message = paste(
-        "Basisvarelåsens ejerskab blev mistet.",
-        "Prøv handlingen igen."
-      ),
-      call = NULL
-    ),
-    class = c(
-      "basis_varer_store_lock_lost",
-      "error",
-      "condition"
-    )
+  store_lock_release(
+    lock_handle,
+    store_label = "basisvarelageret"
   )
-  stop(condition)
 }
 
 #' Stop med en genkendelig revisionskonflikt
@@ -1008,8 +816,8 @@ basis_varer_store_commit <- function(
 #' Fremprovokér en kontrolleret store-fejl i tests
 #'
 #' En almindelig testfejl går gennem rollback. Et simuleret processtop
-#' efterlader derimod lås og transaktionsfiler, så næste læsning kan teste
-#' recovery-forløbet.
+#' efterlader derimod transaktionsfiler, så næste læsning kan teste recovery.
+#' I en rigtig afsluttet proces frigiver operativsystemet SQLite-låsen.
 #'
 #' @param fail_at Navnene på trin med almindelig testfejl.
 #' @param step Det aktuelle store-trin.

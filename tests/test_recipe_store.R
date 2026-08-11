@@ -1,4 +1,8 @@
-source("recipe_store.R", encoding = "UTF-8")
+suppressPackageStartupMessages({
+  source(file.path("R", "store_lock.R"), encoding = "UTF-8")
+  source(file.path("R", "recipe_schema.R"), encoding = "UTF-8")
+  source(file.path("R", "recipe_store.R"), encoding = "UTF-8")
+})
 
 expect_error <- function(code, pattern = NULL) {
   error <- tryCatch(
@@ -207,15 +211,14 @@ run_recipe_store_tests <- function() {
     "Simuleret processtop"
   )
   stopifnot(
-    dir.exists(file.path(root, ".recipe-store-lock")),
+    file.exists(file.path(root, "recipe-store-lock.sqlite")),
+    !dir.exists(file.path(root, ".recipe-store-lock")),
     file.exists(file.path(root, ".recipe-store-transaction.rds"))
   )
-  Sys.setFileTime(
-    file.path(root, ".recipe-store-lock"),
-    Sys.time() - 60
-  )
+  recovered_revision <- recipe_store_revision(root)
   recovered_snapshot <- recipe_store_read(root)
   stopifnot(
+    identical(recovered_revision, revision_restored),
     identical(recovered_snapshot$revision, revision_restored),
     identical(recovered_snapshot$active_retter$key, active$key),
     nrow(recovered_snapshot$archived_retter) == 0L,
@@ -238,6 +241,7 @@ run_recipe_store_tests <- function() {
     identical(recipe_store_revision(root), before_rollback_revision),
     identical(read_store_table(file.path(root, "retter.txt"))$key, active$key),
     nrow(read_store_table(file.path(root, "retter_arkiv.txt"))) == 0L,
+    file.exists(file.path(root, "recipe-store-lock.sqlite")),
     !dir.exists(file.path(root, ".recipe-store-lock"))
   )
 
@@ -298,10 +302,6 @@ run_recipe_store_tests <- function() {
       .crash_at = "after_commit_marker"
     ),
     "Simuleret processtop"
-  )
-  Sys.setFileTime(
-    file.path(root, ".recipe-store-lock"),
-    Sys.time() - 60
   )
   purged_snapshot <- recipe_store_read(root)
   revision_purged <- purged_snapshot$revision
@@ -394,6 +394,45 @@ run_recipe_store_tests <- function() {
     ),
     "unikke"
   )
+  bad_recipe_columns <- empty_recipe
+  names(bad_recipe_columns)[2] <- "antal"
+  expect_error(
+    recipe_store_commit(
+      data_dir = root,
+      recipes = stats::setNames(
+        list(bad_recipe_columns),
+        "schema_test_opskr"
+      ),
+      expected_revision = revision_ghost_purged
+    ),
+    "maengde"
+  )
+  bad_recipe_name <- empty_recipe
+  names(bad_recipe_name)[1] <- ""
+  expect_error(
+    recipe_store_commit(
+      data_dir = root,
+      recipes = stats::setNames(
+        list(bad_recipe_name),
+        "schema_test_opskr"
+      ),
+      expected_revision = revision_ghost_purged
+    ),
+    "mangler rettens navn"
+  )
+  bad_recipe_amount <- empty_recipe
+  bad_recipe_amount$maengde <- character()
+  expect_error(
+    recipe_store_commit(
+      data_dir = root,
+      recipes = stats::setNames(
+        list(bad_recipe_amount),
+        "schema_test_opskr"
+      ),
+      expected_revision = revision_ghost_purged
+    ),
+    "numeriske"
+  )
   stopifnot(identical(recipe_store_revision(root), revision_before_validation))
 
   hidden_artifacts <- list.files(
@@ -402,8 +441,36 @@ run_recipe_store_tests <- function() {
     all.files = TRUE,
     recursive = TRUE
   )
+  hidden_artifacts <- setdiff(
+    hidden_artifacts,
+    "recipe-store-lock.sqlite"
+  )
   stopifnot(length(hidden_artifacts) == 0L)
 }
 
 run_recipe_store_tests()
+
+# Alle store-funktioner skal fortsat have en umiddelbart foregående
+# Roxygen-blok, så transaktions- og recovery-reglerne er lette at forstå.
+recipe_store_lines <- readLines(
+  file.path("R", "recipe_store.R"),
+  encoding = "UTF-8"
+)
+recipe_store_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  recipe_store_lines
+)
+recipe_store_has_roxygen <- vapply(
+  recipe_store_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", recipe_store_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+stopifnot(
+  length(recipe_store_function_lines) > 0L,
+  all(recipe_store_has_roxygen)
+)
+
 message("Alle recipe-store transaktions- og rollback-tests bestod.")

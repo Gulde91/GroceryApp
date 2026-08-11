@@ -1,3 +1,9 @@
+# Fælles hjælpere til brugerfladen -----------------------------------------
+#
+# Denne fil samler små, genbrugelige funktioner til inputfelter, knapper og
+# datatabeller. Funktionerne bruges flere steder i appen, men ejer hverken
+# reaktiv state eller permanent lagring.
+
 #' JavaScript-knap uden afhængighed af actionButton(...)-attributter
 #'
 #' Ældre Shiny-versioner accepterer ikke vilkårlige HTML-attributter som

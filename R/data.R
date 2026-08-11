@@ -1,5 +1,14 @@
+# Faste referencedata -------------------------------------------------------
+#
+# Denne fil indeholder appens faste lister med tilbehør og salater. Data, som
+# brugeren selv kan oprette eller ændre, hører ikke hjemme her, men læses fra
+# de særskilte lagre.
+
+library(dplyr)
+library(tibble)
+
 # TILBEHØR ----
-tilbehor <- tibble::tribble(
+tilbehor <- tribble(
   ~"Indkobsliste", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "kartofler", 0.25, "kg", "frugt og gr\u00F8nt", "",
   "rodfrugter", 150, "gram", "frugt og gr\u00F8nt", "",
@@ -13,7 +22,7 @@ tilbehor <- tibble::tribble(
 
 
 # SALATER ----
-salater <- tibble::tribble(
+salater <- tribble(
   ~retter, ~key, ~type,
   "", "", "",
   "Revet guler\u00F8dder", "revet_gulerodder_opskr", "vegetar",
@@ -26,7 +35,7 @@ salater <- tibble::tribble(
   ) %>% arrange(retter)
 
 # revet gulerødder ----
-revet_gulerodder_opskr <- tibble::tribble(
+revet_gulerodder_opskr <- tribble(
   ~"Revet guler\u00F8dder", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "guler\u00F8dder", 75, "gram", "frugt og gr\u00F8nt", "",
   "rosiner", 10, "gram", "konserves", "",
@@ -34,7 +43,7 @@ revet_gulerodder_opskr <- tibble::tribble(
 )
 
 # broccolisalat ----
-broccoli_salat_opskr <- tibble::tribble(
+broccoli_salat_opskr <- tribble(
   ~"Broccolisalat", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "broccoli", 0.25, "stk", "frugt og gr\u00F8nt", "",
   "granat\u00E6bler", 0.125, "stk", "frugt og gr\u00F8nt", "",
@@ -45,7 +54,7 @@ broccoli_salat_opskr <- tibble::tribble(
   "sukker", 5, "gram", "konserves", ""
 )
 # boennesalat ----
-boenne_salat_opskr <- tibble::tribble(
+boenne_salat_opskr <- tribble(
   ~"B\u00F8nnesalat", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "gr\u00F8nne b\u00F8nner (frost)", 75, "gram", "frost", "",
   "solt\u00F8rrede tomater i tern", 12.5, "gram", "konserves", "",
@@ -53,7 +62,7 @@ boenne_salat_opskr <- tibble::tribble(
   "br\u00F8dcroutoner", 10, "gram", "konserves", ""
 )
 # spidskål agurk salat ----
-spidskaal_agurk_opskr <- tibble::tribble(
+spidskaal_agurk_opskr <- tribble(
   ~"Spidsk\u00E5lsalat med agurk og edamameb\u00F8nner", 
   ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "spidsk\u00E5l", 0.15, "stk", "frugt og gr\u00F8nt", "",
@@ -62,7 +71,7 @@ spidskaal_agurk_opskr <- tibble::tribble(
 )
 
 # hytteost salat ----
-hytteost_salat_opskr <- tibble::tribble(
+hytteost_salat_opskr <- tribble(
   ~"Hytteostsalat", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "spidsk\u00E5l", 1/8, "stk", "frugt og gr\u00F8nt", "",
   "blomk\u00E5l", 0.13, "stk", "frugt og gr\u00F8nt", "",
@@ -72,13 +81,13 @@ hytteost_salat_opskr <- tibble::tribble(
 )
 
 # broccoli ----
-broccoli_opskr <- tibble::tribble(
+broccoli_opskr <- tribble(
   ~"Broccoli", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "broccoli", 0.25, "stk", "frugt og gr\u00F8nt", "",
 )
 
 # bønner ----
-groenne_boenner_opskr <- tibble::tribble(
+groenne_boenner_opskr <- tribble(
   ~"Gr\u00F8nne b\u00F8nner", ~"maengde", ~"enhed", ~"kat_1", ~"kat_2",
   "gr\u00F8nne b\u00F8nner (frost)", 75, "gram", "frost", ""
 )

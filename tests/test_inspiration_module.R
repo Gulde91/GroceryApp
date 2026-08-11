@@ -1,6 +1,9 @@
 suppressPackageStartupMessages({
-  source("shopping_history_store.R", encoding = "UTF-8")
-  source("inspiration_module.R", encoding = "UTF-8")
+  source(
+    file.path("R", "shopping_history_store.R"),
+    encoding = "UTF-8"
+  )
+  source(file.path("R", "inspiration_module.R"), encoding = "UTF-8")
 })
 
 inspiration_test_server <- function(
@@ -265,7 +268,10 @@ run_inspiration_module_tests <- function() {
 
   # Modulfilen skal bestå af dokumenterede top-level funktioner og må ikke
   # bruge pakkenotation med dobbelte koloner.
-  module_lines <- readLines("inspiration_module.R", encoding = "UTF-8")
+  module_lines <- readLines(
+    file.path("R", "inspiration_module.R"),
+    encoding = "UTF-8"
+  )
   function_lines <- grep(
     "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
     module_lines

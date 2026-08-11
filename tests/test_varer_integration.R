@@ -130,8 +130,8 @@ run_varer_integration_tests <- function() {
   shiny::testServer(server, {
     initialize_varer_test_inputs(session)
 
-    # Root følger persist-first: en store-fejl publicerer ikke kandidaten.
-    initial_local <- rv_basisVarerStore()
+    # State-laget følger persist-first: en store-fejl publicerer ikke kandidaten.
+    initial_local <- basis_state$read$snapshot()
     root_candidate <- rbind(
       initial_local$varer,
       integration_basis_row("Persistens-testvare")
@@ -140,21 +140,21 @@ run_varer_integration_tests <- function() {
     fail_next_commit <<- TRUE
     stopifnot(
       identical(
-        commit_basis_varer_change(root_candidate),
+        basis_state$commit(root_candidate),
         FALSE
       ),
-      identical(rv_basisVarerStore(), initial_local),
+      identical(basis_state$read$snapshot(), initial_local),
       identical(store_snapshot, initial_local)
     )
 
     stopifnot(
       identical(
-        commit_basis_varer_change(root_candidate),
+        basis_state$commit(root_candidate),
         TRUE
       ),
       "Persistens-testvare" %in%
-        rv_varer_custom()$Indkobsliste,
-      identical(rv_basisVarerStore(), store_snapshot)
+        basis_state$read$varer()$Indkobsliste,
+      identical(basis_state$read$snapshot(), store_snapshot)
     )
     successful_root_call <- store_commit_calls[[length(
       store_commit_calls
@@ -180,9 +180,9 @@ run_varer_integration_tests <- function() {
     set_varer_inputs(session, save_ny_vare = 1L)
 
     stopifnot(
-      new_name %in% rv_varer_custom()$Indkobsliste,
+      new_name %in% basis_state$read$varer()$Indkobsliste,
       new_name %in% rv_varer()$Indkobsliste,
-      identical(rv_basisVarerStore(), store_snapshot)
+      identical(basis_state$read$snapshot(), store_snapshot)
     )
 
     # Simulér at en anden session har gemt "Te", efter denne session læste
@@ -208,9 +208,9 @@ run_varer_integration_tests <- function() {
 
     stopifnot(
       store_read_calls == reads_before_conflict + 1L,
-      "Te" %in% rv_varer_custom()$Indkobsliste,
-      !"Kaffe" %in% rv_varer_custom()$Indkobsliste,
-      identical(rv_basisVarerStore(), external_snapshot)
+      "Te" %in% basis_state$read$varer()$Indkobsliste,
+      !"Kaffe" %in% basis_state$read$varer()$Indkobsliste,
+      identical(basis_state$read$snapshot(), external_snapshot)
     )
 
     # Dialogen og inputtet er bevaret. Ved nyt klik bygges kandidaten fra det
@@ -219,9 +219,9 @@ run_varer_integration_tests <- function() {
     stopifnot(
       all(
         c("Te", "Kaffe") %in%
-          rv_varer_custom()$Indkobsliste
+          basis_state$read$varer()$Indkobsliste
       ),
-      identical(rv_basisVarerStore(), store_snapshot)
+      identical(basis_state$read$snapshot(), store_snapshot)
     )
     retry_call <- store_commit_calls[[length(store_commit_calls)]]
     stopifnot(
@@ -256,7 +256,7 @@ run_varer_integration_tests <- function() {
     session$flushReact()
     stopifnot(
       store_read_calls == reads_before_changed_poll + 1L,
-      identical(rv_basisVarerStore(), polled_snapshot),
+      identical(basis_state$read$snapshot(), polled_snapshot),
       "Polling-testvare" %in% rv_varer()$Indkobsliste,
       store_revision_calls > 0L
     )
@@ -349,11 +349,19 @@ run_varer_integration_tests()
 
 app_lines <- readLines("app.R", encoding = "UTF-8")
 varer_module_lines <- readLines(
-  "varer_module.R",
+  file.path("R", "varer_module.R"),
   encoding = "UTF-8"
 )
 indkobsseddel_module_lines <- readLines(
-  "indkobsseddel_module.R",
+  file.path("R", "indkobsseddel_module.R"),
+  encoding = "UTF-8"
+)
+indkobsseddel_catalog_lines <- readLines(
+  file.path("R", "indkobsseddel_catalog.R"),
+  encoding = "UTF-8"
+)
+indkobsseddel_view_lines <- readLines(
+  file.path("R", "indkobsseddel_view.R"),
   encoding = "UTF-8"
 )
 stopifnot(
@@ -362,29 +370,32 @@ stopifnot(
     c(
       app_lines,
       varer_module_lines,
+      indkobsseddel_catalog_lines,
+      indkobsseddel_view_lines,
       indkobsseddel_module_lines
     )
   )),
-  any(grepl(
-    'source\\("\\./basis_varer_store\\.R"\\)',
+  file.exists(file.path("R", "basis_varer_store.R")),
+  file.exists(file.path("R", "basis_varer_state.R")),
+  sum(grepl(
+    "create_basis_varer_state[[:space:]]*\\(",
+    app_lines
+  )) == 1L,
+  !any(grepl(
+    "basis_varer_store_(read|revision|commit)[[:space:]]*\\(",
     app_lines
   )),
-  any(grepl(
-    "basis_varer_store_read\\(",
+  !any(grepl(
+    paste(
+      "initial_basis_varer_store|rv_basisVarerStore|rv_varer_custom|",
+      "publish_basis_varer_store|commit_basis_varer_change",
+      sep = ""
+    ),
     app_lines
   )),
-  any(grepl(
-    "basis_varer_store_revision\\(",
-    app_lines
-  )),
-  any(grepl(
-    "basis_varer_store_commit\\(",
-    app_lines
-  )),
-  any(grepl(
-    'source\\("\\./indkobsseddel_module\\.R"\\)',
-    app_lines
-  )),
+  file.exists(file.path("R", "indkobsseddel_catalog.R")),
+  file.exists(file.path("R", "indkobsseddel_view.R")),
+  file.exists(file.path("R", "indkobsseddel_module.R")),
   any(grepl(
     "mod_indkobsseddel_server",
     app_lines

@@ -1,4 +1,13 @@
-source("shopping_history_store.R", encoding = "UTF-8")
+suppressPackageStartupMessages({
+  source(
+    file.path("R", "store_lock.R"),
+    encoding = "UTF-8"
+  )
+  source(
+    file.path("R", "shopping_history_store.R"),
+    encoding = "UTF-8"
+  )
+})
 
 # Manglende og tomme mapper giver samme, typede tomme snapshot.
 missing_dir <- tempfile("groceryapp-missing-history-")
@@ -151,6 +160,7 @@ first_history <- data.frame(
 )
 first_saved <- shopping_history_store_save(
   first_history,
+  expected_revision = shopping_history_store_revision(save_dir),
   history_dir = save_dir,
   date = as.Date("2024-06-07")
 )
@@ -158,7 +168,16 @@ saved_path <- file.path(save_dir, "indkobsseddel_20240607.rda")
 loaded_environment <- new.env(parent = emptyenv())
 loaded_names <- load(saved_path, envir = loaded_environment)
 stopifnot(
-  identical(list.files(save_dir), "indkobsseddel_20240607.rda"),
+  identical(
+    list.files(
+      save_dir,
+      pattern = "^indkobsseddel_[0-9]{8}\\.rda$"
+    ),
+    "indkobsseddel_20240607.rda"
+  ),
+  file.exists(
+    file.path(save_dir, "shopping-history-lock.sqlite")
+  ),
   identical(loaded_names, "df"),
   identical(loaded_environment$df, first_history),
   identical(first_saved$entries$Indkøbsliste, first_history$Indkøbsliste)
@@ -172,13 +191,20 @@ second_history <- data.frame(
 )
 second_saved <- shopping_history_store_save(
   second_history,
+  expected_revision = first_saved$revision,
   history_dir = save_dir,
   date = "2024-06-07"
 )
 loaded_environment <- new.env(parent = emptyenv())
 loaded_names <- load(saved_path, envir = loaded_environment)
 stopifnot(
-  identical(list.files(save_dir), "indkobsseddel_20240607.rda"),
+  identical(
+    list.files(
+      save_dir,
+      pattern = "^indkobsseddel_[0-9]{8}\\.rda$"
+    ),
+    "indkobsseddel_20240607.rda"
+  ),
   identical(loaded_names, "df"),
   identical(loaded_environment$df, second_history),
   identical(second_saved$entries$Indkøbsliste, second_history$Indkøbsliste),
@@ -205,6 +231,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         extra_column,
+        expected_revision = second_saved$revision,
         history_dir = save_dir,
         date = "2024-06-08"
       ),
@@ -216,6 +243,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         factor_column,
+        expected_revision = second_saved$revision,
         history_dir = save_dir,
         date = "2024-06-08"
       ),
@@ -227,6 +255,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         second_history,
+        expected_revision = "empty",
         history_dir = tempfile("groceryapp-no-history-dir-"),
         date = "2024-06-08"
       ),
@@ -238,6 +267,7 @@ stopifnot(
     try(
       shopping_history_store_save(
         second_history,
+        expected_revision = second_saved$revision,
         history_dir = save_dir,
         date = "ikke-en-dato"
       ),
@@ -346,7 +376,10 @@ stopifnot(
 
 # Store-filen består af dokumenterede top-level-funktioner og bruger ikke
 # dobbelte koloner til pakkefunktioner.
-store_lines <- readLines("shopping_history_store.R", encoding = "UTF-8")
+store_lines <- readLines(
+  file.path("R", "shopping_history_store.R"),
+  encoding = "UTF-8"
+)
 function_lines <- grep(
   "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
   store_lines

@@ -5,6 +5,16 @@
 # publicerer derefter de nye filer. Ved en almindelig R- eller filsystemfejl
 # gendannes det oprindelige snapshot.
 
+#' Find opskriftslagerets metadatafiler
+#'
+#' Samler stierne til filerne med aktive retter, arkiverede retter og links,
+#' så resten af lagerkoden bruger de samme filnavne.
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#'
+#' @return En navngivet tekstvektor med stierne `retter`, `retter_arkiv` og
+#'   `links`.
+#' @keywords internal
 .recipe_store_metadata_paths <- function(data_dir) {
   c(
     retter = file.path(data_dir, "retter.txt"),
@@ -13,14 +23,38 @@
   )
 }
 
+#' Find mappen med de enkelte opskriftsfiler
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#'
+#' @return Stien til undermappen `opskrifter`.
+#' @keywords internal
 .recipe_store_recipe_dir <- function(data_dir) {
   file.path(data_dir, "opskrifter")
 }
 
+#' Byg filstien til en opskrift
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#' @param key Opskriftens nøgle uden filendelsen `.txt`.
+#'
+#' @return Den fulde sti til opskriftens tekstfil.
+#' @keywords internal
 .recipe_store_recipe_path <- function(data_dir, key) {
   file.path(.recipe_store_recipe_dir(data_dir), paste0(key, ".txt"))
 }
 
+#' Kontrollér at en opskriftsnøgle kan bruges som filnavn
+#'
+#' En gyldig nøgle består af bogstaver, tal, punktum, bindestreg eller
+#' understregning og skal begynde med et bogstav eller tal.
+#'
+#' @param key Den ene opskriftsnøgle, der skal kontrolleres.
+#' @param label En letlæselig betegnelse, som bruges i en eventuel fejlbesked.
+#'
+#' @return Usynligt `TRUE`, hvis nøglen er gyldig. Funktionen stopper ellers
+#'   med en fejl.
+#' @keywords internal
 .recipe_store_validate_key <- function(key, label = "Opskriftsnøgle") {
   if (
     length(key) != 1L ||
@@ -37,6 +71,17 @@
   invisible(TRUE)
 }
 
+#' Kontrollér værdier før de skrives til en semikolonsepareret fil
+#'
+#' Semikolon og linjeskift må ikke forekomme i kolonnenavne eller værdier,
+#' fordi tegnene ellers kan ødelægge tekstfilens struktur.
+#'
+#' @param df Tabellen, hvis kolonnenavne og værdier skal kontrolleres.
+#' @param label En letlæselig betegnelse for tabellen i fejlbeskeder.
+#'
+#' @return Usynligt `TRUE`, hvis tabellen kan skrives sikkert. Funktionen
+#'   stopper ellers med en fejl.
+#' @keywords internal
 .recipe_store_validate_delimited_values <- function(df, label) {
   bad_header <- grepl("[;\r\n]", names(df))
   if (any(bad_header)) {
@@ -65,106 +110,87 @@
   invisible(TRUE)
 }
 
-.recipe_store_validate_table <- function(df, expected_names, label) {
-  if (!is.data.frame(df)) {
-    stop(sprintf("%s skal være en data frame.", label), call. = FALSE)
-  }
-
-  if (!identical(names(df), expected_names)) {
-    stop(
-      sprintf(
-        "%s skal have kolonnerne: %s.",
-        label,
-        paste(expected_names, collapse = ", ")
-      ),
-      call. = FALSE
-    )
-  }
-
-  .recipe_store_validate_delimited_values(df, label)
-  invisible(TRUE)
-}
-
-.recipe_store_validate_recipe <- function(df, key) {
-  label <- sprintf("Opskriften '%s'", key)
-
-  if (!is.data.frame(df)) {
-    stop(sprintf("%s skal være en data frame.", label), call. = FALSE)
-  }
-
-  if (
-    ncol(df) != 5L ||
-      !identical(names(df)[2:5], c("maengde", "enhed", "kat_1", "kat_2"))
-  ) {
-    stop(
-      sprintf(
-        "%s skal have retten som første kolonne og derefter maengde, enhed, kat_1 og kat_2.",
-        label
-      ),
-      call. = FALSE
-    )
-  }
-
-  if (!is.numeric(df$maengde)) {
-    stop(sprintf("%s skal have en numerisk maengde-kolonne.", label), call. = FALSE)
-  }
-
-  .recipe_store_validate_delimited_values(df, label)
-  invisible(TRUE)
-}
-
-.recipe_store_validate_catalog_tables <- function(
+#' Kontrollér metadata både som fælles data og som tekstfiler
+#'
+#' De fælles skemaregler ligger i `recipe_schema.R`. Denne wrapper tilføjer
+#' kun fillagerets kontrol af semikolon og linjeskift.
+#'
+#' @param active_retter Tabel med aktive retter eller `NULL`.
+#' @param archived_retter Tabel med arkiverede retter eller `NULL`.
+#' @param links Tabel med opskriftslinks eller `NULL`.
+#'
+#' @return Usynligt `TRUE`, hvis tabellerne kan gemmes sikkert.
+#' @keywords internal
+.recipe_store_validate_catalog_files <- function(
   active_retter,
   archived_retter,
   links
 ) {
+  recipe_schema_validate_catalog_tables(
+    active_retter,
+    archived_retter,
+    links
+  )
+
   if (!is.null(active_retter)) {
-    .recipe_store_validate_table(
+    .recipe_store_validate_delimited_values(
       active_retter,
-      c("retter", "key", "type"),
       "Aktive retter"
     )
-
-    if (anyDuplicated(tolower(active_retter$key))) {
-      stop("Aktive retter indeholder dublerede nøgler.", call. = FALSE)
-    }
   }
 
   if (!is.null(archived_retter)) {
-    .recipe_store_validate_table(
+    .recipe_store_validate_delimited_values(
       archived_retter,
-      c("retter", "key", "type"),
       "Arkiverede retter"
     )
-
-    if (anyDuplicated(tolower(archived_retter$key))) {
-      stop("Arkiverede retter indeholder dublerede nøgler.", call. = FALSE)
-    }
-  }
-
-  if (!is.null(active_retter) && !is.null(archived_retter)) {
-    overlap <- intersect(
-      tolower(active_retter$key),
-      tolower(archived_retter$key)
-    )
-    if (length(overlap) > 0L) {
-      stop(
-        sprintf(
-          "Følgende nøgler er både aktive og arkiverede: %s",
-          paste(overlap, collapse = ", ")
-        ),
-        call. = FALSE
-      )
-    }
   }
 
   if (!is.null(links)) {
-    .recipe_store_validate_table(links, c("ret", "link"), "Opskriftslinks")
+    .recipe_store_validate_delimited_values(
+      links,
+      "Opskriftslinks"
+    )
   }
 
   invisible(TRUE)
 }
 
+#' Kontrollér opskrifter både som fælles data og som tekstfiler
+#'
+#' Funktionen bruger først det fælles opskriftsskema. Derefter kontrollerer
+#' fillageret, at hver nøgle kan bruges sikkert som filnavn, og at værdierne
+#' ikke indeholder tegn, som ødelægger det semikolonseparerede filformat.
+#'
+#' @param recipes En navngivet liste med opskriftstabeller.
+#'
+#' @return Usynligt `TRUE`, hvis opskrifterne kan gemmes sikkert.
+#' @keywords internal
+.recipe_store_validate_recipe_files <- function(recipes) {
+  recipe_schema_validate_recipes(recipes, "recipes")
+
+  for (key in names(recipes)) {
+    .recipe_store_validate_key(key)
+    .recipe_store_validate_delimited_values(
+      recipes[[key]],
+      sprintf("Opskriften '%s'", key)
+    )
+  }
+
+  invisible(TRUE)
+}
+
+#' Skriv og kontrollér en tabel i opskriftslagerets filformat
+#'
+#' Tabellen skrives som UTF-8 med semikolon som skilletegn. Bagefter læses
+#' overskriften tilbage, så en mangelfuld stage-fil opdages med det samme.
+#'
+#' @param df Tabellen, der skal skrives.
+#' @param path Stien til den fil, der skal oprettes eller overskrives.
+#'
+#' @return Usynligt `TRUE`, når filen er skrevet og dens overskrift er
+#'   valideret.
+#' @keywords internal
 .recipe_store_write_table <- function(df, path) {
   write.table(
     df,
@@ -190,6 +216,15 @@
   invisible(TRUE)
 }
 
+#' Flyt en fil eller stop med en forståelig fejl
+#'
+#' @param from Stien til filens nuværende placering.
+#' @param to Stien, som filen skal flyttes til.
+#' @param description Tekst, der beskriver handlingen i en eventuel
+#'   fejlbesked.
+#'
+#' @return Usynligt `TRUE`, når filen er flyttet.
+#' @keywords internal
 .recipe_store_move <- function(from, to, description) {
   if (!file.rename(from, to)) {
     stop(sprintf("Kunne ikke %s.", description), call. = FALSE)
@@ -198,6 +233,20 @@
   invisible(TRUE)
 }
 
+#' Udløs en aftalt testfejl ved et bestemt transaktionstrin
+#'
+#' Funktionen bruges af testene til at efterligne enten en almindelig fejl
+#' eller et pludseligt processtop. Ved normal drift gør den ingenting.
+#'
+#' @param fail_at Navne på trin, hvor en almindelig testfejl skal udløses,
+#'   eller `NULL`.
+#' @param step Navnet på det transaktionstrin, som netop er nået.
+#' @param crash_at Navne på trin, hvor et simuleret processtop skal udløses,
+#'   eller `NULL`.
+#'
+#' @return Usynligt `TRUE`, hvis det aktuelle trin ikke skal fejle. Funktionen
+#'   stopper ellers med den aftalte testfejl.
+#' @keywords internal
 .recipe_store_checkpoint <- function(fail_at, step, crash_at = NULL) {
   if (!is.null(crash_at) && step %in% crash_at) {
     condition <- structure(
@@ -220,14 +269,39 @@
   invisible(TRUE)
 }
 
-.recipe_store_release_lock <- function(lock_path) {
-  if (dir.exists(lock_path)) {
-    unlink(lock_path, recursive = TRUE, force = TRUE)
-  }
-
-  invisible(NULL)
+#' Kontrollér opskriftslåsen mellem kritiske filtrin
+#'
+#' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
+#'
+#' @return Usynligt `TRUE`.
+#' @keywords internal
+.recipe_store_touch_lock <- function(lock_handle) {
+  store_lock_touch(
+    lock_handle = lock_handle,
+    store_label = "opskriftslageret",
+    lock_lost_class = "recipe_store_lock_lost"
+  )
 }
 
+#' Frigiv opskriftslagerets SQLite-lås
+#'
+#' @param lock_handle Den åbne SQLite-forbindelse og låsefilens sti.
+#'
+#' @return `TRUE`, hvis forbindelsen blev lukket, ellers `FALSE`, usynligt.
+#' @keywords internal
+.recipe_store_release_lock <- function(lock_handle) {
+  store_lock_release(
+    lock_handle = lock_handle,
+    store_label = "opskriftslageret"
+  )
+}
+
+#' Find opskriftstransaktionens journal og commit-markør
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#'
+#' @return En navngivet tekstvektor med stierne `journal` og `committed`.
+#' @keywords internal
 .recipe_store_transaction_paths <- function(data_dir) {
   c(
     journal = file.path(data_dir, ".recipe-store-transaction.rds"),
@@ -235,11 +309,31 @@
   )
 }
 
+#' Beregn en fils kontrolværdi
+#'
+#' Kontrolværdien bruges til at afgøre, om en fil stadig er den udgave, som
+#' fandtes, da transaktionen begyndte.
+#'
+#' @param path Stien til filen, der skal kontrolleres.
+#'
+#' @return Filens MD5-værdi som tekst. Hvis filen ikke findes, returneres
+#'   teksten `"<missing>"`.
+#' @keywords internal
 .recipe_store_file_hash <- function(path) {
   if (!file.exists(path)) return("<missing>")
   unname(tools::md5sum(path))
 }
 
+#' Fjern en samling midlertidige filer
+#'
+#' Ikke-eksisterende og gentagne stier ignoreres. Funktionen samler navnene
+#' på de filer, som filsystemet ikke kunne fjerne.
+#'
+#' @param paths En tekstvektor med filstier, der ønskes fjernet.
+#'
+#' @return En tekstvektor med basisnavnene på filer, som ikke kunne fjernes.
+#'   En tom tekstvektor betyder, at oprydningen lykkedes.
+#' @keywords internal
 .recipe_store_remove_files <- function(paths) {
   paths <- unique(paths[file.exists(paths)])
   if (length(paths) == 0L) return(character())
@@ -248,6 +342,17 @@
   basename(paths[!removed])
 }
 
+#' Skriv transaktionsjournalen sikkert
+#'
+#' Journalen skrives først til en midlertidig fil og flyttes derefter på plads,
+#' så lageret ikke efterlades med en delvist skrevet journal.
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#' @param journal En liste, der beskriver transaktionens mål-, stage-, backup-
+#'   og karantænefiler.
+#'
+#' @return Stien til den færdige journalfil, usynligt.
+#' @keywords internal
 .recipe_store_write_journal <- function(data_dir, journal) {
   transaction_paths <- .recipe_store_transaction_paths(data_dir)
   journal_path <- unname(transaction_paths[["journal"]])
@@ -265,6 +370,16 @@
   invisible(journal_path)
 }
 
+#' Markér at en opskriftstransaktion er publiceret
+#'
+#' Markøren skrives først til en midlertidig fil og flyttes derefter på plads.
+#' Ved recovery viser den, at de nye filer skal beholdes, mens rester blot skal
+#' ryddes op.
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#'
+#' @return Stien til commit-markøren, usynligt.
+#' @keywords internal
 .recipe_store_mark_committed <- function(data_dir) {
   transaction_paths <- .recipe_store_transaction_paths(data_dir)
   marker_path <- unname(transaction_paths[["committed"]])
@@ -282,8 +397,22 @@
   invisible(marker_path)
 }
 
-.recipe_store_rollback_journal <- function(journal) {
+#' Gendan lageret ud fra en uafsluttet transaktionsjournal
+#'
+#' Nye filer fjernes, oprindelige filer flyttes tilbage fra backup, og slettede
+#' opskrifter flyttes tilbage fra karantæne. Låsen kontrolleres før hver
+#' handling, der ændrer filsystemet.
+#'
+#' @param journal Den indlæste transaktionsjournal med filstier og oplysninger
+#'   om de oprindelige filer.
+#' @param lock_handle Det aktive låsehåndtag til opskriftslageret.
+#'
+#' @return En tekstvektor med fejl, der opstod under gendannelsen. En tom
+#'   tekstvektor betyder, at gendannelsen lykkedes.
+#' @keywords internal
+.recipe_store_rollback_journal <- function(journal, lock_handle) {
   errors <- character()
+  .recipe_store_touch_lock(lock_handle)
 
   if (length(journal$target_paths) > 0L) {
     for (i in rev(seq_along(journal$target_paths))) {
@@ -291,14 +420,18 @@
       backup <- journal$backup_paths[[i]]
 
       if (file.exists(backup)) {
-        if (file.exists(target) && !file.remove(target)) {
-          errors <- c(
-            errors,
-            sprintf("kunne ikke fjerne ny fil '%s'", basename(target))
-          )
-          next
+        if (file.exists(target)) {
+          .recipe_store_touch_lock(lock_handle)
+          if (!file.remove(target)) {
+            errors <- c(
+              errors,
+              sprintf("kunne ikke fjerne ny fil '%s'", basename(target))
+            )
+            next
+          }
         }
 
+        .recipe_store_touch_lock(lock_handle)
         if (!file.rename(backup, target)) {
           errors <- c(
             errors,
@@ -306,6 +439,7 @@
           )
         }
       } else if (isFALSE(journal$had_original[[i]]) && file.exists(target)) {
+        .recipe_store_touch_lock(lock_handle)
         if (!file.remove(target)) {
           errors <- c(
             errors,
@@ -340,11 +474,14 @@
             errors,
             sprintf("opskriften '%s' findes allerede", basename(target))
           )
-        } else if (!file.rename(quarantine, target)) {
-          errors <- c(
-            errors,
-            sprintf("kunne ikke gendanne '%s'", basename(target))
-          )
+        } else {
+          .recipe_store_touch_lock(lock_handle)
+          if (!file.rename(quarantine, target)) {
+            errors <- c(
+              errors,
+              sprintf("kunne ikke gendanne '%s'", basename(target))
+            )
+          }
         }
       } else if (isTRUE(journal$delete_existed[[i]])) {
         if (
@@ -364,6 +501,7 @@
   }
 
   if (length(errors) == 0L) {
+    .recipe_store_touch_lock(lock_handle)
     failed_cleanup <- .recipe_store_remove_files(journal$stage_paths)
     if (length(failed_cleanup) > 0L) {
       errors <- c(
@@ -379,13 +517,29 @@
   errors
 }
 
-.recipe_store_recover_locked <- function(data_dir) {
+#' Afslut eller rul en afbrudt opskriftstransaktion tilbage
+#'
+#' Funktionen skal kaldes, mens opskriftslagerets lås holdes. Hvis en
+#' commit-markør findes, beholdes de publicerede filer, og rester ryddes op.
+#' Uden en markør gendannes lagerets tidligere udgave fra journalen.
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#' @param lock_handle Det aktive låsehåndtag til opskriftslageret.
+#'
+#' @return `TRUE`, når lageret er rent eller er gendannet fuldt. `FALSE`, hvis
+#'   en afsluttet transaktion stadig har filer, som ikke kunne ryddes op.
+#' @keywords internal
+.recipe_store_recover_locked <- function(data_dir, lock_handle) {
+  .recipe_store_touch_lock(lock_handle)
   transaction_paths <- .recipe_store_transaction_paths(data_dir)
   journal_path <- unname(transaction_paths[["journal"]])
   marker_path <- unname(transaction_paths[["committed"]])
 
   if (!file.exists(journal_path)) {
-    if (file.exists(marker_path)) file.remove(marker_path)
+    if (file.exists(marker_path)) {
+      .recipe_store_touch_lock(lock_handle)
+      file.remove(marker_path)
+    }
     return(TRUE)
   }
 
@@ -405,15 +559,23 @@
       journal$backup_paths,
       journal$quarantine_paths
     )
+    .recipe_store_touch_lock(lock_handle)
     failed_cleanup <- .recipe_store_remove_files(leftovers)
     if (length(failed_cleanup) > 0L) return(FALSE)
 
+    .recipe_store_touch_lock(lock_handle)
     if (!file.remove(journal_path)) return(FALSE)
-    if (file.exists(marker_path) && !file.remove(marker_path)) return(FALSE)
+    if (file.exists(marker_path)) {
+      .recipe_store_touch_lock(lock_handle)
+      if (!file.remove(marker_path)) return(FALSE)
+    }
     return(TRUE)
   }
 
-  rollback_errors <- .recipe_store_rollback_journal(journal)
+  rollback_errors <- .recipe_store_rollback_journal(
+    journal,
+    lock_handle
+  )
   if (length(rollback_errors) > 0L) {
     stop(
       paste(
@@ -424,50 +586,42 @@
     )
   }
 
+  .recipe_store_touch_lock(lock_handle)
   if (!file.remove(journal_path)) {
     stop("Den gendannede transaktionsjournal kunne ikke fjernes.", call. = FALSE)
   }
   TRUE
 }
 
+#' Tag den eksklusive SQLite-lås til opskriftslageret
+#'
+#' @param data_dir Mappen med opskriftslagerets filer.
+#' @param wait_seconds Hvor længe der højst ventes på en aktiv lås.
+#'
+#' @return Et låsehåndtag med forbindelse og sti.
+#' @keywords internal
 .recipe_store_acquire_lock <- function(
   data_dir,
-  wait_seconds = 1,
-  stale_after_seconds = 30
+  wait_seconds = 1
 ) {
-  lock_path <- file.path(data_dir, ".recipe-store-lock")
-  deadline <- Sys.time() + wait_seconds
-
-  repeat {
-    if (dir.create(lock_path, showWarnings = FALSE)) {
-      return(lock_path)
-    }
-
-    lock_info <- file.info(lock_path)
-    lock_age <- as.numeric(
-      difftime(Sys.time(), lock_info$mtime, units = "secs")
-    )
-    if (
-      !is.na(lock_age) &&
-        lock_age >= stale_after_seconds
-    ) {
-      unlink(lock_path, recursive = TRUE, force = TRUE)
-      next
-    }
-
-    if (Sys.time() >= deadline) {
-      stop(
-        "Opskriftslageret er i brug af en anden handling. Prøv igen om et øjeblik.",
-        call. = FALSE
-      )
-    }
-
-    Sys.sleep(0.02)
-  }
+  store_lock_acquire(
+    lock_path = file.path(
+      data_dir,
+      "recipe-store-lock.sqlite"
+    ),
+    store_label = "opskriftslageret",
+    lock_lost_class = "recipe_store_lock_lost",
+    wait_seconds = wait_seconds
+  )
 }
 
-recipe_store_revision <- function(data_dir = "./data") {
-  data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
+#' Beregn opskriftslagerets revision under en allerede aktiv lås
+#'
+#' @param data_dir Mappen med opskriftslagerets filer.
+#'
+#' @return En stabil tekstværdi med filnavne og hashes.
+#' @keywords internal
+.recipe_store_revision_unlocked <- function(data_dir) {
   recipe_dir <- .recipe_store_recipe_dir(data_dir)
   metadata_paths <- .recipe_store_metadata_paths(data_dir)
 
@@ -499,6 +653,30 @@ recipe_store_revision <- function(data_dir = "./data") {
   paste(paste(labels, hashes, sep = "="), collapse = "\n")
 }
 
+#' Læs en konsistent revision af opskriftslageret
+#'
+#' Funktionen tager samme OS-lås og udfører samme recovery som en almindelig
+#' læsning, så polling aldrig ser et halvpubliceret katalog.
+#'
+#' @param data_dir Mappen med opskriftslagerets filer.
+#'
+#' @return En stabil tekstværdi med filnavne og hashes.
+recipe_store_revision <- function(data_dir = "./data") {
+  data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
+  lock_handle <- .recipe_store_acquire_lock(data_dir)
+  on.exit(
+    .recipe_store_release_lock(lock_handle),
+    add = TRUE
+  )
+  .recipe_store_recover_locked(data_dir, lock_handle)
+  .recipe_store_revision_unlocked(data_dir)
+}
+
+#' Opret en tom rettetabel med det forventede skema
+#'
+#' @return En tom data frame med kolonnerne `retter`, `key` og `type` som
+#'   tekstkolonner.
+#' @keywords internal
 .recipe_store_empty_retter <- function() {
   data.frame(
     retter = character(),
@@ -508,6 +686,10 @@ recipe_store_revision <- function(data_dir = "./data") {
   )
 }
 
+#' Opret en tom linktabel med det forventede skema
+#'
+#' @return En tom data frame med tekstkolonnerne `ret` og `link`.
+#' @keywords internal
 .recipe_store_empty_links <- function() {
   data.frame(
     ret = character(),
@@ -516,6 +698,15 @@ recipe_store_revision <- function(data_dir = "./data") {
   )
 }
 
+#' Læs en fil med aktive eller arkiverede retter
+#'
+#' En manglende eller tom fil behandles som en tom rettetabel. Indlæste retter
+#' sorteres alfabetisk efter deres viste navn.
+#'
+#' @param path Stien til den semikolonseparerede rettetabel.
+#'
+#' @return En tabel med kolonnerne `retter`, `key` og `type`.
+#' @keywords internal
 .recipe_store_read_retter <- function(path) {
   if (!file.exists(path) || file.info(path)$size == 0L) {
     return(.recipe_store_empty_retter())
@@ -533,6 +724,14 @@ recipe_store_revision <- function(data_dir = "./data") {
   dplyr::arrange(result, retter)
 }
 
+#' Læs filen med opskriftslinks
+#'
+#' En manglende eller tom fil behandles som en tom linktabel.
+#'
+#' @param path Stien til den semikolonseparerede linktabel.
+#'
+#' @return En tabel med kolonnerne `ret` og `link`.
+#' @keywords internal
 .recipe_store_read_links <- function(path) {
   if (!file.exists(path) || file.info(path)$size == 0L) {
     return(.recipe_store_empty_links())
@@ -548,6 +747,17 @@ recipe_store_revision <- function(data_dir = "./data") {
   )
 }
 
+#' Læs alle enkelte opskriftsfiler
+#'
+#' Kun synlige `.txt`-filer i opskriftsmappen indlæses. Manglende værdier i
+#' `enhed` og `kat_2` erstattes med tom tekst, så resten af appen modtager et
+#' ensartet datasæt.
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#'
+#' @return En navngivet liste med én opskriftstabel pr. fil. Listen er tom,
+#'   hvis opskriftsmappen ikke findes.
+#' @keywords internal
 .recipe_store_read_recipes <- function(data_dir) {
   recipe_dir <- .recipe_store_recipe_dir(data_dir)
   if (!dir.exists(recipe_dir)) return(list())
@@ -581,11 +791,24 @@ recipe_store_revision <- function(data_dir = "./data") {
   recipes
 }
 
+#' Læs et konsistent snapshot af hele opskriftslageret
+#'
+#' Funktionen tager lagerets fælles lås, gendanner først en eventuel afbrudt
+#' transaktion og læser derefter metadata, opskrifter og revision som én
+#' sammenhængende udgave.
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#'
+#' @return En liste med `active_retter`, `archived_retter`, `recipes`, `links`
+#'   og den tilhørende `revision`.
 recipe_store_read <- function(data_dir = "./data") {
   data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
-  lock_path <- .recipe_store_acquire_lock(data_dir)
-  on.exit(.recipe_store_release_lock(lock_path), add = TRUE)
-  .recipe_store_recover_locked(data_dir)
+  lock_handle <- .recipe_store_acquire_lock(data_dir)
+  on.exit(
+    .recipe_store_release_lock(lock_handle),
+    add = TRUE
+  )
+  .recipe_store_recover_locked(data_dir, lock_handle)
 
   metadata_paths <- .recipe_store_metadata_paths(data_dir)
   snapshot <- list(
@@ -600,10 +823,38 @@ recipe_store_read <- function(data_dir = "./data") {
       unname(metadata_paths[["links"]])
     )
   )
-  snapshot$revision <- recipe_store_revision(data_dir)
+  .recipe_store_touch_lock(lock_handle)
+  snapshot$revision <- .recipe_store_revision_unlocked(data_dir)
   snapshot
 }
 
+#' Gem en samlet ændring i opskriftslageret
+#'
+#' Ændringer skrives først til stage-filer og publiceres derefter som én
+#' transaktion. Hvis noget fejler før publiceringen er afsluttet, forsøger
+#' funktionen at gendanne lagerets tidligere udgave. Parametre med værdien
+#' `NULL` bevarer den tilsvarende eksisterende metadatatabel.
+#'
+#' @param data_dir Mappen, hvor opskriftslagerets datafiler ligger.
+#' @param active_retter Ny tabel med aktive retter, eller `NULL` for at bevare
+#'   den eksisterende tabel.
+#' @param archived_retter Ny tabel med arkiverede retter, eller `NULL` for at
+#'   bevare den eksisterende tabel.
+#' @param links Ny tabel med opskriftslinks, eller `NULL` for at bevare den
+#'   eksisterende tabel.
+#' @param recipes En navngivet liste med opskriftstabeller, der skal oprettes
+#'   eller overskrives. `NULL` betyder, at ingen opskriftsfiler skrives.
+#' @param delete_recipe_keys En tekstvektor med nøglen på den opskrift, der
+#'   skal slettes. Højst én opskrift kan slettes pr. commit.
+#' @param expected_revision Den revision, som kalderen senest læste, eller
+#'   `NULL`. Hvis lageret har ændret sig siden, afvises gemningen.
+#' @param .fail_at Navne på transaktionstrin, hvor testene skal fremkalde en
+#'   almindelig fejl, eller `NULL`. Parameteren er kun beregnet til test.
+#' @param .crash_at Navne på transaktionstrin, hvor testene skal efterligne et
+#'   pludseligt processtop, eller `NULL`. Parameteren er kun beregnet til test.
+#'
+#' @return Lagerets nye revision som tekst. Hvis der ikke er ændringer,
+#'   returneres den nuværende revision.
 recipe_store_commit <- function(
   data_dir = "./data",
   active_retter = NULL,
@@ -618,35 +869,14 @@ recipe_store_commit <- function(
   data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
   recipe_dir <- .recipe_store_recipe_dir(data_dir)
 
-  if (!dir.exists(recipe_dir) && !dir.create(recipe_dir, recursive = FALSE)) {
-    stop("Mappen til opskriftsfiler kunne ikke oprettes.", call. = FALSE)
-  }
-
-  .recipe_store_validate_catalog_tables(
+  .recipe_store_validate_catalog_files(
     active_retter,
     archived_retter,
     links
   )
 
   if (is.null(recipes)) recipes <- list()
-  if (!is.list(recipes)) {
-    stop("recipes skal være en navngivet liste.", call. = FALSE)
-  }
-
-  if (length(recipes) > 0L) {
-    if (
-      is.null(names(recipes)) ||
-        any(!nzchar(names(recipes))) ||
-        anyDuplicated(tolower(names(recipes)))
-    ) {
-      stop("recipes skal have unikke, ikke-tomme nøgler.", call. = FALSE)
-    }
-
-    for (key in names(recipes)) {
-      .recipe_store_validate_key(key)
-      .recipe_store_validate_recipe(recipes[[key]], key)
-    }
-  }
+  .recipe_store_validate_recipe_files(recipes)
 
   delete_recipe_keys <- as.character(delete_recipe_keys)
   if (length(delete_recipe_keys) > 1L) {
@@ -696,14 +926,22 @@ recipe_store_commit <- function(
     )
   }
 
-  lock_path <- .recipe_store_acquire_lock(data_dir)
+  lock_handle <- .recipe_store_acquire_lock(data_dir)
   release_lock <- TRUE
   on.exit(
-    if (release_lock) .recipe_store_release_lock(lock_path),
+    if (release_lock) .recipe_store_release_lock(lock_handle),
     add = TRUE
   )
 
-  recovered_cleanly <- .recipe_store_recover_locked(data_dir)
+  .recipe_store_touch_lock(lock_handle)
+  if (!dir.exists(recipe_dir) && !dir.create(recipe_dir, recursive = FALSE)) {
+    stop("Mappen til opskriftsfiler kunne ikke oprettes.", call. = FALSE)
+  }
+
+  recovered_cleanly <- .recipe_store_recover_locked(
+    data_dir,
+    lock_handle
+  )
   if (!recovered_cleanly) {
     stop(
       "En tidligere opskriftstransaktion mangler stadig filoprydning.",
@@ -711,7 +949,7 @@ recipe_store_commit <- function(
     )
   }
 
-  current_revision <- recipe_store_revision(data_dir)
+  current_revision <- .recipe_store_revision_unlocked(data_dir)
   if (
     !is.null(expected_revision) &&
       !identical(current_revision, expected_revision)
@@ -738,7 +976,7 @@ recipe_store_commit <- function(
   } else {
     links
   }
-  .recipe_store_validate_catalog_tables(
+  .recipe_store_validate_catalog_files(
     candidate_active,
     candidate_archive,
     candidate_links
@@ -826,6 +1064,7 @@ recipe_store_commit <- function(
   tryCatch(
     {
       for (i in seq_along(write_specs)) {
+        .recipe_store_touch_lock(lock_handle)
         .recipe_store_write_table(write_specs[[i]]$data, stage_paths[[i]])
       }
 
@@ -848,12 +1087,14 @@ recipe_store_commit <- function(
           character(1)
         )
       )
+      .recipe_store_touch_lock(lock_handle)
       .recipe_store_write_journal(data_dir, journal)
       journal_prepared <- TRUE
       .recipe_store_checkpoint(.fail_at, "after_stage", .crash_at)
 
       for (i in seq_along(write_specs)) {
         if (file.exists(target_paths[[i]])) {
+          .recipe_store_touch_lock(lock_handle)
           .recipe_store_move(
             target_paths[[i]],
             backup_paths[[i]],
@@ -869,6 +1110,7 @@ recipe_store_commit <- function(
 
       for (i in seq_along(delete_targets)) {
         if (file.exists(delete_targets[[i]])) {
+          .recipe_store_touch_lock(lock_handle)
           .recipe_store_move(
             delete_targets[[i]],
             quarantine_paths[[i]],
@@ -883,6 +1125,7 @@ recipe_store_commit <- function(
       }
 
       for (i in seq_along(write_specs)) {
+        .recipe_store_touch_lock(lock_handle)
         .recipe_store_move(
           stage_paths[[i]],
           target_paths[[i]],
@@ -895,10 +1138,12 @@ recipe_store_commit <- function(
         )
       }
 
-      next_revision <- recipe_store_revision(data_dir)
+      .recipe_store_touch_lock(lock_handle)
+      next_revision <- .recipe_store_revision_unlocked(data_dir)
+      .recipe_store_touch_lock(lock_handle)
       .recipe_store_mark_committed(data_dir)
       .recipe_store_checkpoint(NULL, "after_commit_marker", .crash_at)
-      .recipe_store_recover_locked(data_dir)
+      .recipe_store_recover_locked(data_dir, lock_handle)
     },
     error = function(error) {
       commit_error <<- error
@@ -908,18 +1153,24 @@ recipe_store_commit <- function(
   if (!is.null(commit_error)) {
     if (inherits(commit_error, "recipe_store_simulated_crash")) {
       release_lock <- FALSE
-      stop(conditionMessage(commit_error), call. = FALSE)
+      .recipe_store_release_lock(lock_handle)
+      stop(commit_error)
+    }
+
+    if (inherits(commit_error, "store_lock_lost")) {
+      stop(commit_error)
     }
 
     if (journal_prepared) {
       recovery_error <- tryCatch(
         {
-          .recipe_store_recover_locked(data_dir)
+          .recipe_store_recover_locked(data_dir, lock_handle)
           NULL
         },
         error = identity
       )
     } else {
+      .recipe_store_touch_lock(lock_handle)
       failed_cleanup <- .recipe_store_remove_files(
         c(stage_paths, backup_paths, quarantine_paths)
       )
@@ -933,6 +1184,9 @@ recipe_store_commit <- function(
       }
     }
 
+    if (inherits(recovery_error, "store_lock_lost")) {
+      stop(recovery_error)
+    }
     if (!is.null(recovery_error)) {
       stop(
         paste(

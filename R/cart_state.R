@@ -1,8 +1,19 @@
 # Kanonisk state for indkøbssedlen -----------------------------------------
+#
+# Denne fil indeholder indkøbssedlens autoritative data og de rene regler,
+# der tilføjer, samler, redigerer og sletter varelinjer. Funktionerne kender
+# hverken Shiny, dialoger eller filer og kan derfor testes direkte.
 
 .cart_group_columns <- c("Indkobsliste", "enhed", "kat_1", "kat_2")
 .cart_input_columns <- c("Indkobsliste", "maengde", "enhed", "kat_1", "kat_2")
 
+#' Opret en tom tabel med indkøbsseddelens varelinjer
+#'
+#' Funktionen samler kolonnenavne og datatyper for indkøbsseddelens kanoniske
+#' varelinjer. Den bruges, når en ny state oprettes, og når en tom visning skal
+#' returneres.
+#'
+#' @return En tom data frame med alle kolonner, som en varelinje skal have.
 empty_cart_rows <- function() {
   data.frame(
     line_id = character(),
@@ -17,6 +28,12 @@ empty_cart_rows <- function() {
   )
 }
 
+#' Opret en ny og tom indkøbsseddel-state
+#'
+#' En state indeholder varelinjer, noter fra opskrifter og det næste id, der
+#' skal bruges til en ny varelinje.
+#'
+#' @return En tom liste med klassen `grocery_cart_state`.
 new_cart_state <- function() {
   structure(
     list(
@@ -28,6 +45,15 @@ new_cart_state <- function() {
   )
 }
 
+#' Kontrollér at en værdi er en gyldig indkøbsseddel-state
+#'
+#' Funktionen stopper med en forklarende fejl, hvis staten eller dens tabel
+#' mangler de nødvendige dele.
+#'
+#' @param state Den indkøbsseddel-state, der skal kontrolleres.
+#'
+#' @return Den kontrollerede state, usynligt.
+#' @keywords internal
 .assert_cart_state <- function(state) {
   required <- c("rows", "recipe_notes", "next_line_id")
   if (!is.list(state) || !all(required %in% names(state))) {
@@ -42,6 +68,15 @@ new_cart_state <- function() {
   invisible(state)
 }
 
+#' Normalisér indkommende varelinjer
+#'
+#' Funktionen udvælger de forventede inputkolonner, konverterer mængden til
+#' tal og sikrer, at tekstkolonner ikke indeholder `NA`.
+#'
+#' @param rows En data frame med varelinjer, eller `NULL`.
+#'
+#' @return En data frame med de fem normaliserede inputkolonner.
+#' @keywords internal
 .normalize_cart_rows <- function(rows) {
   if (is.null(rows) || nrow(rows) == 0) {
     return(data.frame(
@@ -74,11 +109,28 @@ new_cart_state <- function() {
   out
 }
 
+#' Læg mængder fra ens varelinjer sammen
+#'
+#' Manglende værdier ignoreres, medmindre alle mængder mangler.
+#'
+#' @param amounts En numerisk vektor med mængder.
+#'
+#' @return Summen som ét tal, eller `NA_real_` hvis alle værdier er `NA`.
+#' @keywords internal
 .sum_cart_amounts <- function(amounts) {
   if (all(is.na(amounts))) return(NA_real_)
   sum(amounts, na.rm = TRUE)
 }
 
+#' Saml ens indkommende varelinjer
+#'
+#' Linjer med samme varenavn, enhed og kategorier samles, og deres mængder
+#' lægges sammen, før de føjes til indkøbssedlen.
+#'
+#' @param rows En data frame med indkommende varelinjer.
+#'
+#' @return En normaliseret data frame med én række pr. unik varegruppe.
+#' @keywords internal
 .aggregate_cart_rows <- function(rows) {
   rows <- .normalize_cart_rows(rows)
   if (nrow(rows) == 0) return(rows)
@@ -92,6 +144,15 @@ new_cart_state <- function() {
     dplyr::select(dplyr::all_of(.cart_input_columns))
 }
 
+#' Find varelinjer, der tilhører samme gruppe som en ny vare
+#'
+#' To varer regnes som ens, når varenavn, enhed og begge kategorier matcher.
+#'
+#' @param rows Indkøbsseddelens eksisterende varelinjer.
+#' @param incoming_row Én normaliseret varelinje, der skal sammenlignes med.
+#'
+#' @return En logisk vektor med én værdi for hver eksisterende varelinje.
+#' @keywords internal
 .same_cart_group <- function(rows, incoming_row) {
   if (nrow(rows) == 0) return(logical())
 
@@ -102,6 +163,15 @@ new_cart_state <- function() {
   matches
 }
 
+#' Føj varelinjer til indkøbssedlen
+#'
+#' Nye varer samles med en eksisterende, ulåst varelinje, når varegruppen er
+#' den samme. Ellers oprettes en ny varelinje med et stabilt id.
+#'
+#' @param state Den nuværende indkøbsseddel-state.
+#' @param incoming_rows En data frame med de varer, der skal tilføjes.
+#'
+#' @return Den opdaterede indkøbsseddel-state.
 cart_add_rows <- function(state, incoming_rows) {
   .assert_cart_state(state)
   incoming_rows <- .aggregate_cart_rows(incoming_rows)
@@ -139,6 +209,17 @@ cart_add_rows <- function(state, incoming_rows) {
   state
 }
 
+#' Føj en opskrift til indkøbssedlen
+#'
+#' Funktionen tilføjer opskriftens varer og gemmer eventuelle afsnit som
+#' noter, der senere kan komme med i den kopierede tekst.
+#'
+#' @param state Den nuværende indkøbsseddel-state.
+#' @param incoming_rows En data frame med opskriftens varer.
+#' @param recipe_sections En liste med opskriftsafsnit. Hvert afsnit kan
+#'   indeholde `title`, `pers`, `df` og `link`.
+#'
+#' @return Den opdaterede indkøbsseddel-state.
 cart_add_recipe <- function(state, incoming_rows, recipe_sections = list()) {
   state <- cart_add_rows(state, incoming_rows)
 
@@ -150,6 +231,15 @@ cart_add_recipe <- function(state, incoming_rows, recipe_sections = list()) {
   state
 }
 
+#' Sortér indkøbsseddelens varelinjer
+#'
+#' Varelinjerne sorteres først stabilt efter deres varegruppe og derefter i
+#' den kategoriorden, som appens indkøbsseddel bruger.
+#'
+#' @param rows En data frame med indkøbsseddelens varelinjer.
+#'
+#' @return De samme varelinjer i visningsrækkefølge.
+#' @keywords internal
 .sort_cart_rows <- function(rows) {
   if (nrow(rows) == 0) return(rows)
 
@@ -176,11 +266,30 @@ cart_add_recipe <- function(state, incoming_rows, recipe_sections = list()) {
   rows
 }
 
+#' Formatér varelinjer som letlæselig tekst
+#'
+#' Mængde, enhed og varenavn samles, og overflødige mellemrum fjernes.
+#'
+#' @param maengde En vektor med varernes mængder.
+#' @param enhed En vektor med varernes enheder.
+#' @param varenavn En vektor med varernes navne.
+#'
+#' @return En tegnvektor med én formateret tekst for hver varelinje.
+#' @keywords internal
 .format_cart_lines <- function(maengde, enhed, varenavn) {
   amount_text <- ifelse(is.na(maengde), "", as.character(maengde))
   trimws(gsub("\\s+", " ", paste(amount_text, enhed, varenavn)))
 }
 
+#' Opret indkøbsseddelens fulde visningsdata
+#'
+#' Funktionen sorterer varelinjerne, formaterer deres visningstekst og
+#' respekterer tekst, som brugeren selv har redigeret og låst.
+#'
+#' @param state Den indkøbsseddel-state, der skal vises.
+#'
+#' @return En data frame med `line_id` og `display` først, efterfulgt af
+#'   varelinjens øvrige data.
 cart_view <- function(state) {
   .assert_cart_state(state)
   if (nrow(state$rows) == 0) {
@@ -207,12 +316,30 @@ cart_view <- function(state) {
   out[, c("line_id", "display", setdiff(names(out), c("line_id", "display"))), drop = FALSE]
 }
 
+#' Hent de synlige varelinjer fra indkøbssedlen
+#'
+#' Varelinjer uden en gyldig visningstekst sorteres fra.
+#'
+#' @param state Den indkøbsseddel-state, der skal læses.
+#'
+#' @return En data frame med indkøbsseddelens synlige varelinjer.
 cart_visible <- function(state) {
   out <- cart_view(state)
   keep <- !is.na(out$display) & nzchar(out$display)
   out[keep, , drop = FALSE]
 }
 
+#' Redigér den viste tekst på én varelinje
+#'
+#' En gyldig, ikke-tom tekst gemmes som en manuel visningsoverstyring, og
+#' varelinjen låses, så den ikke senere samles automatisk med andre varer.
+#'
+#' @param state Den nuværende indkøbsseddel-state.
+#' @param line_id Id'et på den varelinje, der skal redigeres.
+#' @param display_text Den tekst, der fremover skal vises for varelinjen.
+#'
+#' @return Den opdaterede state. Ved et ukendt id eller en tom tekst returneres
+#'   staten uændret.
 cart_edit_line <- function(state, line_id, display_text) {
   .assert_cart_state(state)
   if (is.null(line_id) || length(line_id) == 0 || is.na(line_id[[1]])) return(state)
@@ -234,6 +361,13 @@ cart_edit_line <- function(state, line_id, display_text) {
   state
 }
 
+#' Slet én varelinje fra indkøbssedlen
+#'
+#' @param state Den nuværende indkøbsseddel-state.
+#' @param line_id Id'et på den varelinje, der skal slettes.
+#'
+#' @return Den opdaterede state. Ved et ukendt eller manglende id returneres
+#'   staten uændret.
 cart_delete_line <- function(state, line_id) {
   .assert_cart_state(state)
   if (is.null(line_id) || length(line_id) == 0 || is.na(line_id[[1]])) return(state)
@@ -246,6 +380,16 @@ cart_delete_line <- function(state, line_id) {
   state
 }
 
+#' Formatér én opskriftsingrediens som tekst
+#'
+#' Funktionen samler en ingrediens' mængde, enhed og varenavn. Hvis mængden
+#' mangler, returneres kun varenavnet.
+#'
+#' @param row En navngivet opskriftsrække med `maengde`, `enhed` og
+#'   `Indkobsliste`.
+#'
+#' @return Én tekststreng med den formaterede ingrediens.
+#' @keywords internal
 .format_recipe_ingredient <- function(row) {
   amount <- row[["maengde"]]
   unit <- row[["enhed"]]
@@ -260,6 +404,15 @@ cart_delete_line <- function(state, line_id) {
   }
 }
 
+#' Omdan et opskriftsafsnit til en note til indkøbssedlen
+#'
+#' Ingredienstabellen omdannes til tekstlinjer, mens titel, antal personer og
+#' link bevares til den senere kopiering.
+#'
+#' @param section En liste med `title`, `pers`, `df` og `link`.
+#'
+#' @return En liste med `title`, `pers`, `ingredient_lines` og `link`.
+#' @keywords internal
 .recipe_section_to_note <- function(section) {
   ingredient_lines <- character()
   if (!is.null(section$df) && nrow(section$df) > 0) {
@@ -274,9 +427,26 @@ cart_delete_line <- function(state, line_id) {
   )
 }
 
+#' Klargør indkøbssedlen til kopiering
+#'
+#' Resultatet adskiller de synlige varelinjer fra de skjulte opskriftsnoter og
+#' angiver, hvor kopiteksten skal have en blank linje mellem hovedkategorier.
+#'
+#' @param state Den indkøbsseddel-state, der skal kopieres.
+#'
+#' @return En liste med `visible`, `hidden`, `line_ids`, `n_visible` og
+#'   `category_break_after`.
 cart_copy_payload <- function(state) {
   visible_rows <- cart_visible(state)
   visible <- visible_rows$display
+  category_break_after <- if (nrow(visible_rows) < 2L) {
+    integer()
+  } else {
+    which(
+      visible_rows$kat_1[-nrow(visible_rows)] !=
+        visible_rows$kat_1[-1L]
+    )
+  }
   hidden <- character()
 
   for (note in state$recipe_notes) {
@@ -299,10 +469,17 @@ cart_copy_payload <- function(state) {
     visible = visible,
     hidden = hidden,
     line_ids = visible_rows$line_id,
-    n_visible = length(visible)
+    n_visible = length(visible),
+    category_break_after = category_break_after
   )
 }
 
+#' Opret den enkle tabel, der vises som indkøbsseddel
+#'
+#' @param state Den indkøbsseddel-state, der skal vises.
+#'
+#' @return En data frame med én kolonne, `Indkøbsliste`, og én række pr.
+#'   synlig varelinje.
 cart_display_data <- function(state) {
   data.frame(
     `Indkøbsliste` = cart_visible(state)$display,
