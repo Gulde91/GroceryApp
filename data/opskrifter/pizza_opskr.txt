@@ -2,4 +2,5 @@ Pizza;maengde;enhed;kat_1;kat_2
 tomatpure;50;gram;konserves;tomat
 pizza sauce;0.25;stk;konserves;tomat
 frisk mozzarella;0.75;stk;mejeri;ost
-pizzabund;1;stk;køl;
+caputo couco pizzamel;200;gram;konserves;
+gær;0.5;gram;køl;

@@ -6,6 +6,7 @@ Chicken Tikka Masala;chickentikka_opskr;kylling
 Chili con carne;chili_con_carne_opskr;okse
 Dahl;dahl_opskr;vegetar
 Fiskefilet;fiskefilet_opskr;fisk
+Fiskefrikadeller;fiskefrikadeller_opskr;fisk
 Frikadeller;frikadeller_opskr;gris
 Fyldte peberfrugter;fyldtepeberfrugter_opskr;okse
 Gullasch;gullasch_opskr;okse
