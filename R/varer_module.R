@@ -45,9 +45,9 @@ mod_varer_ui <- function(id) {
 #' Byg dialogerne til varemodulet
 #'
 #' Funktionen opretter én dialog til nye basisvarer og én separat dialog til
-#' omdøbning af en eksisterende basisvare. Dialogerne tilhører kun modulet og
-#' deler derfor ikke redigeringsfelter eller intern tilstand med
-#' indkøbssedlen.
+#' redigering af navn, enhed og kategorier for en eksisterende basisvare.
+#' Dialogerne tilhører kun modulet og deler derfor ikke redigeringsfelter eller
+#' intern tilstand med indkøbssedlen.
 #'
 #' @param id Modul-id'et, som også bruges ved kaldet til servermodulet.
 #'
@@ -113,6 +113,21 @@ mod_varer_dialogs_ui <- function(id) {
             ns("varer_edit_value"),
             "Varenavn"
           ),
+          sInput(
+            ns("varer_edit_enhed"),
+            "Enhed",
+            choices = NULL
+          ),
+          sInput(
+            ns("varer_edit_kat1"),
+            "Kategori 1",
+            choices = NULL
+          ),
+          sInput(
+            ns("varer_edit_kat2"),
+            "Kategori 2",
+            choices = NULL
+          ),
           br(),
           f7Button(
             ns("save_varer_edit"),
@@ -135,7 +150,7 @@ mod_varer_dialogs_ui <- function(id) {
 
 #' Kør serverlogikken til fanen Varer
 #'
-#' Modulet viser, opretter, omdøber og sletter basisvarer. Det ejer ikke
+#' Modulet viser, opretter, redigerer og sletter basisvarer. Det ejer ikke
 #' basisvarernes reaktive state og skriver heller ikke selv til en fil. I
 #' stedet læser det gennem de to getter-funktioner og sender en færdig,
 #' opdateret data frame til `commit_varer`. Dermed findes der fortsat kun ét
@@ -299,6 +314,19 @@ mod_varer_server <- function(
   observeEvent(input$varer_editPressed, ignoreInit = TRUE, {
     original_name <- varer_clean_text(input$varer_editPressed)
     df <- varer_custom_current()
+    df_all <- varer_all_current()
+
+    if (
+      !varer_has_required_columns(df) ||
+        !varer_has_required_columns(df_all)
+    ) {
+      showNotification(
+        "Varelisten mangler de forventede kolonner.",
+        type = "error"
+      )
+      return(invisible(NULL))
+    }
+
     row <- varer_find_name_row(original_name, df)
 
     if (is.na(row)) {
@@ -316,6 +344,41 @@ mod_varer_server <- function(
       session,
       "varer_edit_value",
       value = df$Indkobsliste[[row]]
+    )
+    enheder <- varer_choice_values(
+      "stk",
+      df$enhed,
+      df_all$enhed,
+      include_blank = TRUE
+    )
+    kat1 <- varer_choice_values(
+      kategori_1,
+      df$kat_1,
+      df_all$kat_1
+    )
+    kat2 <- varer_choice_values(
+      kategori_2,
+      df$kat_2,
+      df_all$kat_2,
+      include_blank = TRUE
+    )
+    updateSelectInput(
+      session,
+      "varer_edit_enhed",
+      choices = enheder,
+      selected = df$enhed[[row]]
+    )
+    updateSelectInput(
+      session,
+      "varer_edit_kat1",
+      choices = kat1,
+      selected = df$kat_1[[row]]
+    )
+    updateSelectInput(
+      session,
+      "varer_edit_kat2",
+      choices = kat2,
+      selected = df$kat_2[[row]]
     )
     varer_show_dialog("popup_varer_rediger", ns)
   })
@@ -364,18 +427,25 @@ mod_varer_server <- function(
       return(invisible(NULL))
     }
 
-    next_df <- varer_replace_name(df, row, navn)
+    next_df <- varer_replace_values(
+      df,
+      row,
+      navn,
+      enhed = input$varer_edit_enhed,
+      kat_1 = input$varer_edit_kat1,
+      kat_2 = input$varer_edit_kat2
+    )
     next_df <- varer_sort_rows(next_df)
     saved <- commit_varer(
       next_df,
-      error_message = "Varen kunne ikke omdøbes."
+      error_message = "Varen kunne ikke redigeres."
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
     varer_clear_edit_state(rv_varerEditState)
     varer_hide_dialog("popup_varer_rediger", ns)
     showNotification(
-      sprintf('Varen er omdøbt til "%s".', navn),
+      sprintf('Ændringerne til "%s" er gemt.', navn),
       type = "message"
     )
   })
@@ -635,22 +705,32 @@ varer_find_name_row <- function(navn, df) {
   as.integer(matches[[1]])
 }
 
-#' Erstat navnet i én basisvarerække
+#' Erstat navn, enhed og kategorier i én basisvarerække
 #'
-#' Funktionen kopierer varelisten og sikrer, at navnekolonnen er tekst, før
-#' den ønskede række ændres. Det undgår blandt andet problemer, hvis en ældre
-#' datakilde har indlæst kolonnen som faktor.
+#' Funktionen kopierer varelisten og sikrer, at de redigerede kolonner er
+#' tekst, før den ønskede række ændres. Mængden røres ikke. Dermed kan navn,
+#' enhed og kategorier afleveres samlet til ét commit, også hvis en ældre
+#' datakilde har indlæst en af tekstkolonnerne som faktor.
 #'
 #' @param df Data frame med basisvarer.
 #' @param row Rækkenummeret, der skal ændres.
 #' @param navn Det nye varenavn.
+#' @param enhed Den nye standardenhed.
+#' @param kat_1 Den nye hovedkategori.
+#' @param kat_2 Den nye underkategori, som gerne må være tom.
 #'
-#' @return En ny data frame med det opdaterede navn.
+#' @return En ny data frame med det opdaterede navn, enhed og kategorier.
 #' @keywords internal
-varer_replace_name <- function(df, row, navn) {
+varer_replace_values <- function(df, row, navn, enhed, kat_1, kat_2) {
   next_df <- df
   next_df$Indkobsliste <- as.character(next_df$Indkobsliste)
+  next_df$enhed <- as.character(next_df$enhed)
+  next_df$kat_1 <- as.character(next_df$kat_1)
+  next_df$kat_2 <- as.character(next_df$kat_2)
   next_df$Indkobsliste[[row]] <- varer_clean_text(navn)
+  next_df$enhed[[row]] <- varer_clean_text(enhed)
+  next_df$kat_1[[row]] <- varer_clean_text(kat_1)
+  next_df$kat_2[[row]] <- varer_clean_text(kat_2)
   next_df
 }
 
@@ -817,8 +897,10 @@ varer_delete_button <- function(row, navne, ns, event_id) {
 #' Byg den viste tabel med basisvarer
 #'
 #' Funktionen udvælger navn og enhed, tilføjer de dynamiske redigerings- og
-#' sletteknapper og anvender tabellens danske søgetekster. Selve dataene
-#' ændres ikke; tabellen er kun en visning af hovedappens aktuelle state.
+#' sletteknapper og anvender tabellens danske søgetekster. Kategorierne vises
+#' ikke i tabellen, men kan fortsat ændres gennem redigeringsdialogen. Selve
+#' dataene ændres ikke; tabellen er kun en visning af hovedappens aktuelle
+#' state.
 #'
 #' @param df Data frame med brugerens basisvarer.
 #' @param ns Modulets namespace-funktion.
@@ -856,7 +938,7 @@ varer_table_widget <- function(df, ns) {
   datatable(
     result,
     rownames = FALSE,
-    escape = c(1, 2),
+    escape = seq_len(ncol(table_df)),
     options = list(
       dom = "ft",
       pageLength = max(1L, nrow(table_df)),

@@ -185,6 +185,39 @@ run_varer_integration_tests <- function() {
       identical(basis_state$read$snapshot(), store_snapshot)
     )
 
+    # Enheds- og kategoriændringer fra varefanen gemmes i basis-state og slår
+    # straks igennem i det fælles katalog, som Liste-dialogen læser.
+    set_varer_inputs(session, varer_editPressed = new_name)
+    set_varer_inputs(
+      session,
+      varer_edit_value = new_name,
+      varer_edit_enhed = "kg",
+      varer_edit_kat1 = "mejeri",
+      varer_edit_kat2 = "ost"
+    )
+    set_varer_inputs(session, save_varer_edit = 1L)
+
+    edited_basis_row <- basis_state$read$varer()[
+      basis_state$read$varer()$Indkobsliste == new_name,
+      ,
+      drop = FALSE
+    ]
+    edited_catalog_row <- rv_varer()[
+      rv_varer()$Indkobsliste == new_name,
+      ,
+      drop = FALSE
+    ]
+    stopifnot(
+      nrow(edited_basis_row) == 1L,
+      identical(edited_basis_row$enhed[[1L]], "kg"),
+      identical(edited_basis_row$kat_1[[1L]], "mejeri"),
+      identical(edited_basis_row$kat_2[[1L]], "ost"),
+      identical(edited_catalog_row$enhed[[1L]], "kg"),
+      identical(edited_catalog_row$kat_1[[1L]], "mejeri"),
+      identical(edited_catalog_row$kat_2[[1L]], "ost"),
+      identical(basis_state$read$snapshot(), store_snapshot)
+    )
+
     # Simulér at en anden session har gemt "Te", efter denne session læste
     # sin revision. Første forsøg med "Kaffe" afvises og genindlæser Te.
     external_snapshot <- list(
@@ -266,7 +299,7 @@ run_varer_integration_tests <- function() {
       session,
       catalog_item = new_name,
       catalog_amount = 2,
-      catalog_unit = "stk"
+      catalog_unit = "kg"
     )
     set_indkobsseddel_inputs(session, add_catalog_item = 1L)
 
@@ -279,7 +312,9 @@ run_varer_integration_tests <- function() {
     stopifnot(
       nrow(added_row) == 1L,
       identical(added_row$maengde[[1]], 2),
-      identical(added_row$enhed[[1]], "stk")
+      identical(added_row$enhed[[1]], "kg"),
+      identical(added_row$kat_1[[1]], "mejeri"),
+      identical(added_row$kat_2[[1]], "ost")
     )
 
     # Dubletter fra opskriftsdata bliver fortsat til én custom-prioriteret

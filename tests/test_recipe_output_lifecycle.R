@@ -369,4 +369,151 @@ local({
   )
 })
 
+# Ingrediensfeltet skal få præcis hele det aktuelle varekatalog som valg,
+# samtidig med at Selectize tillader fri tekst. Et eksisterende valg udfylder
+# varens metadata, mens et nyt navn lader brugerens øvrige felter stå urørt.
+local({
+  had_global_selectize_update <- exists(
+    "updateSelectizeInput",
+    envir = .GlobalEnv,
+    inherits = FALSE
+  )
+  original_selectize_update <- get(
+    "updateSelectizeInput",
+    envir = .GlobalEnv,
+    inherits = TRUE
+  )
+  had_global_select_update <- exists(
+    "updateSelectInput",
+    envir = .GlobalEnv,
+    inherits = FALSE
+  )
+  original_select_update <- get(
+    "updateSelectInput",
+    envir = .GlobalEnv,
+    inherits = TRUE
+  )
+  on.exit({
+    if (had_global_selectize_update) {
+      assign(
+        "updateSelectizeInput",
+        original_selectize_update,
+        envir = .GlobalEnv
+      )
+    } else {
+      rm("updateSelectizeInput", envir = .GlobalEnv)
+    }
+    if (had_global_select_update) {
+      assign(
+        "updateSelectInput",
+        original_select_update,
+        envir = .GlobalEnv
+      )
+    } else {
+      rm("updateSelectInput", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+
+  selectize_updates <- list()
+  select_updates <- list()
+  assign(
+    "updateSelectizeInput",
+    function(
+      session,
+      inputId,
+      label = NULL,
+      choices = NULL,
+      selected = NULL,
+      options = list(),
+      server = FALSE
+    ) {
+      selectize_updates[[length(selectize_updates) + 1L]] <<- list(
+        inputId = inputId,
+        choices = choices,
+        selected = selected,
+        options = options,
+        server = server
+      )
+      invisible(NULL)
+    },
+    envir = .GlobalEnv
+  )
+  assign(
+    "updateSelectInput",
+    function(
+      session,
+      inputId,
+      label = NULL,
+      choices = NULL,
+      selected = NULL
+    ) {
+      select_updates[[length(select_updates) + 1L]] <<- list(
+        inputId = inputId,
+        choices = choices,
+        selected = selected
+      )
+      invisible(NULL)
+    },
+    envir = .GlobalEnv
+  )
+
+  runtime_varer <- shiny::reactiveVal(data.frame(
+    Indkobsliste = c("agurk", "bacon", "Ziti"),
+    maengde = c(1, 1, 1),
+    enhed = c("stk", "gram", "pose"),
+    kat_1 = c("grønt", "kød", "konserves"),
+    kat_2 = c("", "pålæg", "pasta"),
+    stringsAsFactors = FALSE
+  ))
+  catalog_state(fixture_catalog)
+
+  shiny::testServer(
+    test_opskrifter_module,
+    args = list(
+      catalog_read = catalog_read,
+      commit_catalog = commit_catalog,
+      varer_current = runtime_varer
+    ),
+    {
+      session$setInputs(
+        opskrift_addPressed = list(key = "burger_opskr")
+      )
+
+      name_updates <- Filter(
+        function(update) identical(update$inputId, "opskrift_add_navn"),
+        selectize_updates
+      )
+      stopifnot(
+        length(name_updates) == 1L,
+        identical(
+          name_updates[[1L]]$choices,
+          c("agurk", "bacon", "Ziti")
+        ),
+        identical(name_updates[[1L]]$selected, character()),
+        identical(name_updates[[1L]]$options, list()),
+        isTRUE(name_updates[[1L]]$server)
+      )
+
+      updates_before_catalog_choice <- length(select_updates)
+      session$setInputs(opskrift_add_navn = "bacon")
+      catalog_choice_updates <- select_updates[
+        seq.int(updates_before_catalog_choice + 1L, length(select_updates))
+      ]
+      selected_by_input <- setNames(
+        lapply(catalog_choice_updates, `[[`, "selected"),
+        vapply(catalog_choice_updates, `[[`, "", "inputId")
+      )
+      stopifnot(
+        identical(selected_by_input$opskrift_add_enhed, "gram"),
+        identical(selected_by_input$opskrift_add_kat1, "kød"),
+        identical(selected_by_input$opskrift_add_kat2, "pålæg")
+      )
+
+      updates_before_free_text <- length(select_updates)
+      session$setInputs(opskrift_add_navn = "Helt ny ingrediens")
+      stopifnot(length(select_updates) == updates_before_free_text)
+    }
+  )
+})
+
 message("Opskriftsmodulets outputs følger den aktuelle state uden genregistrering.")

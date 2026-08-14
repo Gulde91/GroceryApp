@@ -49,6 +49,9 @@ stopifnot(
   grepl('id="varer-popup_ny_vare"', module_ui_html, fixed = TRUE),
   grepl('id="varer-save_ny_vare"', module_ui_html, fixed = TRUE),
   grepl('id="varer-popup_varer_rediger"', module_ui_html, fixed = TRUE),
+  grepl('id="varer-varer_edit_enhed"', module_ui_html, fixed = TRUE),
+  grepl('id="varer-varer_edit_kat1"', module_ui_html, fixed = TRUE),
+  grepl('id="varer-varer_edit_kat2"', module_ui_html, fixed = TRUE),
   grepl('id="varer-save_varer_edit"', module_ui_html, fixed = TRUE)
 )
 
@@ -60,9 +63,14 @@ table_data <- table_widget$x$data
 
 stopifnot(
   identical(
+    names(table_data),
+    c("Vare", "Enhed", "Rediger", "Slet")
+  ),
+  identical(
     attr(table_widget$x$options, "escapeIdx"),
     "\"1,2\""
   ),
+  !any(c("Kategori 1", "Kategori 2") %in% names(table_data)),
   grepl(
     'id="varer-varer_edit_button_1"',
     table_data$Rediger[[1]],
@@ -90,6 +98,8 @@ stopifnot(
 unsafe_fixture <- varer_fixture()[1, , drop = FALSE]
 unsafe_fixture$Indkobsliste <- "<img src=x onerror=alert(1)>"
 unsafe_fixture$enhed <- "<b>stk</b>"
+unsafe_fixture$kat_1 <- "<i>kategori</i>"
+unsafe_fixture$kat_2 <- "<script>alert(2)</script>"
 unsafe_widget <- varer_table_widget(
   unsafe_fixture,
   shiny::NS("varer")
@@ -104,6 +114,7 @@ stopifnot(
     escaped_widget$x$data[[2]][[1]],
     "&lt;b&gt;stk&lt;/b&gt;"
   ),
+  !any(grepl("kategori|alert\\(2\\)", unlist(escaped_widget$x$data))),
   grepl("<button", escaped_widget$x$data[[3]][[1]], fixed = TRUE)
 )
 
@@ -265,11 +276,23 @@ local({
         "runtime-underkategori" %in%
           select_updates$ny_vare_kat2$choices
       )
+
+      session$setInputs(varer_editPressed = "Mælk")
+      stopifnot(
+        "pose" %in% select_updates$varer_edit_enhed$choices,
+        "runtime-kategori" %in%
+          select_updates$varer_edit_kat1$choices,
+        "runtime-underkategori" %in%
+          select_updates$varer_edit_kat2$choices,
+        identical(select_updates$varer_edit_enhed$selected, "liter"),
+        identical(select_updates$varer_edit_kat1$selected, "mejeri"),
+        identical(select_updates$varer_edit_kat2$selected, "mælk")
+      )
     }
   )
 })
 
-# Redigering ændrer kun den valgte række og bevarer dens øvrige metadata.
+# Redigering gemmer navn, enhed og kategorier samlet, men bevarer mængden.
 edit_state <- shiny::reactiveVal(varer_fixture())
 edit_commits <- list()
 edit_commit <- function(next_df, error_message = "") {
@@ -290,7 +313,12 @@ shiny::testServer(
   {
     session$flushReact()
     session$setInputs(varer_editPressed = "Mælk")
-    session$setInputs(varer_edit_value = "Citronmælk")
+    session$setInputs(
+      varer_edit_value = "Citronmælk",
+      varer_edit_enhed = "kg",
+      varer_edit_kat1 = "frugt og grønt",
+      varer_edit_kat2 = ""
+    )
     session$setInputs(save_varer_edit = 1L)
 
     current <- edit_state()
@@ -304,17 +332,40 @@ shiny::testServer(
       identical(current$Indkobsliste, c("Banan", "Citronmælk")),
       nrow(edited_row) == 1L,
       identical(edited_row$maengde[[1]], 1),
-      identical(edited_row$enhed[[1]], "liter"),
-      identical(edited_row$kat_1[[1]], "mejeri"),
-      identical(edited_row$kat_2[[1]], "mælk")
+      identical(edited_row$enhed[[1]], "kg"),
+      identical(edited_row$kat_1[[1]], "frugt og grønt"),
+      identical(edited_row$kat_2[[1]], "")
     )
 
+    session$setInputs(varer_editPressed = "Banan")
+    session$setInputs(
+      varer_edit_value = "Banan",
+      varer_edit_enhed = "stk",
+      varer_edit_kat1 = "mejeri",
+      varer_edit_kat2 = "mælk"
+    )
+    session$setInputs(save_varer_edit = 2L)
+
+    category_only_row <- edit_state()[
+      edit_state()$Indkobsliste == "Banan",
+      ,
+      drop = FALSE
+    ]
+    stopifnot(
+      length(edit_commits) == 2L,
+      identical(category_only_row$maengde[[1]], 1),
+      identical(category_only_row$enhed[[1]], "stk"),
+      identical(category_only_row$kat_1[[1]], "mejeri"),
+      identical(category_only_row$kat_2[[1]], "mælk")
+    )
+
+    current <- edit_state()
     state_before_invalid_edit <- current
     session$setInputs(varer_editPressed = "Findes ikke")
     session$setInputs(varer_edit_value = "Må ikke gemmes")
-    session$setInputs(save_varer_edit = 2L)
+    session$setInputs(save_varer_edit = 3L)
     stopifnot(
-      length(edit_commits) == 1L,
+      length(edit_commits) == 2L,
       identical(edit_state(), state_before_invalid_edit)
     )
   }
@@ -384,7 +435,12 @@ shiny::testServer(
     session$flushReact()
     state_before_failure <- retry_state()
     session$setInputs(varer_editPressed = "Banan")
-    session$setInputs(varer_edit_value = "Ananas")
+    session$setInputs(
+      varer_edit_value = "Ananas",
+      varer_edit_enhed = "kg",
+      varer_edit_kat1 = "mejeri",
+      varer_edit_kat2 = "mælk"
+    )
     session$setInputs(save_varer_edit = 1L)
 
     stopifnot(
@@ -396,7 +452,10 @@ shiny::testServer(
     stopifnot(
       length(retry_attempts) == 2L,
       identical(retry_attempts[[2]], retry_attempts[[1]]),
-      identical(retry_state()$Indkobsliste, c("Ananas", "Mælk"))
+      identical(retry_state()$Indkobsliste, c("Ananas", "Mælk")),
+      identical(retry_state()$enhed, c("kg", "liter")),
+      identical(retry_state()$kat_1, c("mejeri", "mejeri")),
+      identical(retry_state()$kat_2, c("mælk", "mælk"))
     )
   }
 )
