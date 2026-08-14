@@ -32,6 +32,18 @@ stopifnot(
     fixed = TRUE
   ),
   grepl(
+    'id="opskrifter_test-opskrift_add_navn"',
+    dialogs_ui_html,
+    fixed = TRUE
+  ),
+  grepl('"create":true', dialogs_ui_html, fixed = TRUE),
+  grepl('"createOnBlur":true', dialogs_ui_html, fixed = TRUE),
+  grepl(
+    "Søg i listen eller skriv en ny vare",
+    dialogs_ui_html,
+    fixed = TRUE
+  ),
+  grepl(
     'id="opskrifter_test-confirm_delete_archived_ret"',
     dialogs_ui_html,
     fixed = TRUE

@@ -315,14 +315,20 @@ mod_opskrifter_server <- function(
     df <- recipes[[key]]
     varer <- varer_current()
 
+    vare_choices <- recipe_varer_names(varer)
     enhed_choices <- sort(unique(c("", varer$enhed, df$enhed)))
     kat1_choices <- sort(unique(c(kategori_1, varer$kat_1, df$kat_1)))
     kat2_choices <- sort(unique(c("", kategori_2, varer$kat_2, df$kat_2)))
 
-    updateTextInput(
+    # Selectize-indstillingerne ligger allerede på UI-kontrollen. De sendes
+    # ikke igen her, fordi Shiny ellers genopbygger instansen og fjerner den
+    # mobilpatch, som selectize-mobile.js har sat på feltet.
+    updateSelectizeInput(
       session,
       "opskrift_add_navn",
-      value = ""
+      choices = vare_choices,
+      selected = character(),
+      server = TRUE
     )
     updateNumericInput(
       session,
@@ -349,6 +355,33 @@ mod_opskrifter_server <- function(
     )
 
     recipe_show_dialog("popup_opskrift_tilfoej", ns)
+  })
+
+  observeEvent(input$opskrift_add_navn, ignoreInit = TRUE, {
+    if (is.null(rv_recipeAddState$key)) return(invisible(NULL))
+
+    varer <- varer_current()
+    selected_row <- recipe_match_catalog_item(
+      varer,
+      input$opskrift_add_navn
+    )
+    if (nrow(selected_row) != 1L) return(invisible(NULL))
+
+    updateSelectInput(
+      session,
+      "opskrift_add_enhed",
+      selected = selected_row$enhed[[1L]]
+    )
+    updateSelectInput(
+      session,
+      "opskrift_add_kat1",
+      selected = selected_row$kat_1[[1L]]
+    )
+    updateSelectInput(
+      session,
+      "opskrift_add_kat2",
+      selected = selected_row$kat_2[[1L]]
+    )
   })
 
   observeEvent(input$save_opskrift_new_row, {
@@ -792,6 +825,85 @@ recipe_attempt_catalog_change <- function(expression) {
     ),
     error = recipe_failed_catalog_attempt
   )
+}
+
+#' Hent varenavne til ingrediensdialogen
+#'
+#' Funktionen udleder den alfabetiske, entydige liste af varenavne fra det
+#' samme samlede varekatalog, som startsidens Liste-dialog bruger. Ugyldige
+#' kataloger giver en tom liste, så dialogen stadig kan bruges til fri tekst.
+#'
+#' @param varer Appens aktuelle samlede varekatalog.
+#'
+#' @return En alfabetisk sorteret tegnvektor med entydige varenavne.
+#' @keywords internal
+recipe_varer_names <- function(varer) {
+  required <- c(
+    "Indkobsliste",
+    "maengde",
+    "enhed",
+    "kat_1",
+    "kat_2"
+  )
+  if (!is.data.frame(varer) || !all(required %in% names(varer))) {
+    return(character())
+  }
+
+  vare_names <- as.character(varer$Indkobsliste)
+  vare_names <- trimws(vare_names[!is.na(vare_names)])
+  vare_names <- vare_names[nzchar(vare_names)]
+  vare_names <- vare_names[!duplicated(tolower(vare_names))]
+  sort(vare_names)
+}
+
+#' Find én valgt vare i det samlede katalog
+#'
+#' Sammenligningen ignorerer yderste mellemrum samt store og små bogstaver.
+#' Kun et entydigt match returneres; fri tekst og tvetydige navne giver en tom
+#' tabel og ændrer derfor ikke dialogens enheds- eller kategorivalg.
+#'
+#' @param varer Appens aktuelle samlede varekatalog.
+#' @param name Varenavnet fra ingrediensdialogen.
+#'
+#' @return Den matchende varerække eller en tom tabel med katalogets kolonner.
+#' @keywords internal
+recipe_match_catalog_item <- function(varer, name) {
+  required <- c(
+    "Indkobsliste",
+    "maengde",
+    "enhed",
+    "kat_1",
+    "kat_2"
+  )
+  if (!is.data.frame(varer) || !all(required %in% names(varer))) {
+    return(data.frame(
+      Indkobsliste = character(),
+      maengde = numeric(),
+      enhed = character(),
+      kat_1 = character(),
+      kat_2 = character(),
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  selected_name <- if (
+    is.null(name) ||
+      length(name) == 0L ||
+      is.na(name[[1L]])
+  ) {
+    ""
+  } else {
+    trimws(as.character(name[[1L]]))
+  }
+  if (!nzchar(selected_name)) return(varer[0L, , drop = FALSE])
+
+  matches <- which(
+    tolower(trimws(as.character(varer$Indkobsliste))) ==
+      tolower(selected_name)
+  )
+  if (length(matches) != 1L) return(varer[0L, , drop = FALSE])
+
+  varer[matches[[1L]], required, drop = FALSE]
 }
 
 #' Åbn en dialog i opskriftsmodulet

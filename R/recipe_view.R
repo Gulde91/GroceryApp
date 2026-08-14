@@ -26,6 +26,20 @@ opskrift_selectize_options <- list(
   sortField = "label"
 )
 
+# Ingrediensfeltet bruger samme mobilvenlige opsætning som opskriftsvælgeren,
+# men tillader samtidig, at brugeren opretter en ny tekstværdi. Dermed kan ét
+# felt både søge i varekataloget og modtage en ingrediens, som endnu ikke
+# findes på listen.
+opskrift_ingredient_selectize_options <- modifyList(
+  opskrift_selectize_options,
+  list(
+    create = TRUE,
+    createOnBlur = TRUE,
+    persist = FALSE,
+    placeholder = "Søg i listen eller skriv en ny vare"
+  )
+)
+
 #' Byg brugerfladen til fanen Opskrifter
 #'
 #' Funktionen samler den synlige introduktion, knappen til at oprette en ret
@@ -140,9 +154,13 @@ mod_opskrifter_dialogs_ui <- function(id) {
         f7Block(
           inset = TRUE,
           strong = TRUE,
-          tInput(
+          selectizeInput(
             ns("opskrift_add_navn"),
-            "Varenavn"
+            "Varenavn (vælg eller skriv)",
+            choices = character(),
+            selected = character(),
+            width = "100%",
+            options = opskrift_ingredient_selectize_options
           ),
           nInput(
             ns("opskrift_add_maengde"),
