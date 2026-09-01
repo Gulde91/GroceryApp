@@ -478,6 +478,7 @@ recipe_catalog_update_ingredient <- function(
   key <- recipe_catalog_scalar_text(key, "Opskriftsnøglen")
   recipe <- recipe_catalog_get_recipe(catalog, key)
   row <- recipe_catalog_row_number(row, recipe)
+  ingredient_name <- as.character(recipe[[1]][[row]])
   amount <- recipe_catalog_amount(amount, allow_missing = TRUE)
   unit <- recipe_catalog_scalar_text(unit, "Enhed", allow_empty = TRUE)
   category_1 <- recipe_catalog_scalar_text(category_1, "Kategori 1")
@@ -508,7 +509,8 @@ recipe_catalog_update_ingredient <- function(
       "ingredient_updated",
       key,
       recipe_name,
-      row = row
+      row = row,
+      ingredient_name = ingredient_name
     )
   )
 }

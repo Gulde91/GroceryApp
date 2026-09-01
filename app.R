@@ -89,20 +89,93 @@ ui <- f7Page(
 
 )
 
+# Registrér procesniveauets livscyklus i journald. App-stop-hooket oprettes i
+# onStart-konteksten, hvor Shiny registrerer det for hele applikationen.
+app_on_start <- function() {
+  process_context <- app_log_context()
+  app_log_event(
+    level = "INFO",
+    event = "application_started",
+    component = "application",
+    fields = list(
+      message = "GroceryApp blev startet.",
+      process_id = Sys.getpid()
+    ),
+    context = process_context
+  )
+
+  onStop(function() {
+    app_log_event(
+      level = "INFO",
+      event = "application_stopped",
+      component = "application",
+      fields = list(
+        message = "GroceryApp blev stoppet.",
+        process_id = Sys.getpid()
+      ),
+      context = process_context
+    )
+  })
+}
+
 server <- function(input, output, session) {
+
+  session_context <- app_log_new_session_context()
+  session_log <- app_log_bind(session_context)
+  session_started_at <- proc.time()[["elapsed"]]
+  session_log(
+    "INFO",
+    "session_started",
+    "application",
+    fields = list(message = "En brugersession blev startet.")
+  )
+  session$onSessionEnded(function() {
+    duration_ms <- as.integer(round(
+      max(0, proc.time()[["elapsed"]] - session_started_at) * 1000
+    ))
+    session_log(
+      "INFO",
+      "session_ended",
+      "application",
+      fields = list(
+        message = "En brugersession blev afsluttet.",
+        duration_ms = duration_ms
+      )
+    )
+  })
+  if (exists("onUnhandledError", mode = "function")) {
+    onUnhandledError(
+      function(error) {
+        session_log(
+          "ERROR",
+          "session_unhandled_error",
+          "application",
+          fields = list(
+            message = "En uventet fejl opstod i brugersessionen.",
+            fatal = inherits(error, "shiny.error.fatal")
+          ),
+          error = error
+        )
+      },
+      session = session
+    )
+  }
 
   # Opretter appens kanoniske state-lag ----
   history_state <- create_shopping_history_state(
     session = session,
-    history_dir = "./data/indkobssedler"
+    history_dir = "./data/indkobssedler",
+    log_event = session_log
   )
   recipe_state <- create_recipe_catalog_state(
     session = session,
-    data_dir = "./data"
+    data_dir = "./data",
+    log_event = session_log
   )
   basis_state <- create_basis_varer_state(
     session = session,
-    data_dir = "./data"
+    data_dir = "./data",
+    log_event = session_log
   )
 
   history_current <- history_state$read$entries
@@ -183,4 +256,4 @@ server <- function(input, output, session) {
 
 }
 
-shinyApp(ui = ui, server = server)
+shinyApp(ui = ui, server = server, onStart = app_on_start)
