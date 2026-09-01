@@ -129,6 +129,7 @@ run_recipe_catalog_tests <- function() {
     identical(updated$event$key, "burger_opskr"),
     identical(updated$event$row, 1L),
     identical(updated$event$recipe_name, "Burger"),
+    identical(updated$event$ingredient_name, "bøf"),
     identical(updated_recipe$maengde[[1]], 3),
     identical(updated_recipe$enhed[[1]], "kg"),
     identical(updated_recipe$kat_1[[1]], "kød"),

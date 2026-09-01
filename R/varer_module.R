@@ -167,8 +167,8 @@ mod_varer_dialogs_ui <- function(id) {
 #'   basisvarer.
 #' @param varer_all_current Getter, der returnerer alle varer, som kan bruges
 #'   til aktuelle valg af enhed og kategori.
-#' @param commit_varer Funktion med argumenterne `next_df` og
-#'   `error_message`. Funktionen gemmer data, opdaterer hovedappens state og
+#' @param commit_varer Funktion med argumenterne `next_df`, `error_message` og
+#'   `log_context`. Funktionen gemmer data, opdaterer hovedappens state og
 #'   returnerer `TRUE` ved succes eller `FALSE` ved fejl.
 #' @param kategori_1 Valgfri tegnvektor med faste hovedkategorier. Kategorier
 #'   fra `varer_custom_current` og `varer_all_current` hentes desuden på ny,
@@ -295,7 +295,19 @@ mod_varer_server <- function(
 
     saved <- commit_varer(
       next_df,
-      error_message = "Varen kunne ikke tilføjes."
+      error_message = "Varen kunne ikke tilføjes.",
+      log_context = list(
+        action = "basis_item_add",
+        item_name = navn,
+        success_message = sprintf(
+          'Varen "%s" blev tilføjet til bruttolisten.',
+          navn
+        ),
+        failure_message = sprintf(
+          'Varen "%s" kunne ikke tilføjes til bruttolisten.',
+          navn
+        )
+      )
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -438,7 +450,25 @@ mod_varer_server <- function(
     next_df <- varer_sort_rows(next_df)
     saved <- commit_varer(
       next_df,
-      error_message = "Varen kunne ikke redigeres."
+      error_message = "Varen kunne ikke redigeres.",
+      log_context = list(
+        action = "basis_item_update",
+        item_name = navn,
+        previous_item_name = original_name,
+        success_message = if (!identical(navn, original_name)) {
+          sprintf(
+            'Varen "%s" blev omdøbt til "%s" på bruttolisten.',
+            original_name,
+            navn
+          )
+        } else {
+          sprintf('Varen "%s" blev opdateret på bruttolisten.', navn)
+        },
+        failure_message = sprintf(
+          'Varen "%s" kunne ikke opdateres på bruttolisten.',
+          original_name
+        )
+      )
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -473,7 +503,19 @@ mod_varer_server <- function(
     next_df <- varer_sort_rows(next_df)
     saved <- commit_varer(
       next_df,
-      error_message = "Varen kunne ikke slettes."
+      error_message = "Varen kunne ikke slettes.",
+      log_context = list(
+        action = "basis_item_delete",
+        item_name = label,
+        success_message = sprintf(
+          'Varen "%s" blev slettet fra bruttolisten.',
+          label
+        ),
+        failure_message = sprintf(
+          'Varen "%s" kunne ikke slettes fra bruttolisten.',
+          label
+        )
+      )
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 

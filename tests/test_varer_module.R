@@ -134,10 +134,15 @@ add_all_current <- function() {
   rbind(add_state(), recipe_only_row)
 }
 add_commits <- list()
-add_commit <- function(next_df, error_message = "") {
+add_commit <- function(
+  next_df,
+  error_message = "",
+  log_context = list()
+) {
   add_commits[[length(add_commits) + 1L]] <<- list(
     data = next_df,
-    error_message = error_message
+    error_message = error_message,
+    log_context = log_context
   )
   add_state(next_df)
   TRUE
@@ -164,6 +169,12 @@ shiny::testServer(
     current <- add_state()
     stopifnot(
       length(add_commits) == 1L,
+      identical(add_commits[[1L]]$log_context$action, "basis_item_add"),
+      identical(add_commits[[1L]]$log_context$item_name, "Abrikos"),
+      identical(
+        add_commits[[1L]]$log_context$success_message,
+        'Varen "Abrikos" blev tilføjet til bruttolisten.'
+      ),
       identical(
         names(current),
         c("Indkobsliste", "maengde", "enhed", "kat_1", "kat_2")
@@ -252,7 +263,11 @@ local({
     args = list(
       varer_custom_current = runtime_custom,
       varer_all_current = runtime_all,
-      commit_varer = function(next_df, error_message = "") TRUE
+      commit_varer = function(
+        next_df,
+        error_message = "",
+        log_context = list()
+      ) TRUE
     ),
     {
       runtime_rows <- runtime_all()
@@ -295,8 +310,14 @@ local({
 # Redigering gemmer navn, enhed og kategorier samlet, men bevarer mængden.
 edit_state <- shiny::reactiveVal(varer_fixture())
 edit_commits <- list()
-edit_commit <- function(next_df, error_message = "") {
+edit_log_contexts <- list()
+edit_commit <- function(
+  next_df,
+  error_message = "",
+  log_context = list()
+) {
   edit_commits[[length(edit_commits) + 1L]] <<- next_df
+  edit_log_contexts[[length(edit_log_contexts) + 1L]] <<- log_context
   edit_state(next_df)
   TRUE
 }
@@ -329,6 +350,16 @@ shiny::testServer(
     ]
     stopifnot(
       length(edit_commits) == 1L,
+      identical(edit_log_contexts[[1L]]$action, "basis_item_update"),
+      identical(edit_log_contexts[[1L]]$item_name, "Citronmælk"),
+      identical(edit_log_contexts[[1L]]$previous_item_name, "Mælk"),
+      identical(
+        edit_log_contexts[[1L]]$success_message,
+        paste(
+          'Varen "Mælk" blev omdøbt til "Citronmælk"',
+          "på bruttolisten."
+        )
+      ),
       identical(current$Indkobsliste, c("Banan", "Citronmælk")),
       nrow(edited_row) == 1L,
       identical(edited_row$maengde[[1]], 1),
@@ -375,8 +406,14 @@ shiny::testServer(
 # rækkenumre er sikre no-ops.
 delete_state <- shiny::reactiveVal(varer_fixture())
 delete_commits <- list()
-delete_commit <- function(next_df, error_message = "") {
+delete_log_contexts <- list()
+delete_commit <- function(
+  next_df,
+  error_message = "",
+  log_context = list()
+) {
   delete_commits[[length(delete_commits) + 1L]] <<- next_df
+  delete_log_contexts[[length(delete_log_contexts) + 1L]] <<- log_context
   delete_state(next_df)
   TRUE
 }
@@ -394,6 +431,12 @@ shiny::testServer(
     session$setInputs(varer_deletePressed = "Banan")
     stopifnot(
       length(delete_commits) == 1L,
+      identical(delete_log_contexts[[1L]]$action, "basis_item_delete"),
+      identical(delete_log_contexts[[1L]]$item_name, "Banan"),
+      identical(
+        delete_log_contexts[[1L]]$success_message,
+        'Varen "Banan" blev slettet fra bruttolisten.'
+      ),
       identical(delete_state()$Indkobsliste, "Mælk")
     )
 
@@ -410,9 +453,15 @@ shiny::testServer(
 # så præcis samme handling kan prøves igen.
 retry_state <- shiny::reactiveVal(varer_fixture())
 retry_attempts <- list()
+retry_log_contexts <- list()
 fail_next_commit <- TRUE
-retry_commit <- function(next_df, error_message = "") {
+retry_commit <- function(
+  next_df,
+  error_message = "",
+  log_context = list()
+) {
   retry_attempts[[length(retry_attempts) + 1L]] <<- next_df
+  retry_log_contexts[[length(retry_log_contexts) + 1L]] <<- log_context
   if (fail_next_commit) {
     fail_next_commit <<- FALSE
     return(FALSE)
@@ -452,6 +501,7 @@ shiny::testServer(
     stopifnot(
       length(retry_attempts) == 2L,
       identical(retry_attempts[[2]], retry_attempts[[1]]),
+      identical(retry_log_contexts[[2L]], retry_log_contexts[[1L]]),
       identical(retry_state()$Indkobsliste, c("Ananas", "Mælk")),
       identical(retry_state()$enhed, c("kg", "liter")),
       identical(retry_state()$kat_1, c("mejeri", "mejeri")),
