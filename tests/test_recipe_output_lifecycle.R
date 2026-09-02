@@ -2,6 +2,7 @@ suppressPackageStartupMessages(source("app.R", encoding = "UTF-8"))
 
 fixture_catalog <- recipe_store_read("./data")
 catalog_state <- shiny::reactiveVal(fixture_catalog)
+recipe_log_contexts <- list()
 
 catalog_read <- list(
   snapshot = function() shiny::isolate(catalog_state()),
@@ -15,11 +16,44 @@ catalog_read <- list(
 commit_catalog <- function(
   next_catalog,
   delete_recipe_keys = character(),
-  error_message = ""
+  error_message = "",
+  log_context = list()
 ) {
+  recipe_log_contexts[[length(recipe_log_contexts) + 1L]] <<- log_context
   catalog_state(next_catalog)
   TRUE
 }
+
+archive_log_context <- recipe_change_log_context(
+  recipe_catalog_event("archived", "burger_opskr", "Burger")
+)
+ingredient_log_context <- recipe_change_log_context(
+  recipe_catalog_event(
+    "ingredient_updated",
+    "burger_opskr",
+    "Burger",
+    row = 1L,
+    ingredient_name = "bøf"
+  )
+)
+stopifnot(
+  identical(archive_log_context$action, "recipe_archive"),
+  identical(archive_log_context$recipe_key, "burger_opskr"),
+  identical(archive_log_context$recipe_name, "Burger"),
+  identical(
+    archive_log_context$success_message,
+    'Opskriften "Burger" blev arkiveret.'
+  ),
+  identical(
+    archive_log_context$failure_message,
+    'Opskriften "Burger" kunne ikke arkiveres.'
+  ),
+  identical(
+    ingredient_log_context$success_message,
+    'Ingrediensen "bøf" i opskriften "Burger" blev opdateret.'
+  ),
+  identical(ingredient_log_context$ingredient_row, 1L)
+)
 
 varer_current <- function() {
   data.frame(

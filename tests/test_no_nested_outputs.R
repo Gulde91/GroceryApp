@@ -246,6 +246,48 @@ history_state_expressions <- parse(
   r_file("shopping_history_state.R"),
   encoding = "UTF-8"
 )
+app_log_lines <- readLines(
+  r_file("app_log.R"),
+  encoding = "UTF-8"
+)
+app_log_expressions <- parse(
+  r_file("app_log.R"),
+  encoding = "UTF-8"
+)
+app_log_top_level_function_lines <- grep(
+  "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
+  app_log_lines
+)
+app_log_function_assignments <- Filter(
+  function(node) {
+    is_assignment(node) &&
+      is.symbol(node[[2]]) &&
+      is.call(node[[3]]) &&
+      identical(call_name(node[[3]]), "function")
+  },
+  as.list(app_log_expressions)
+)
+app_log_function_names <- vapply(
+  app_log_function_assignments,
+  function(node) as.character(node[[2]]),
+  character(1)
+)
+app_log_has_roxygen_documentation <- vapply(
+  app_log_top_level_function_lines,
+  function(line_number) {
+    line_number > 1L &&
+      grepl("^#'", app_log_lines[[line_number - 1L]])
+  },
+  logical(1)
+)
+app_log_call_names <- vapply(
+  unlist(
+    lapply(as.list(app_log_expressions), collect_call_nodes),
+    recursive = FALSE
+  ),
+  call_name,
+  character(1)
+)
 top_level_function_lines <- grep(
   "^[[:alnum:]_.]+[[:space:]]*<-[[:space:]]*function\\(",
   module_lines
@@ -935,6 +977,7 @@ app_passes_source_to_loader <- any(vapply(
 ))
 
 expected_r_script_names <- c(
+  "app_log.R",
   "basis_varer_state.R",
   "basis_varer_store.R",
   "cart_state.R",
@@ -1148,6 +1191,29 @@ stopifnot(
   ))
 )
 stopifnot(
+  length(app_log_function_assignments) > 0L,
+  length(app_log_top_level_function_lines) ==
+    length(app_log_function_assignments),
+  all(startsWith(app_log_function_names, "app_log_")),
+  all(app_log_has_roxygen_documentation),
+  !any(app_log_call_names %in% c(
+    "file",
+    "file.create",
+    "writeLines",
+    "saveRDS",
+    "dbConnect",
+    "dbExecute"
+  )),
+  any(grepl(
+    "log_event[[:space:]]*=[[:space:]]*session_log",
+    app_lines
+  )),
+  any(grepl(
+    "onStart[[:space:]]*=[[:space:]]*app_on_start",
+    app_lines
+  ))
+)
+stopifnot(
   all(startsWith(schema_function_names, "recipe_schema_")),
   length(schema_top_level_function_lines) > 0L,
   length(schema_top_level_function_lines) ==
@@ -1337,6 +1403,17 @@ for (input_name in names(recipe_mutation_handlers)) {
   stopifnot(
     length(mutation_call) >= 2L,
     identical(mutation_call[[2]], quote(catalog_read$snapshot()))
+  )
+
+  commit_call <- Filter(
+    function(node) identical(call_name(node), "commit_catalog"),
+    handler_calls
+  )[[1]]
+  stopifnot(
+    identical(
+      commit_call[["log_context"]],
+      quote(recipe_change_log_context(change$event))
+    )
   )
 
   assignments <- Filter(is_assignment, handler_calls)

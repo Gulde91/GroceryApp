@@ -9,6 +9,140 @@ library(DT)
 library(shiny)
 library(shinyjs)
 
+#' Normalisér ét felt fra opskriftens logmetadata
+#'
+#' @param value Feltet, der skal reduceres til én trimmet tekstværdi.
+#'
+#' @return En tekstværdi eller tom tekst.
+#' @keywords internal
+recipe_log_scalar_text <- function(value) {
+  if (is.null(value) || length(value) == 0L) return("")
+  value <- as.character(value[[1L]])
+  if (is.na(value)) "" else trimws(value)
+}
+
+#' Returnér tom logkontekst efter en uventet metadatafejl
+#'
+#' @param error Den undertrykte fejl.
+#'
+#' @return En tom liste.
+#' @keywords internal
+recipe_empty_log_context <- function(error) {
+  list()
+}
+
+#' Byg læsbar logkontekst til en opskriftsændring
+#'
+#' Katalogets rene ændringsfunktioner returnerer allerede ensartet metadata.
+#' Denne funktion oversætter metadataen til stabile søgefelter og en kort dansk
+#' besked. Kun navnet på opskriften og en eventuel ingrediens medtages; hele
+#' opskriften og ingredienslinjen sendes aldrig til loggen.
+#'
+#' @param event Hændelsen fra et resultat fra `recipe_catalog_*()`.
+#'
+#' @return En navngivet liste til state-lagets `log_context`-argument.
+#' @keywords internal
+recipe_change_log_context <- function(event) {
+  tryCatch(
+    {
+      if (!is.list(event)) return(list())
+
+      reason <- recipe_log_scalar_text(event$reason)
+      recipe_key <- recipe_log_scalar_text(event$key)
+      recipe_name <- recipe_log_scalar_text(event$recipe_name)
+      ingredient_name <- recipe_log_scalar_text(event$ingredient_name)
+      actions <- c(
+        created = "recipe_create",
+        ingredient_updated = "recipe_ingredient_update",
+        ingredient_added = "recipe_ingredient_add",
+        ingredient_deleted = "recipe_ingredient_delete",
+        archived = "recipe_archive",
+        restored = "recipe_restore",
+        deleted = "recipe_delete"
+      )
+      if (!reason %in% names(actions) || !nzchar(recipe_name)) {
+        return(list())
+      }
+
+      ingredient_subject <- if (nzchar(ingredient_name)) {
+        sprintf('Ingrediensen "%s"', ingredient_name)
+      } else {
+        "En ingrediens"
+      }
+      success_message <- switch(
+        reason,
+        created = sprintf('Opskriften "%s" blev oprettet.', recipe_name),
+        ingredient_updated = sprintf(
+          '%s i opskriften "%s" blev opdateret.',
+          ingredient_subject,
+          recipe_name
+        ),
+        ingredient_added = sprintf(
+          '%s blev tilføjet til opskriften "%s".',
+          ingredient_subject,
+          recipe_name
+        ),
+        ingredient_deleted = sprintf(
+          '%s blev slettet fra opskriften "%s".',
+          ingredient_subject,
+          recipe_name
+        ),
+        archived = sprintf('Opskriften "%s" blev arkiveret.', recipe_name),
+        restored = sprintf(
+          'Opskriften "%s" blev gendannet fra arkivet.',
+          recipe_name
+        ),
+        deleted = sprintf(
+          'Opskriften "%s" blev slettet permanent.',
+          recipe_name
+        )
+      )
+      failure_message <- switch(
+        reason,
+        created = sprintf('Opskriften "%s" kunne ikke oprettes.', recipe_name),
+        ingredient_updated = sprintf(
+          'Ingrediensen "%s" i opskriften "%s" kunne ikke opdateres.',
+          ingredient_name,
+          recipe_name
+        ),
+        ingredient_added = sprintf(
+          'Ingrediensen "%s" kunne ikke tilføjes til opskriften "%s".',
+          ingredient_name,
+          recipe_name
+        ),
+        ingredient_deleted = sprintf(
+          'Ingrediensen "%s" kunne ikke slettes fra opskriften "%s".',
+          ingredient_name,
+          recipe_name
+        ),
+        archived = sprintf('Opskriften "%s" kunne ikke arkiveres.', recipe_name),
+        restored = sprintf('Opskriften "%s" kunne ikke gendannes.', recipe_name),
+        deleted = sprintf(
+          'Opskriften "%s" kunne ikke slettes permanent.',
+          recipe_name
+        )
+      )
+
+      context <- list(
+        action = unname(actions[[reason]]),
+        recipe_key = recipe_key,
+        recipe_name = recipe_name
+      )
+      if (nzchar(ingredient_name)) {
+        context$ingredient_name <- ingredient_name
+      }
+      ingredient_row <- suppressWarnings(as.integer(event$row[[1L]]))
+      if (length(ingredient_row) == 1L && !is.na(ingredient_row)) {
+        context$ingredient_row <- ingredient_row
+      }
+      context$success_message <- success_message
+      context$failure_message <- failure_message
+      context
+    },
+    error = recipe_empty_log_context
+  )
+}
+
 #' Knyt logikken til fanen Opskrifter
 #'
 #' Servermodulet styrer dialoger og brugerhandlinger i opskriftsfanen. Selve
@@ -22,7 +156,8 @@ library(shinyjs)
 #' @param catalog_read Navngivet liste af reaktive getter-funktioner til
 #'   katalogets snapshot, opskrifter, links, aktive og arkiverede retter samt
 #'   revision.
-#' @param commit_catalog Funktion, der gemmer et nyt katalog-snapshot.
+#' @param commit_catalog Funktion, der gemmer et nyt katalog-snapshot og
+#'   modtager den læsbare handlingsmetadata i `log_context`.
 #' @param varer_current Reaktiv getter til appens aktuelle varekartotek.
 #' @param kategori_1 Valgfrie standardværdier til ingrediensens første
 #'   kategori. Aktuelle kategorier hentes desuden fra `varer_current`, hver
@@ -173,7 +308,8 @@ mod_opskrifter_server <- function(
     saved <- commit_catalog(
       change$catalog,
       delete_recipe_keys = change$delete_recipe_keys,
-      error_message = "Retten kunne ikke oprettes."
+      error_message = "Retten kunne ikke oprettes.",
+      log_context = recipe_change_log_context(change$event)
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -282,7 +418,8 @@ mod_opskrifter_server <- function(
     saved <- commit_catalog(
       change$catalog,
       delete_recipe_keys = change$delete_recipe_keys,
-      error_message = "Ingrediensen kunne ikke opdateres."
+      error_message = "Ingrediensen kunne ikke opdateres.",
+      log_context = recipe_change_log_context(change$event)
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -411,7 +548,8 @@ mod_opskrifter_server <- function(
     saved <- commit_catalog(
       change$catalog,
       delete_recipe_keys = change$delete_recipe_keys,
-      error_message = "Ingrediensen kunne ikke tilføjes."
+      error_message = "Ingrediensen kunne ikke tilføjes.",
+      log_context = recipe_change_log_context(change$event)
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -479,7 +617,8 @@ mod_opskrifter_server <- function(
     saved <- commit_catalog(
       change$catalog,
       delete_recipe_keys = change$delete_recipe_keys,
-      error_message = "Ingrediensen kunne ikke slettes."
+      error_message = "Ingrediensen kunne ikke slettes.",
+      log_context = recipe_change_log_context(change$event)
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -534,7 +673,8 @@ mod_opskrifter_server <- function(
     saved <- commit_catalog(
       change$catalog,
       delete_recipe_keys = change$delete_recipe_keys,
-      error_message = "Retten kunne ikke arkiveres."
+      error_message = "Retten kunne ikke arkiveres.",
+      log_context = recipe_change_log_context(change$event)
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -598,7 +738,8 @@ mod_opskrifter_server <- function(
     saved <- commit_catalog(
       change$catalog,
       delete_recipe_keys = change$delete_recipe_keys,
-      error_message = "Retten kunne ikke gendannes."
+      error_message = "Retten kunne ikke gendannes.",
+      log_context = recipe_change_log_context(change$event)
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 
@@ -661,7 +802,8 @@ mod_opskrifter_server <- function(
     saved <- commit_catalog(
       change$catalog,
       delete_recipe_keys = change$delete_recipe_keys,
-      error_message = "Retten kunne ikke slettes permanent."
+      error_message = "Retten kunne ikke slettes permanent.",
+      log_context = recipe_change_log_context(change$event)
     )
     if (!isTRUE(saved)) return(invisible(NULL))
 

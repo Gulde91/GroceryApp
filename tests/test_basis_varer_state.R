@@ -50,12 +50,14 @@ basis_varer_state_harness <- function(snapshot) {
   harness$revision_calls <- character()
   harness$commit_calls <- list()
   harness$notifications <- list()
+  harness$log_events <- list()
   harness$next_revision_number <- 1L
   harness$next_commit_snapshot <- NULL
   harness$fail_commit_once <- FALSE
   harness$fail_revision_once <- FALSE
   harness$fail_read_once <- FALSE
   harness$invalid_read_once <- FALSE
+  harness$fail_logging <- FALSE
   harness$state_reader <- NULL
   harness$visible_during_commit <- NULL
 
@@ -143,6 +145,26 @@ basis_varer_state_harness <- function(snapshot) {
     invisible(NULL)
   }
 
+  harness$log_event <- function(
+    level,
+    event,
+    component,
+    fields = list(),
+    error = NULL
+  ) {
+    harness$log_events[[length(harness$log_events) + 1L]] <- list(
+      level = level,
+      event = event,
+      component = component,
+      fields = fields,
+      error = error
+    )
+    if (isTRUE(harness$fail_logging)) {
+      stop("Fremprovokeret logfejl.", call. = FALSE)
+    }
+    invisible(TRUE)
+  }
+
   harness
 }
 
@@ -160,7 +182,8 @@ basis_varer_state_test_server <- function(
       store_read = harness$store_read,
       store_revision = harness$store_revision,
       store_commit = harness$store_commit,
-      notify = harness$notify
+      notify = harness$notify,
+      log_event = harness$log_event
     )
   })
 }
@@ -221,7 +244,17 @@ local({
       harness$next_commit_snapshot <- returned_snapshot
       harness$state_reader <- state_api$read$snapshot
 
-      stopifnot(isTRUE(state_api$commit(candidate)))
+      stopifnot(isTRUE(state_api$commit(
+        candidate,
+        log_context = list(
+          action = "basis_item_add",
+          item_name = "Kaffe",
+          success_message =
+            'Varen "Kaffe" blev tilføjet til bruttolisten.',
+          failure_message =
+            'Varen "Kaffe" kunne ikke tilføjes til bruttolisten.'
+        )
+      )))
       session$flushReact()
 
       commit_call <- harness$commit_calls[[1L]]
@@ -240,6 +273,37 @@ local({
         invalidations$revision ==
           counts_before$revision + 1L
       )
+      success_log <- harness$log_events[[1L]]
+      stopifnot(
+        identical(success_log$level, "INFO"),
+        identical(success_log$event, "commit_succeeded"),
+        identical(success_log$component, "basis_varer_state"),
+        identical(
+          names(success_log$fields),
+          c(
+            "action",
+            "item_name",
+            "message",
+            "row_count",
+            "duration_ms",
+            "stage",
+            "outcome"
+          )
+        ),
+        identical(success_log$fields$action, "basis_item_add"),
+        identical(success_log$fields$item_name, "Kaffe"),
+        identical(
+          success_log$fields$message,
+          'Varen "Kaffe" blev tilføjet til bruttolisten.'
+        ),
+        identical(success_log$fields$row_count, 2L),
+        is.numeric(success_log$fields$duration_ms),
+        is.finite(success_log$fields$duration_ms),
+        success_log$fields$duration_ms >= 0,
+        identical(success_log$fields$stage, "complete"),
+        identical(success_log$fields$outcome, "succeeded"),
+        is.null(success_log$error)
+      )
 
       counts_before_revision_only <- as.list(invalidations)
       revision_only_snapshot <- basis_varer_state_fixture(
@@ -256,7 +320,12 @@ local({
           counts_before_revision_only$varer
         ),
         invalidations$revision ==
-          counts_before_revision_only$revision + 1L
+          counts_before_revision_only$revision + 1L,
+        length(harness$log_events) == 2L,
+        identical(
+          vapply(harness$log_events, `[[`, "", "event"),
+          rep("commit_succeeded", 2L)
+        )
       )
     }
   )
@@ -282,7 +351,15 @@ local({
         identical(
           state_api$commit(
             candidate,
-            error_message = "Kunne ikke gemme testvaren."
+            error_message = "Kunne ikke gemme testvaren.",
+            log_context = list(
+              action = "basis_item_add",
+              item_name = "Kaffe",
+              success_message =
+                'Varen "Kaffe" blev tilføjet til bruttolisten.',
+              failure_message =
+                'Varen "Kaffe" kunne ikke tilføjes til bruttolisten.'
+            )
           ),
           FALSE
         ),
@@ -312,6 +389,44 @@ local({
         identical(notification$type, "error"),
         is.null(notification$duration)
       )
+
+      stopifnot(length(harness$log_events) == 1L)
+      failure_log <- harness$log_events[[1L]]
+      stopifnot(
+        identical(failure_log$level, "ERROR"),
+        identical(failure_log$event, "commit_failed"),
+        identical(failure_log$component, "basis_varer_state"),
+        identical(
+          names(failure_log$fields),
+          c(
+            "action",
+            "item_name",
+            "message",
+            "row_count",
+            "duration_ms",
+            "stage",
+            "outcome"
+          )
+        ),
+        identical(failure_log$fields$action, "basis_item_add"),
+        identical(failure_log$fields$item_name, "Kaffe"),
+        identical(
+          failure_log$fields$message,
+          'Varen "Kaffe" kunne ikke tilføjes til bruttolisten.'
+        ),
+        identical(failure_log$fields$row_count, 2L),
+        is.numeric(failure_log$fields$duration_ms),
+        failure_log$fields$duration_ms >= 0,
+        identical(failure_log$fields$stage, "store_commit"),
+        identical(failure_log$fields$outcome, "failed"),
+        inherits(failure_log$error, "error"),
+        grepl(
+          "Fremprovokeret commitfejl.",
+          conditionMessage(failure_log$error),
+          fixed = TRUE
+        )
+      )
+
     }
   )
 })
@@ -355,6 +470,35 @@ local({
           fixed = TRUE
         )
       )
+      stopifnot(length(harness$log_events) == 1L)
+      conflict_log <- harness$log_events[[1L]]
+      stopifnot(
+        identical(conflict_log$level, "WARN"),
+        identical(conflict_log$event, "commit_conflict"),
+        identical(conflict_log$component, "basis_varer_state"),
+        identical(
+          names(conflict_log$fields),
+          c(
+            "message",
+            "row_count",
+            "duration_ms",
+            "stage",
+            "refresh",
+            "outcome"
+          )
+        ),
+        identical(conflict_log$fields$row_count, 2L),
+        conflict_log$fields$duration_ms >= 0,
+        identical(conflict_log$fields$stage, "store_commit"),
+        identical(conflict_log$fields$refresh, "succeeded"),
+        identical(conflict_log$fields$outcome, "rejected"),
+        inherits(conflict_log$error, "basis_varer_store_conflict"),
+        !any(vapply(
+          harness$log_events,
+          function(entry) identical(entry$event, "commit_failed"),
+          logical(1)
+        ))
+      )
 
       retry_candidate <- rbind(
         state_api$read$varer(),
@@ -371,7 +515,13 @@ local({
         all(
           c("Te", "Kaffe") %in%
             state_api$read$varer()$Indkobsliste
-        )
+        ),
+        sum(vapply(
+          harness$log_events,
+          function(entry) identical(entry$event, "commit_conflict"),
+          logical(1)
+        )) == 1L,
+        identical(harness$log_events[[2L]]$event, "commit_succeeded")
       )
     }
   )
@@ -401,7 +551,25 @@ local({
       stopifnot(
         identical(state_api$commit(candidate), FALSE),
         identical(state_api$read$snapshot(), initial),
-        length(harness$notifications) == 1L
+        length(harness$notifications) == 1L,
+        length(harness$log_events) == 1L,
+        identical(
+          harness$log_events[[1L]]$event,
+          "commit_conflict"
+        ),
+        identical(
+          harness$log_events[[1L]]$fields$refresh,
+          "failed"
+        ),
+        identical(
+          harness$log_events[[1L]]$fields$refresh_error_class,
+          "simpleError"
+        ),
+        grepl(
+          "Fremprovokeret læsefejl.",
+          harness$log_events[[1L]]$fields$refresh_error_message,
+          fixed = TRUE
+        )
       )
 
       notification_text <- paste(

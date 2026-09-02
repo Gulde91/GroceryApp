@@ -60,10 +60,14 @@ recipe_catalog_state_harness <- function(snapshot) {
   harness$revision_calls <- character()
   harness$commit_calls <- list()
   harness$notifications <- list()
+  harness$log_events <- list()
   harness$next_revision_number <- 1L
   harness$fail_commit_once <- FALSE
   harness$fail_revision_once <- FALSE
+  harness$fail_revision_always <- FALSE
   harness$fail_read_once <- FALSE
+  harness$invalid_read_once <- FALSE
+  harness$fail_logger <- FALSE
   harness$state_reader <- NULL
   harness$visible_during_commit <- NULL
 
@@ -73,12 +77,21 @@ recipe_catalog_state_harness <- function(snapshot) {
       harness$fail_read_once <- FALSE
       stop("Fremprovokeret læsefejl.", call. = FALSE)
     }
+    if (isTRUE(harness$invalid_read_once)) {
+      harness$invalid_read_once <- FALSE
+      invalid <- harness$disk_snapshot
+      invalid$revision <- NA_character_
+      return(invalid)
+    }
     harness$disk_snapshot
   }
 
   harness$store_revision <- function(data_dir = "./data") {
     harness$revision_calls <- c(harness$revision_calls, data_dir)
-    if (isTRUE(harness$fail_revision_once)) {
+    if (
+      isTRUE(harness$fail_revision_once) ||
+        isTRUE(harness$fail_revision_always)
+    ) {
       harness$fail_revision_once <- FALSE
       stop("Fremprovokeret revisionsfejl.", call. = FALSE)
     }
@@ -115,7 +128,13 @@ recipe_catalog_state_harness <- function(snapshot) {
       stop("Fremprovokeret commitfejl.", call. = FALSE)
     }
     if (!identical(expected_revision, harness$disk_snapshot$revision)) {
-      stop("Fremprovokeret versionskonflikt.", call. = FALSE)
+      stop(
+        paste(
+          "Opskriftsdata er ændret i en anden session.",
+          "Genindlæs appen og prøv igen."
+        ),
+        call. = FALSE
+      )
     }
 
     next_disk_snapshot <- harness$disk_snapshot
@@ -150,6 +169,27 @@ recipe_catalog_state_harness <- function(snapshot) {
     invisible(NULL)
   }
 
+  harness$log_event <- function(
+    level,
+    event,
+    component,
+    fields = list(),
+    error = NULL
+  ) {
+    if (isTRUE(harness$fail_logger)) {
+      stop("Fremprovokeret loggerfejl.", call. = FALSE)
+    }
+
+    harness$log_events[[length(harness$log_events) + 1L]] <- list(
+      level = level,
+      event = event,
+      component = component,
+      fields = fields,
+      error = error
+    )
+    invisible(TRUE)
+  }
+
   harness
 }
 
@@ -167,7 +207,8 @@ recipe_catalog_state_test_server <- function(
       store_read = harness$store_read,
       store_revision = harness$store_revision,
       store_commit = harness$store_commit,
-      notify = harness$notify
+      notify = harness$notify,
+      log_event = harness$log_event
     )
   })
 }
@@ -249,11 +290,29 @@ local({
       candidate$recipes$burger_opskr$maengde[[1]] <- 0.25
       harness$state_reader <- state_api$read$snapshot
 
-      stopifnot(isTRUE(state_api$commit(candidate)))
+      stopifnot(isTRUE(state_api$commit(
+        candidate,
+        log_context = list(
+          action = "recipe_ingredient_update",
+          recipe_key = "burger_opskr",
+          recipe_name = "Burger",
+          ingredient_name = "hakket oksekød",
+          ingredient_row = 1L,
+          success_message = paste(
+            'Ingrediensen "hakket oksekød" i opskriften "Burger"',
+            "blev opdateret."
+          ),
+          failure_message = paste(
+            'Ingrediensen "hakket oksekød" i opskriften "Burger"',
+            "kunne ikke opdateres."
+          )
+        )
+      )))
       session$flushReact()
 
       commit_call <- harness$commit_calls[[1L]]
       published <- state_api$read$snapshot()
+      success_log <- harness$log_events[[1L]]
       stopifnot(
         identical(harness$visible_during_commit, initial),
         identical(commit_call$data_dir, "memory-recipes"),
@@ -282,7 +341,54 @@ local({
         identical(
           invalidations$archived_retter,
           counts_before$archived_retter
-        )
+        ),
+        length(harness$log_events) == 1L,
+        identical(success_log$level, "INFO"),
+        identical(success_log$event, "commit_succeeded"),
+        identical(success_log$component, "recipe_catalog_state"),
+        identical(
+          names(success_log$fields),
+          c(
+            "action",
+            "recipe_key",
+            "recipe_name",
+            "ingredient_name",
+            "ingredient_row",
+            "message",
+            "recipe_count",
+            "changed_recipe_count",
+            "deleted_recipe_count",
+            "duration_ms",
+            "stage",
+            "outcome"
+          )
+        ),
+        identical(
+          success_log$fields$action,
+          "recipe_ingredient_update"
+        ),
+        identical(success_log$fields$recipe_key, "burger_opskr"),
+        identical(success_log$fields$recipe_name, "Burger"),
+        identical(
+          success_log$fields$ingredient_name,
+          "hakket oksekød"
+        ),
+        identical(success_log$fields$ingredient_row, 1L),
+        identical(
+          success_log$fields$message,
+          paste(
+            'Ingrediensen "hakket oksekød" i opskriften "Burger"',
+            "blev opdateret."
+          )
+        ),
+        identical(success_log$fields$recipe_count, 2L),
+        identical(success_log$fields$changed_recipe_count, 1L),
+        identical(success_log$fields$deleted_recipe_count, 0L),
+        is.numeric(success_log$fields$duration_ms),
+        success_log$fields$duration_ms >= 0,
+        identical(success_log$fields$stage, "complete"),
+        identical(success_log$fields$outcome, "succeeded"),
+        is.null(success_log$error)
       )
 
       counts_before_links <- as.list(invalidations)
@@ -312,6 +418,11 @@ local({
         identical(
           invalidations$archived_retter,
           counts_before_links$archived_retter
+        ),
+        length(harness$log_events) == 2L,
+        identical(
+          harness$log_events[[2L]]$event,
+          "commit_succeeded"
         )
       )
     }
@@ -332,7 +443,23 @@ local({
       harness$fail_commit_once <- TRUE
 
       stopifnot(
-        identical(state_api$commit(candidate), FALSE),
+        identical(
+          state_api$commit(
+            candidate,
+            log_context = list(
+              action = "recipe_ingredient_update",
+              recipe_key = "burger_opskr",
+              recipe_name = "Burger",
+              ingredient_name = "hakket oksekød",
+              success_message = "Må ikke bruges ved fejl.",
+              failure_message = paste(
+                'Ingrediensen "hakket oksekød" i opskriften "Burger"',
+                "kunne ikke opdateres."
+              )
+            )
+          ),
+          FALSE
+        ),
         identical(state_api$read$snapshot(), initial),
         identical(harness$disk_snapshot, initial),
         identical(harness$visible_during_commit, initial),
@@ -342,7 +469,37 @@ local({
           "Fremprovokeret commitfejl.",
           paste(unlist(harness$notifications[[1L]]), collapse = " "),
           fixed = TRUE
-        )
+        ),
+        length(harness$log_events) == 1L,
+        identical(harness$log_events[[1L]]$level, "ERROR"),
+        identical(
+          harness$log_events[[1L]]$event,
+          "commit_failed"
+        ),
+        identical(
+          harness$log_events[[1L]]$component,
+          "recipe_catalog_state"
+        ),
+        identical(
+          harness$log_events[[1L]]$fields$stage,
+          "store_commit"
+        ),
+        identical(
+          harness$log_events[[1L]]$fields$outcome,
+          "failed"
+        ),
+        identical(
+          harness$log_events[[1L]]$fields$message,
+          paste(
+            'Ingrediensen "hakket oksekød" i opskriften "Burger"',
+            "kunne ikke opdateres."
+          )
+        ),
+        !identical(
+          harness$log_events[[1L]]$fields$message,
+          "Må ikke bruges ved fejl."
+        ),
+        inherits(harness$log_events[[1L]]$error, "error")
       )
 
       conflicting_disk <- initial
@@ -352,14 +509,30 @@ local({
       notifications_before_conflict <- length(harness$notifications)
 
       stopifnot(
-        identical(state_api$commit(candidate), FALSE),
+        identical(
+          state_api$commit(
+            candidate,
+            log_context = list(
+              action = "recipe_ingredient_update",
+              recipe_key = "burger_opskr",
+              recipe_name = "Burger",
+              ingredient_name = "hakket oksekød",
+              success_message = "Må ikke bruges ved fejl.",
+              failure_message = paste(
+                'Ingrediensen "hakket oksekød" i opskriften "Burger"',
+                "kunne ikke opdateres."
+              )
+            )
+          ),
+          FALSE
+        ),
         length(harness$commit_calls) == calls_before_conflict + 1L,
         length(harness$notifications) ==
           notifications_before_conflict + 1L,
         identical(state_api$read$snapshot(), initial),
         identical(harness$disk_snapshot, conflicting_disk),
         grepl(
-          "versionskonflikt",
+          "ændret i en anden session",
           paste(
             unlist(harness$notifications[[
               notifications_before_conflict + 1L
@@ -367,7 +540,33 @@ local({
             collapse = " "
           ),
           fixed = TRUE
-        )
+        ),
+        length(harness$log_events) == 2L,
+        identical(harness$log_events[[2L]]$level, "WARN"),
+        identical(
+          harness$log_events[[2L]]$event,
+          "commit_conflict"
+        ),
+        identical(
+          harness$log_events[[2L]]$fields$refresh,
+          "not_attempted"
+        ),
+        identical(
+          harness$log_events[[2L]]$fields$outcome,
+          "rejected"
+        ),
+        identical(
+          harness$log_events[[2L]]$fields$message,
+          paste(
+            'Ingrediensen "hakket oksekød" i opskriften "Burger"',
+            "kunne ikke opdateres."
+          )
+        ),
+        !any(vapply(
+          harness$log_events[2L],
+          function(entry) identical(entry$event, "commit_failed"),
+          logical(1)
+        ))
       )
       harness$disk_snapshot <- initial
 
@@ -446,7 +645,8 @@ local({
       stopifnot(
         length(harness$revision_calls) > revisions_before_unchanged,
         length(harness$read_calls) == reads_before_unchanged,
-        identical(state_api$read$snapshot(), initial)
+        identical(state_api$read$snapshot(), initial),
+        length(harness$log_events) == 0L
       )
 
       external <- recipe_catalog_state_fixture(
@@ -461,6 +661,7 @@ local({
 
       session$elapse(1001L)
       session$flushReact()
+      refresh_log <- harness$log_events[[1L]]
       stopifnot(
         length(harness$read_calls) == reads_before_changed + 1L,
         identical(state_api$read$snapshot(), external),
@@ -474,7 +675,17 @@ local({
           state_api$read$archived_retter(),
           external$archived_retter
         ),
-        identical(state_api$read$revision(), external$revision)
+        identical(state_api$read$revision(), external$revision),
+        length(harness$log_events) == 1L,
+        identical(refresh_log$level, "INFO"),
+        identical(refresh_log$event, "poll_refreshed"),
+        identical(refresh_log$component, "recipe_catalog_state"),
+        identical(refresh_log$fields$recipe_count, 2L),
+        is.numeric(refresh_log$fields$duration_ms),
+        refresh_log$fields$duration_ms >= 0,
+        identical(refresh_log$fields$stage, "publish"),
+        identical(refresh_log$fields$outcome, "refreshed"),
+        is.null(refresh_log$error)
       )
     }
   )
@@ -501,7 +712,23 @@ local({
       session$flushReact()
       stopifnot(
         length(harness$read_calls) == reads_before_errors,
-        identical(state_api$read$snapshot(), initial)
+        identical(state_api$read$snapshot(), initial),
+        length(harness$log_events) == 1L,
+        identical(harness$log_events[[1L]]$level, "WARN"),
+        identical(harness$log_events[[1L]]$event, "poll_failed"),
+        identical(
+          harness$log_events[[1L]]$component,
+          "recipe_catalog_state"
+        ),
+        identical(
+          harness$log_events[[1L]]$fields$stage,
+          "revision"
+        ),
+        identical(
+          harness$log_events[[1L]]$fields$outcome,
+          "failed"
+        ),
+        inherits(harness$log_events[[1L]]$error, "error")
       )
 
       harness$fail_read_once <- TRUE
@@ -509,7 +736,8 @@ local({
       session$flushReact()
       stopifnot(
         length(harness$read_calls) == reads_before_errors + 1L,
-        identical(state_api$read$snapshot(), initial)
+        identical(state_api$read$snapshot(), initial),
+        length(harness$log_events) == 1L
       )
 
       session$elapse(1001L)
@@ -517,7 +745,59 @@ local({
       stopifnot(
         length(harness$read_calls) == reads_before_errors + 2L,
         identical(state_api$read$snapshot(), external),
-        identical(state_api$read$revision(), "retry-revision")
+        identical(state_api$read$revision(), "retry-revision"),
+        length(harness$log_events) == 3L,
+        identical(
+          harness$log_events[[2L]]$event,
+          "poll_recovered"
+        ),
+        identical(
+          harness$log_events[[2L]]$fields$outcome,
+          "recovered"
+        ),
+        is.null(harness$log_events[[2L]]$error),
+        identical(
+          harness$log_events[[3L]]$event,
+          "poll_refreshed"
+        )
+      )
+    }
+  )
+})
+
+local({
+  initial <- recipe_catalog_state_fixture()
+  harness <- recipe_catalog_state_harness(initial)
+  harness$fail_logger <- TRUE
+
+  shiny::testServer(
+    recipe_catalog_state_test_server,
+    args = list(harness = harness),
+    {
+      candidate <- state_api$read$snapshot()
+      candidate$links$link[[1L]] <- "https://example.com/logger-test"
+
+      stopifnot(
+        isTRUE(state_api$commit(candidate)),
+        identical(
+          state_api$read$snapshot()$links,
+          candidate$links
+        ),
+        length(harness$log_events) == 0L
+      )
+
+      failed_candidate <- state_api$read$snapshot()
+      failed_candidate$links$link[[1L]] <-
+        "https://example.com/logger-fejl"
+      harness$fail_commit_once <- TRUE
+      stopifnot(
+        identical(state_api$commit(failed_candidate), FALSE),
+        identical(
+          state_api$read$snapshot()$links,
+          candidate$links
+        ),
+        length(harness$notifications) == 1L,
+        length(harness$log_events) == 0L
       )
     }
   )

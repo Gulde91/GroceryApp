@@ -109,6 +109,8 @@ shopping_history_state_changed_fields <- function(
 #' @param store_read Funktion, der læser et komplet historiksnapshot.
 #' @param store_revision Funktion, der læser revisionen på disken.
 #' @param store_save Funktion, der gemmer en indkøbsseddel atomisk.
+#' @param log_event Valgfri callback til struktureret hændelseslogning. Fejl i
+#'   callbacken undertrykkes, så logning aldrig kan ændre state-forløbet.
 #'
 #' @return En liste med `read` og `commit`. `read` indeholder en isoleret
 #'   snapshot-getter og reaktive getters for historiklinjer og revision.
@@ -119,12 +121,20 @@ create_shopping_history_state <- function(
   poll_interval_ms = 2000L,
   store_read = shopping_history_store_read,
   store_revision = shopping_history_store_revision,
-  store_save = shopping_history_store_save
+  store_save = shopping_history_store_save,
+  log_event = function(
+    level,
+    event,
+    component,
+    fields = list(),
+    error = NULL
+  ) invisible(FALSE)
 ) {
   dependencies <- list(
     store_read = store_read,
     store_revision = store_revision,
-    store_save = store_save
+    store_save = store_save,
+    log_event = log_event
   )
   if (!all(vapply(dependencies, is.function, logical(1)))) {
     stop(
@@ -144,6 +154,68 @@ create_shopping_history_state <- function(
 
   initial_snapshot <- store_read(history_dir)
   shopping_history_state_validate_snapshot(initial_snapshot)
+
+  safe_log <- function(
+    level,
+    event,
+    fields = list(),
+    error = NULL
+  ) {
+    tryCatch(
+      {
+        log_event(
+          level = level,
+          event = event,
+          component = "shopping_history_state",
+          fields = fields,
+          error = error
+        )
+        invisible(TRUE)
+      },
+      error = function(log_error) invisible(FALSE)
+    )
+  }
+
+  elapsed_ms <- function(started_at) {
+    as.integer(round(max(
+      0,
+      as.numeric(proc.time()[["elapsed"]] - started_at) * 1000
+    )))
+  }
+
+  poll_failure_active <- FALSE
+  record_poll_failure <- function(error, stage, started_at) {
+    if (isTRUE(poll_failure_active)) return(invisible(NULL))
+
+    poll_failure_active <<- TRUE
+    safe_log(
+      level = "WARN",
+      event = "poll_failed",
+      fields = list(
+        duration_ms = elapsed_ms(started_at),
+        stage = stage,
+        outcome = "failed"
+      ),
+      error = error
+    )
+    invisible(NULL)
+  }
+
+  record_poll_recovery <- function(stage, started_at) {
+    if (!isTRUE(poll_failure_active)) return(invisible(NULL))
+
+    poll_failure_active <<- FALSE
+    safe_log(
+      level = "INFO",
+      event = "poll_recovered",
+      fields = list(
+        duration_ms = elapsed_ms(started_at),
+        stage = stage,
+        outcome = "recovered"
+      )
+    )
+    invisible(NULL)
+  }
 
   canonical_snapshot <- reactiveVal(initial_snapshot)
   field_signals <- reactiveValues(
@@ -183,6 +255,13 @@ create_shopping_history_state <- function(
 
   commit <- function(history_df) {
     current_snapshot <- isolate(canonical_snapshot())
+    started_at <- proc.time()[["elapsed"]]
+    row_count <- if (is.data.frame(history_df)) {
+      nrow(history_df)
+    } else {
+      NA_integer_
+    }
+    commit_stage <- "store_save"
 
     tryCatch(
       {
@@ -191,73 +270,198 @@ create_shopping_history_state <- function(
           expected_revision = current_snapshot$revision,
           history_dir = history_dir
         )
+        commit_stage <- "validate"
         shopping_history_state_validate_snapshot(
           persisted_snapshot
         )
+        commit_stage <- "publish"
         publish(persisted_snapshot)
+        commit_stage <- "complete"
+        safe_log(
+          level = "INFO",
+          event = "commit_succeeded",
+          fields = list(
+            action = "shopping_list_save",
+            message = sprintf(
+              "Indkøbssedlen blev gemt med %d varelinje%s.",
+              row_count,
+              if (identical(row_count, 1L)) "" else "r"
+            ),
+            item_count = as.integer(row_count),
+            row_count = as.integer(nrow(persisted_snapshot$entries)),
+            duration_ms = elapsed_ms(started_at),
+            stage = commit_stage,
+            outcome = "succeeded"
+          )
+        )
         invisible(TRUE)
       },
-      shopping_history_store_conflict = function(error) {
-        refreshed_snapshot <- tryCatch(
-          {
-            latest_snapshot <- store_read(history_dir)
-            shopping_history_state_validate_snapshot(
-              latest_snapshot
-            )
-            publish(latest_snapshot)
-            latest_snapshot
-          },
-          error = identity
-        )
+      error = function(error) {
+        conflict <- inherits(error, "shopping_history_store_conflict")
 
-        if (inherits(refreshed_snapshot, "error")) {
+        if (conflict) {
+          refreshed_snapshot <- tryCatch(
+            {
+              latest_snapshot <- store_read(history_dir)
+              shopping_history_state_validate_snapshot(
+                latest_snapshot
+              )
+              publish(latest_snapshot)
+              latest_snapshot
+            },
+            error = identity
+          )
+          refresh_outcome <- if (inherits(refreshed_snapshot, "error")) {
+            "failed"
+          } else {
+            "succeeded"
+          }
+          conflict_fields <- list(
+            action = "shopping_list_save",
+            message = "Indkøbssedlen kunne ikke gemmes.",
+            item_count = as.integer(row_count),
+            row_count = row_count,
+            duration_ms = elapsed_ms(started_at),
+            stage = commit_stage,
+            refresh = refresh_outcome
+          )
+          if (inherits(refreshed_snapshot, "error")) {
+            conflict_fields$refresh_error_class <-
+              class(refreshed_snapshot)[[1L]]
+            conflict_fields$refresh_error_message <-
+              conditionMessage(refreshed_snapshot)
+          }
+          conflict_fields$outcome <- "rejected"
+          safe_log(
+            level = "WARN",
+            event = "commit_conflict",
+            fields = conflict_fields,
+            error = error
+          )
+
+          if (inherits(refreshed_snapshot, "error")) {
+            stop(
+              paste(
+                "Indkøbshistorikken er ændret i en anden session,",
+                "og den nyeste historik kunne ikke indlæses:",
+                conditionMessage(refreshed_snapshot)
+              ),
+              call. = FALSE
+            )
+          }
+
           stop(
             paste(
-              "Indkøbshistorikken er ændret i en anden session,",
-              "og den nyeste historik kunne ikke indlæses:",
-              conditionMessage(refreshed_snapshot)
+              "Indkøbshistorikken blev ændret i en anden session.",
+              "Historikken er nu opdateret; prøv at gemme igen."
             ),
             call. = FALSE
           )
         }
 
-        stop(
-          paste(
-            "Indkøbshistorikken blev ændret i en anden session.",
-            "Historikken er nu opdateret; prøv at gemme igen."
+        safe_log(
+          level = "ERROR",
+          event = "commit_failed",
+          fields = list(
+            action = "shopping_list_save",
+            message = "Indkøbssedlen kunne ikke gemmes.",
+            item_count = as.integer(row_count),
+            row_count = row_count,
+            duration_ms = elapsed_ms(started_at),
+            stage = commit_stage,
+            outcome = "failed"
           ),
-          call. = FALSE
+          error = error
         )
+        stop(error)
       }
     )
   }
 
   observe({
     invalidateLater(poll_interval_ms, session)
+    started_at <- proc.time()[["elapsed"]]
 
-    disk_revision <- tryCatch(
-      store_revision(history_dir),
-      error = function(error) NULL
+    revision_attempt <- tryCatch(
+      list(
+        ok = TRUE,
+        value = store_revision(history_dir)
+      ),
+      error = function(error) list(ok = FALSE, error = error)
     )
+    if (!isTRUE(revision_attempt$ok)) {
+      record_poll_failure(
+        revision_attempt$error,
+        "revision",
+        started_at
+      )
+      return(invisible(NULL))
+    }
+
+    disk_revision <- revision_attempt$value
+    if (is.null(disk_revision)) {
+      record_poll_failure(
+        simpleError("Historiklageret returnerede ingen revision."),
+        "revision",
+        started_at
+      )
+      return(invisible(NULL))
+    }
+
     known_revision <- isolate(canonical_snapshot()$revision)
-    if (
-      is.null(disk_revision) ||
-        identical(disk_revision, known_revision)
-    ) {
+    if (identical(disk_revision, known_revision)) {
+      record_poll_recovery("revision", started_at)
       return(invisible(NULL))
     }
 
-    refreshed_snapshot <- tryCatch(
-      store_read(history_dir),
-      error = function(error) NULL
+    read_attempt <- tryCatch(
+      list(
+        ok = TRUE,
+        value = store_read(history_dir)
+      ),
+      error = function(error) list(ok = FALSE, error = error)
     )
-    if (is.null(refreshed_snapshot)) {
+    if (!isTRUE(read_attempt$ok)) {
+      record_poll_failure(
+        read_attempt$error,
+        "refresh",
+        started_at
+      )
       return(invisible(NULL))
     }
 
-    tryCatch(
-      publish(refreshed_snapshot),
-      error = function(error) NULL
+    refreshed_snapshot <- read_attempt$value
+    if (is.null(refreshed_snapshot)) {
+      record_poll_failure(
+        simpleError("Historiklageret returnerede intet snapshot."),
+        "refresh",
+        started_at
+      )
+      return(invisible(NULL))
+    }
+
+    publish_error <- tryCatch(
+      {
+        publish(refreshed_snapshot)
+        NULL
+      },
+      error = identity
+    )
+    if (inherits(publish_error, "error")) {
+      record_poll_failure(publish_error, "publish", started_at)
+      return(invisible(NULL))
+    }
+
+    record_poll_recovery("publish", started_at)
+    safe_log(
+      level = "INFO",
+      event = "poll_refreshed",
+      fields = list(
+        row_count = as.integer(nrow(refreshed_snapshot$entries)),
+        duration_ms = elapsed_ms(started_at),
+        stage = "publish",
+        outcome = "refreshed"
+      )
     )
     invisible(NULL)
   })
