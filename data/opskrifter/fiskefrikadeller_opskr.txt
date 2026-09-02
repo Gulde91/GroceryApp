@@ -1,0 +1,3 @@
+Fiskefrikadeller;maengde;enhed;kat_1;kat_2
+remoulade;50;gram;konserves;
+fiskefrikadeller;1;stk;køl;
