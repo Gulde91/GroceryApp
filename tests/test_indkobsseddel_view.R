@@ -45,9 +45,11 @@ payload <- list(
   n_visible = 2L,
   category_break_after = 1L
 )
+copy_request_id <- "cart-draft-view-test"
 widget <- indkobsseddel_cart_widget(
   payload,
-  shiny::NS("kurv")
+  shiny::NS("kurv"),
+  copy_request_id
 )
 stopifnot(
   nrow(widget$x$data) == 4L,
@@ -56,6 +58,14 @@ stopifnot(
     c(payload$visible, payload$hidden)
   ),
   identical(widget$x$options$pageLength, 2L),
+  identical(
+    widget$x$options$buttons[[1L]]$copyInputId,
+    "kurv-cart_copy_done"
+  ),
+  identical(
+    widget$x$options$buttons[[1L]]$copyRequestId,
+    copy_request_id
+  ),
   grepl(
     "[0].forEach",
     as.character(
@@ -132,6 +142,14 @@ expect_indkobsseddel_view_error(
     shiny::NS("kurv")
   ),
   "kategoriskift"
+)
+expect_indkobsseddel_view_error(
+  indkobsseddel_cart_widget(
+    payload,
+    shiny::NS("kurv"),
+    character()
+  ),
+  "kopi-id"
 )
 
 preview_rows <- data.frame(
