@@ -15,10 +15,16 @@ library(shiny)
 #'
 #' @param payload Resultatet fra `cart_copy_payload()`.
 #' @param ns Modulets namespace-funktion.
+#' @param copy_request_id Sessionsbundet id, som følger browserens bekræftelse
+#'   af en vellykket kopiering. `NULL` deaktiverer serverbeskeden.
 #'
 #' @return Et DT-widget-objekt.
 #' @keywords internal
-indkobsseddel_cart_widget <- function(payload, ns) {
+indkobsseddel_cart_widget <- function(
+  payload,
+  ns,
+  copy_request_id = NULL
+) {
   
   lines_visible <- as.character(payload$visible)
   lines_hidden <- as.character(payload$hidden)
@@ -47,6 +53,17 @@ indkobsseddel_cart_widget <- function(payload, ns) {
     )
   if (!isTRUE(valid_category_breaks)) {
     stop("Cartens kategoriskift til kopiering er ugyldige.", call. = FALSE)
+  }
+  if (
+    !is.null(copy_request_id) &&
+      (
+        !is.character(copy_request_id) ||
+          length(copy_request_id) != 1L ||
+          is.na(copy_request_id) ||
+          !nzchar(copy_request_id)
+      )
+  ) {
+    stop("Cartens kopi-id er ugyldigt.", call. = FALSE)
   }
 
   if (n_visible == 0L) {
@@ -108,6 +125,8 @@ indkobsseddel_cart_widget <- function(payload, ns) {
               category_break_after
             )
           ),
+          copyInputId = ns("cart_copy_done"),
+          copyRequestId = copy_request_id,
           attr = list(
             style = paste(
               "background:#22c55e;",

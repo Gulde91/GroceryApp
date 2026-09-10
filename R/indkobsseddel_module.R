@@ -314,6 +314,137 @@ mod_indkobsseddel_dialogs_ui <- function(
   )
 }
 
+#' Opret koordineringen for indkøbssedlens lokale browserkladde
+#'
+#' Controlleren samler sessionen, cartens reaktive state og de signaler, der
+#' sikrer, at en tom startstate ikke gemmes før browserens restore-svar.
+#'
+#' @param session Den aktuelle Shiny-session.
+#' @param ns Modulets namespace-funktion.
+#' @param cart_state Den skrivbare `reactiveVal` med cartens kanoniske state.
+#'
+#' @return En intern controller til browserkladdens livscyklus.
+#' @keywords internal
+indkobsseddel_new_draft_controller <- function(session, ns, cart_state) {
+  stopifnot(is.function(ns), is.function(cart_state))
+
+  list(
+    session = session,
+    ns = ns,
+    cart_state = cart_state,
+    request_id = paste0("cart-draft-", session$token),
+    signals = reactiveValues(
+      hydrated = FALSE,
+      changed_before_restore = FALSE,
+      storage_available = TRUE,
+      warning_shown = FALSE
+    )
+  )
+}
+
+#' Vis højst én advarsel om browserkladden pr. session
+#'
+#' Gentagne storage-fejl må ikke fylde brugerfladen med ens notifikationer.
+#'
+#' @param controller Controlleren fra
+#'   `indkobsseddel_new_draft_controller()`.
+#' @param message Den danske tekst, der skal vises.
+#'
+#' @return `NULL` usynligt.
+#' @keywords internal
+indkobsseddel_show_draft_warning <- function(controller, message) {
+  if (isTRUE(isolate(controller$signals$warning_shown))) {
+    return(invisible(NULL))
+  }
+
+  controller$signals$warning_shown <- TRUE
+  showNotification(
+    message,
+    type = "warning",
+    duration = 8
+  )
+  invisible(NULL)
+}
+
+#' Send den aktuelle cart til browserens lokale kladdelager
+#'
+#' En tom cart rydder kladden. Andre states kodes som valideret JSON, og alle
+#' writes er blokeret, indtil restore-håndtrykket er afsluttet.
+#'
+#' @param controller Controlleren fra
+#'   `indkobsseddel_new_draft_controller()`.
+#' @param state Den kanoniske cart-state, der skal gemmes.
+#'
+#' @return `TRUE` usynligt, når en browserbesked blev sendt, ellers `FALSE`.
+#' @keywords internal
+indkobsseddel_persist_cart_draft <- function(controller, state) {
+  if (
+    !isTRUE(isolate(controller$signals$hydrated)) ||
+      !isTRUE(isolate(controller$signals$storage_available))
+  ) {
+    return(invisible(FALSE))
+  }
+
+  is_empty <- nrow(state$rows) == 0L
+  message <- list(
+    clear = is_empty,
+    status_input_id = controller$ns("cart_draft_status"),
+    request_id = controller$request_id
+  )
+  if (!is_empty) {
+    encoded <- tryCatch(
+      cart_draft_encode(state),
+      error = identity
+    )
+    if (inherits(encoded, "error")) {
+      indkobsseddel_show_draft_warning(
+        controller,
+        "Indkøbssedlen kunne ikke gemmes som lokal kladde."
+      )
+      return(invisible(FALSE))
+    }
+    message$value <- encoded
+  }
+
+  controller$session$sendCustomMessage(
+    "groceryapp_cart_draft_save",
+    message
+  )
+  invisible(TRUE)
+}
+
+#' Opdatér carten og autosave den efter restore-håndtrykket
+#'
+#' Alle cart-mutationer går gennem denne funktion. En reel ændring før
+#' restore markeres, så et forsinket browsersvar aldrig overskriver brugerens
+#' nyere handling.
+#'
+#' @param controller Controlleren fra
+#'   `indkobsseddel_new_draft_controller()`.
+#' @param next_state Den nye kanoniske cart-state.
+#'
+#' @return Den aktuelle cart-state usynligt.
+#' @keywords internal
+indkobsseddel_set_cart <- function(controller, next_state) {
+  .assert_cart_state(next_state)
+  if (nrow(next_state$rows) == 0L) {
+    next_state <- new_cart_state()
+  }
+  current_state <- isolate(controller$cart_state())
+  if (identical(next_state, current_state)) {
+    return(invisible(current_state))
+  }
+
+  controller$cart_state(next_state)
+  if (isTRUE(isolate(controller$signals$hydrated))) {
+    indkobsseddel_persist_cart_draft(controller, next_state)
+  } else {
+    controller$signals$changed_before_restore <- TRUE
+  }
+
+  invisible(next_state)
+}
+
 #' Kør serverlogikken til fanen Indkøbsseddel
 #'
 #' Modulet ejer hele indkøbssedlens skrivbare state i én intern
@@ -363,6 +494,183 @@ mod_indkobsseddel_server <- function(
   ns <- session$ns
   rv_cart <- reactiveVal(new_cart_state())
   rv_edit_line_id <- reactiveVal(NULL)
+  draft_controller <- indkobsseddel_new_draft_controller(
+    session,
+    ns,
+    rv_cart
+  )
+
+  observeEvent(
+    TRUE,
+    {
+      if (!isTRUE(isolate(draft_controller$signals$hydrated))) {
+        session$sendCustomMessage(
+          "groceryapp_cart_draft_load",
+          list(
+            input_id = ns("cart_draft_restore"),
+            request_id = draft_controller$request_id
+          )
+        )
+      }
+    },
+    once = TRUE,
+    priority = 1000
+  )
+
+  observeEvent(
+    input$cart_draft_restore,
+    {
+      if (isTRUE(isolate(draft_controller$signals$hydrated))) {
+        return(invisible(NULL))
+      }
+
+      response <- input$cart_draft_restore
+      if (
+        !is.list(response) ||
+          !is.character(response$request_id) ||
+          length(response$request_id) != 1L ||
+          !identical(response$request_id, draft_controller$request_id)
+      ) {
+        return(invisible(NULL))
+      }
+      status <- if (
+        is.character(response$status) &&
+          length(response$status) == 1L &&
+          !is.na(response$status)
+      ) {
+        response$status
+      } else {
+        "unavailable"
+      }
+      changed_before_restore <- isTRUE(
+        isolate(draft_controller$signals$changed_before_restore)
+      )
+      restored <- FALSE
+      invalid_draft <- identical(status, "invalid")
+
+      if (identical(status, "found") && !changed_before_restore) {
+        candidate <- cart_draft_decode(response$value)
+        if (is.null(candidate)) {
+          invalid_draft <- TRUE
+        } else {
+          rv_cart(candidate)
+          restored <- nrow(candidate$rows) > 0L
+        }
+      }
+
+      if (identical(status, "unavailable")) {
+        draft_controller$signals$storage_available <- FALSE
+      } else if (!status %in% c("empty", "found", "invalid")) {
+        draft_controller$signals$storage_available <- FALSE
+        status <- "unavailable"
+      }
+      draft_controller$signals$hydrated <- TRUE
+
+      if (identical(status, "unavailable")) {
+        indkobsseddel_show_draft_warning(
+          draft_controller,
+          paste(
+            "Browseren tillader ikke lokal kladdelagring.",
+            "Indkøbssedlen bevares kun, mens denne session er aktiv."
+          )
+        )
+      } else {
+        indkobsseddel_persist_cart_draft(
+          draft_controller,
+          isolate(rv_cart())
+        )
+      }
+
+      if (isTRUE(invalid_draft)) {
+        indkobsseddel_show_draft_warning(
+          draft_controller,
+          paste(
+            "En beskadiget lokal kladde kunne ikke gendannes.",
+            "Den aktuelle indkøbsseddel bruges i stedet."
+          )
+        )
+      } else if (isTRUE(restored)) {
+        session$sendCustomMessage(
+          "show_toast",
+          list(
+            text = "Igangværende indkøbsseddel gendannet ✔",
+            tone = "blue"
+          )
+        )
+      }
+
+      invisible(NULL)
+    },
+    ignoreNULL = TRUE,
+    priority = 1000
+  )
+
+  observeEvent(
+    input$cart_draft_status,
+    {
+      response <- input$cart_draft_status
+      if (
+        !is.list(response) ||
+          !is.character(response$request_id) ||
+          length(response$request_id) != 1L ||
+          !identical(response$request_id, draft_controller$request_id)
+      ) {
+        return(invisible(NULL))
+      }
+      status <- if (
+        is.character(response$status) &&
+          length(response$status) == 1L
+      ) {
+        response$status
+      } else {
+        ""
+      }
+      if (status %in% c("unavailable", "conflict")) {
+        draft_controller$signals$storage_available <- FALSE
+        if (identical(status, "conflict")) {
+          indkobsseddel_show_draft_warning(
+            draft_controller,
+            paste(
+              "Indkøbssedlen er ændret i en anden browserfane.",
+              "Genindlæs siden, før du fortsætter."
+            )
+          )
+        } else {
+          indkobsseddel_show_draft_warning(
+            draft_controller,
+            paste(
+              "Browserens lokale kladde kunne ikke gemmes.",
+              "Kontrollér browserens lagerindstillinger."
+            )
+          )
+        }
+      }
+    },
+    ignoreNULL = TRUE
+  )
+
+  observeEvent(
+    input$cart_copy_done,
+    {
+      response <- input$cart_copy_done
+      if (
+        !is.list(response) ||
+          !is.character(response$request_id) ||
+          length(response$request_id) != 1L ||
+          !identical(response$request_id, draft_controller$request_id)
+      ) {
+        return(invisible(NULL))
+      }
+      if (nrow(isolate(rv_cart())$rows) == 0L) {
+        return(invisible(NULL))
+      }
+
+      indkobsseddel_set_cart(draft_controller, new_cart_state())
+      invisible(NULL)
+    },
+    ignoreNULL = TRUE,
+    priority = 1000
+  )
 
   cart_current <- reactive({
     rv_cart()
@@ -526,7 +834,7 @@ mod_indkobsseddel_server <- function(
     indkobsseddel_hide_dialog("recipe_dialog", ns)
   })
 
-  observeEvent(input$add_recipe, {
+  observeEvent(input$add_recipe, ignoreInit = TRUE, {
     persons <- indkobsseddel_person_count(input$recipe_persons)
     if (is.na(persons)) {
       showNotification(
@@ -545,7 +853,8 @@ mod_indkobsseddel_server <- function(
       return(invisible(NULL))
     }
 
-    rv_cart(
+    indkobsseddel_set_cart(
+      draft_controller,
       cart_add_recipe(
         rv_cart(),
         selection$rows,
@@ -578,7 +887,7 @@ mod_indkobsseddel_server <- function(
     indkobsseddel_hide_dialog("catalog_dialog", ns)
   })
 
-  observeEvent(input$add_catalog_item, {
+  observeEvent(input$add_catalog_item, ignoreInit = TRUE, {
     selected_name <- indkobsseddel_clean_text(input$catalog_item)
     if (!nzchar(selected_name)) {
       showNotification(
@@ -635,7 +944,10 @@ mod_indkobsseddel_server <- function(
 
     selected_row$maengde <- base_amount * amount
     selected_row$enhed <- unit
-    rv_cart(cart_add_rows(rv_cart(), selected_row))
+    indkobsseddel_set_cart(
+      draft_controller,
+      cart_add_rows(rv_cart(), selected_row)
+    )
     indkobsseddel_hide_dialog("catalog_dialog", ns)
   })
 
@@ -655,7 +967,7 @@ mod_indkobsseddel_server <- function(
     indkobsseddel_hide_dialog("manual_dialog", ns)
   })
 
-  observeEvent(input$add_manual_item, {
+  observeEvent(input$add_manual_item, ignoreInit = TRUE, {
     name <- indkobsseddel_clean_text(input$manual_name)
     amount <- indkobsseddel_positive_number(input$manual_amount)
     unit <- indkobsseddel_clean_text(input$manual_unit)
@@ -690,7 +1002,10 @@ mod_indkobsseddel_server <- function(
       kat_2 = indkobsseddel_clean_text(input$manual_category_2),
       stringsAsFactors = FALSE
     )
-    rv_cart(cart_add_rows(rv_cart(), new_row))
+    indkobsseddel_set_cart(
+      draft_controller,
+      cart_add_rows(rv_cart(), new_row)
+    )
     indkobsseddel_reset_manual_dialog(
       session,
       varer_current()
@@ -698,11 +1013,14 @@ mod_indkobsseddel_server <- function(
     indkobsseddel_hide_dialog("manual_dialog", ns)
   })
 
-  observeEvent(input$delete_pressed, {
+  observeEvent(input$delete_pressed, ignoreInit = TRUE, {
     line_id <- indkobsseddel_clean_text(input$delete_pressed)
     if (!nzchar(line_id)) return(invisible(NULL))
 
-    rv_cart(cart_delete_line(rv_cart(), line_id))
+    indkobsseddel_set_cart(
+      draft_controller,
+      cart_delete_line(rv_cart(), line_id)
+    )
   })
 
   observeEvent(input$edit_pressed, ignoreInit = TRUE, {
@@ -728,7 +1046,7 @@ mod_indkobsseddel_server <- function(
     indkobsseddel_show_dialog("edit_dialog", ns)
   })
 
-  observeEvent(input$confirm_edit, {
+  observeEvent(input$confirm_edit, ignoreInit = TRUE, {
     line_id <- rv_edit_line_id()
     if (is.null(line_id)) return(invisible(NULL))
 
@@ -741,7 +1059,10 @@ mod_indkobsseddel_server <- function(
       return(invisible(NULL))
     }
 
-    rv_cart(cart_edit_line(rv_cart(), line_id, value))
+    indkobsseddel_set_cart(
+      draft_controller,
+      cart_edit_line(rv_cart(), line_id, value)
+    )
     rv_edit_line_id(NULL)
     indkobsseddel_hide_dialog("edit_dialog", ns)
   })
@@ -751,7 +1072,7 @@ mod_indkobsseddel_server <- function(
     indkobsseddel_hide_dialog("edit_dialog", ns)
   })
 
-  observeEvent(input$save_history, {
+  observeEvent(input$save_history, ignoreInit = TRUE, {
     history_df <- indkobsseddel_history_frame(copy_payload())
     result <- indkobsseddel_try_save_history(
       save_cart,
@@ -788,7 +1109,11 @@ mod_indkobsseddel_server <- function(
 
   output$cart_table <- renderDT(
     {
-      indkobsseddel_cart_widget(copy_payload(), ns)
+      indkobsseddel_cart_widget(
+        copy_payload(),
+        ns,
+        draft_controller$request_id
+      )
     },
     server = FALSE
   )

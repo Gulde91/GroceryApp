@@ -980,6 +980,7 @@ expected_r_script_names <- c(
   "app_log.R",
   "basis_varer_state.R",
   "basis_varer_store.R",
+  "cart_draft.R",
   "cart_state.R",
   "data.R",
   "funktioner.R",

@@ -30,10 +30,18 @@ window.copyWithFeedback = function (e, dt, node, config) {
     ? $.fn.dataTable.ext.buttons.copyHtml5.action
     : null;
 
-  if (copyAction) {
-    copyAction.call(this, e, dt, node, config);
-  } else {
+  if (!copyAction) {
     console.warn("copyHtml5 action ikke fundet – tjek DataTables Buttons setup.");
+    showCopyToast("Indkøbslisten kunne ikke kopieres", "blue");
+    return;
+  }
+
+  try {
+    copyAction.call(this, e, dt, node, config);
+  } catch (error) {
+    console.warn("Kopiering af indkøbslisten mislykkedes.", error);
+    showCopyToast("Indkøbslisten kunne ikke kopieres", "blue");
+    return;
   }
 
   // 2) Lille push-effekt på knappen
@@ -43,8 +51,67 @@ window.copyWithFeedback = function (e, dt, node, config) {
     $btn.removeClass("copy-btn-pushed");
   }, 150);
 
-  // 3) Lille toast-notifikation
-  showCopyToast("Indkøbsliste kopieret ✔", "green");
+  // 3) DataTables viser et textarea, hvis browseren kræver manuel Ctrl+C.
+  //    Uden textarea er execCommand-kopieringen allerede lykkedes.
+  var info = document.getElementById("datatables_buttons_info");
+  var manualTextarea = info ? info.querySelector("textarea") : null;
+
+  if (!info) {
+    showCopyToast("Kopieringen kunne ikke bekræftes – sedlen er bevaret", "blue");
+    return;
+  }
+
+  function notifyCopyCompleted() {
+    showCopyToast("Indkøbsliste kopieret ✔", "green");
+    if (
+      config &&
+      typeof config.copyInputId === "string" &&
+      typeof config.copyRequestId === "string" &&
+      window.Shiny &&
+      window.Shiny.setInputValue
+    ) {
+      window.Shiny.setInputValue(
+        config.copyInputId,
+        {
+          request_id: config.copyRequestId,
+          nonce: Date.now()
+        },
+        { priority: "event" }
+      );
+    }
+  }
+
+  if (!manualTextarea) {
+    notifyCopyCompleted();
+    return;
+  }
+
+  // Ved manuel fallback ryddes sedlen først, når browseren faktisk udsender
+  // copy/cut-eventet. Klik udenfor, Escape eller timeout bevarer sedlen.
+  var cleanupTimer = null;
+  var completed = false;
+  var cleanup = function () {
+    manualTextarea.removeEventListener("copy", completeManualCopy);
+    manualTextarea.removeEventListener("cut", completeManualCopy);
+    if (info) info.removeEventListener("click", cleanup);
+    document.removeEventListener("keydown", cancelOnEscape);
+    if (cleanupTimer) clearTimeout(cleanupTimer);
+  };
+  var completeManualCopy = function () {
+    if (completed) return;
+    completed = true;
+    cleanup();
+    notifyCopyCompleted();
+  };
+  var cancelOnEscape = function (event) {
+    if (event.key === "Escape" || event.keyCode === 27) cleanup();
+  };
+
+  manualTextarea.addEventListener("copy", completeManualCopy);
+  manualTextarea.addEventListener("cut", completeManualCopy);
+  if (info) info.addEventListener("click", cleanup);
+  document.addEventListener("keydown", cancelOnEscape);
+  cleanupTimer = setTimeout(cleanup, 60000);
 };
 
 if (window.Shiny && window.Shiny.addCustomMessageHandler) {
