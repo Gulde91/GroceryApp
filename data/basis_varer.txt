@@ -12,6 +12,7 @@
 "ciabattaboller",1,"pose(r)","konserves","brød"
 "farvet flydende vaskemiddel",1,"stk","husholdning",""
 "figenstænger",1,"pakke(r)","konserves",""
+"flydende honning",1,"stk","konserves",""
 "flydende margarine",1,"stk","konserves",""
 "fryseposer4L",1,"stk","husholdning",""
 "fryseposer8L",1,"stk","husholdning",""

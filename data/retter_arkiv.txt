@@ -1,1 +1,3 @@
 retter;key;type
+Gnocchi med kylling og chorizo;gnocchi_med_kylling_og_chorizo_opskr;kylling
+Kalkunschnitzel;kalkunschnitzel_opskr;kalkun
